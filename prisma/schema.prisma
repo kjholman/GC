@@ -1,0 +1,286 @@
+// Genesys Capital — AI Investment Analyst
+// Data model for deal flow, AI analyses, and the firm's portfolio knowledge base.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Identity & access ──────────────────────────────────────────────────────
+
+enum Role {
+  ANALYST
+  PARTNER
+  ADMIN
+}
+
+/// A user exists only if an administrator has allow-listed their email.
+/// There are no passwords: sign-in is a one-time code sent to this address.
+model User {
+  id          String    @id @default(cuid())
+  email       String    @unique
+  name        String?
+  title       String?
+  role        Role      @default(ANALYST)
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  lastLoginAt DateTime?
+
+  sessions      Session[]
+  feedback      AnalysisFeedback[]
+  dealsOwned    Deal[]       @relation("DealOwner")
+  documents     Document[]
+  analyses      Analysis[]
+  activities    Activity[]
+  auditEntries  AuditLog[]
+}
+
+model LoginCode {
+  id         String    @id @default(cuid())
+  email      String
+  codeHash   String
+  expiresAt  DateTime
+  attempts   Int       @default(0)
+  consumedAt DateTime?
+  ip         String?
+  createdAt  DateTime  @default(now())
+
+  @@index([email, createdAt])
+}
+
+model Session {
+  id         String    @id @default(cuid())
+  userId     String
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime  @default(now())
+  lastSeenAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ─── Deal flow ──────────────────────────────────────────────────────────────
+
+enum DealStatus {
+  SCREENING     // uploaded, first analysis running
+  PENDING_INFO  // worth pursuing, but we need more from the founders
+  DILIGENCE     // passed screening — formal due diligence
+  IC_REVIEW     // with Investment Committee
+  INVESTED
+  REJECTED
+  ARCHIVED
+}
+
+model Deal {
+  id            String     @id @default(cuid())
+  companyName   String
+  oneLiner      String?
+  sector        String?
+  modality      String?
+  stage         String?
+  location      String?
+  website       String?
+  roundSize     String?
+  contactName   String?
+  contactEmail  String?
+  source        String?
+  status        DealStatus @default(SCREENING)
+  latestScore   Int?
+  recommendation String?
+  ownerId       String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  owner      User?      @relation("DealOwner", fields: [ownerId], references: [id])
+  documents  Document[]
+  analyses   Analysis[]
+  activities Activity[]
+
+  @@index([status])
+  @@index([updatedAt])
+}
+
+enum DocumentKind {
+  PITCH_DECK
+  FINANCIAL_MODEL
+  SCIENTIFIC_DATA
+  IP_DOCUMENTATION
+  CLINICAL_REGULATORY
+  CORRESPONDENCE
+  OTHER
+}
+
+model Document {
+  id           String       @id @default(cuid())
+  dealId       String
+  filename     String
+  mimeType     String
+  sizeBytes    Int
+  sha256       String
+  kind         DocumentKind @default(OTHER)
+  /// Which analysis round introduced this document (1 = original pitch).
+  round        Int          @default(1)
+  data         Bytes
+  /// Text extracted server-side for non-PDF formats (pptx, docx, xlsx, csv, txt).
+  extractedText String?
+  uploadedById String?
+  createdAt    DateTime     @default(now())
+
+  deal       Deal  @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  uploadedBy User? @relation(fields: [uploadedById], references: [id])
+
+  @@index([dealId])
+}
+
+enum AnalysisStatus {
+  QUEUED
+  RUNNING
+  COMPLETE
+  FAILED
+}
+
+enum AnalysisTrigger {
+  INITIAL_SCREEN
+  NEW_INFORMATION
+  RERUN
+}
+
+model Analysis {
+  id             String          @id @default(cuid())
+  dealId         String
+  version        Int
+  trigger        AnalysisTrigger @default(INITIAL_SCREEN)
+  status         AnalysisStatus  @default(QUEUED)
+  progress       String?
+  /// Context the analyst typed when submitting (e.g. "Founders replied with CMC data").
+  analystContext String?
+  recommendation String?
+  overallScore   Int?
+  memo           Json?
+  research       String?
+  model          String?
+  inputTokens    Int?
+  outputTokens   Int?
+  error          String?
+  createdById    String?
+  createdAt      DateTime        @default(now())
+  startedAt      DateTime?
+  completedAt    DateTime?
+
+  deal      Deal  @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  createdBy User? @relation(fields: [createdById], references: [id])
+  feedback  AnalysisFeedback[]
+
+  @@unique([dealId, version])
+  @@index([status])
+}
+
+model Activity {
+  id        String   @id @default(cuid())
+  dealId    String
+  userId    String?
+  type      String
+  message   String
+  createdAt DateTime @default(now())
+
+  deal Deal  @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([dealId, createdAt])
+}
+
+// ─── Institutional memory ───────────────────────────────────────────────────
+
+enum PortfolioOutcome {
+  ACTIVE
+  IPO
+  ACQUIRED
+  MERGED
+  WOUND_DOWN
+  UNKNOWN
+}
+
+/// Genesys Capital's historical investments. Injected into every analysis so
+/// the model benchmarks new opportunities against what the firm has actually
+/// backed — and how those bets turned out.
+model PortfolioCompany {
+  id           String           @id @default(cuid())
+  name         String           @unique
+  sector       String
+  modality     String?
+  indication   String?
+  description  String
+  yearInvested Int?
+  stageAtEntry String?
+  outcome      PortfolioOutcome @default(UNKNOWN)
+  outcomeNotes String?
+  lessons      String?
+  website      String?
+  /// false = imported from public sources and awaiting confirmation by the firm.
+  verified     Boolean          @default(false)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  entity    String?
+  entityId  String?
+  meta      Json?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([createdAt])
+}
+
+// ─── Analyst calibration ────────────────────────────────────────────────────
+
+enum FeedbackVerdict {
+  AGREE
+  TOO_OPTIMISTIC
+  TOO_PESSIMISTIC
+  WRONG_DECISION
+}
+
+/// A partner's or analyst's critique of an AI memo. Recent feedback is fed
+/// back into every future analysis so the AI analyst converges on the
+/// partnership's own judgement.
+model AnalysisFeedback {
+  id                      String          @id @default(cuid())
+  analysisId              String
+  userId                  String
+  verdict                 FeedbackVerdict
+  correctedRecommendation String?
+  comment                 String
+  createdAt               DateTime        @default(now())
+
+  analysis Analysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id])
+
+  @@index([createdAt])
+}
+
+/// Standing investment principles written by the partnership ("we do not
+/// back single-asset companies without composition-of-matter IP", …).
+model InvestmentPrinciple {
+  id        String   @id @default(cuid())
+  title     String
+  body      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
