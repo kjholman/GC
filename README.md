@@ -89,6 +89,15 @@ Choose one:
 - Set `SEED_ADMIN_EMAILS` / `SEED_ANALYST_EMAILS` and run `npm run db:seed`.
 - An admin adds users under **Administration → Authorise users**.
 
+## Deploying on Render
+1. In Render: **New → Blueprint**, select this repository. `render.yaml` creates the web service and a Postgres database.
+2. When prompted, enter `ANTHROPIC_API_KEY`, `SEED_ADMIN_EMAILS` (your email) and `APP_URL` (the Render URL). Leave SMTP blank for now.
+3. Deploy. Migrations and seeding run automatically on every start.
+4. **Testing mode:** `ENABLE_ADMIN_BYPASS=true` shows a "Continue as administrator" button on the sign-in page, and a red banner reminds everyone it is on.
+   - Set `ADMIN_BYPASS_UNTIL` (YYYY-MM-DD) so it switches itself off.
+   - Set the flag to `false` before uploading confidential decks.
+   - Until SMTP is configured, sign-in codes appear in the Render logs.
+
 ## Production checklist
 1. **Hosting.** Use Canadian data residency, for example Azure Canada Central or AWS ca-central-1, with managed Postgres (encrypted, with point-in-time recovery).
 2. **AUTH_SECRET.** At least 32 random characters.

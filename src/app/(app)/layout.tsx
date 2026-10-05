@@ -1,4 +1,5 @@
 import { requireUser, hasRole } from "@/lib/auth/session";
+import { env } from "@/lib/env";
 import { signOutAction } from "@/lib/auth/actions";
 import { Logo } from "@/components/Logo";
 import { Nav } from "@/components/Nav";
@@ -43,6 +44,11 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
         </div>
       </aside>
       <main className="min-w-0 flex-1 px-10 py-10 xl:px-14">
+        {env.adminBypassEnabled && (
+          <div className="no-print mx-auto mb-6 max-w-[1280px] rounded-[3px] border border-[#e3c3be] bg-neg-bg px-4 py-2 text-[12.5px] text-neg">
+            Testing mode: the sign-in bypass is on. Anyone with this link can enter as an administrator. Set ENABLE_ADMIN_BYPASS=false before real use.
+          </div>
+        )}
         <div className="mx-auto max-w-[1280px]">{children}</div>
       </main>
     </div>

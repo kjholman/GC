@@ -1,0 +1,62 @@
+# Render Blueprint: web service + managed Postgres.
+# Deploy: Render dashboard → New → Blueprint → select this repo.
+# Values marked `sync: false` are entered in the dashboard on first deploy.
+services:
+  - type: web
+    name: genesys-analyst
+    runtime: node
+    # Starter or higher: AI analyses run in the background after an upload,
+    # and free instances sleep, which would interrupt them.
+    plan: starter
+    region: ohio
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start:render
+    healthCheckPath: /login
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: genesys-analyst-db
+          property: connectionString
+      - key: AUTH_SECRET
+        generateValue: true
+      - key: ALLOWED_EMAIL_DOMAINS
+        value: genesyscapital.com
+      - key: SEED_ADMIN_EMAILS
+        sync: false
+      - key: APP_URL
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ANTHROPIC_MODEL
+        value: claude-opus-5-5
+      - key: ANALYSIS_EFFORT
+        value: high
+      - key: ENABLE_WEB_RESEARCH
+        value: "true"
+      # TEMPORARY testing aid. Turn off (false) before real use.
+      - key: ENABLE_ADMIN_BYPASS
+        value: "true"
+      - key: ADMIN_BYPASS_UNTIL
+        sync: false
+      # Until SMTP is configured, sign-in codes are printed to the Render log.
+      - key: MAIL_TRANSPORT
+        value: console
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+
+databases:
+  - name: genesys-analyst-db
+    plan: basic-256mb
+    region: ohio
+    postgresMajorVersion: "16"
+    databaseName: genesys_analyst

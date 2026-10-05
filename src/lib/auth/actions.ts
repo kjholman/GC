@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "../db";
-import { isAllowedDomain, normalizeEmail } from "../env";
+import { env, isAllowedDomain, normalizeEmail } from "../env";
 import { sendLoginCode } from "../mailer";
 import { audit, clientIp } from "../audit";
 import { generateCode, hashCode, safeEqualHex } from "./crypto";
@@ -101,4 +101,21 @@ export async function signOutAction() {
   await destroySession();
   if (user) await audit("auth.signed_out", { userId: user.id });
   redirect("/login");
+}
+
+/**
+ * TEMPORARY: signs in as the first administrator without an emailed code.
+ * Only works while ENABLE_ADMIN_BYPASS=true. Every use is audit-logged.
+ */
+export async function adminBypassAction() {
+  if (!env.adminBypassEnabled) redirect("/login");
+  let admin = await db.user.findFirst({ where: { role: "ADMIN", active: true }, orderBy: { createdAt: "asc" } });
+  if (!admin) {
+    const email = normalizeEmail((process.env.SEED_ADMIN_EMAILS ?? "").split(",")[0] || "admin@genesyscapital.com");
+    admin = await db.user.upsert({ where: { email }, create: { email, role: "ADMIN" }, update: { role: "ADMIN", active: true } });
+  }
+  await db.user.update({ where: { id: admin.id }, data: { lastLoginAt: new Date() } });
+  await createSession(admin.id);
+  await audit("auth.admin_bypass_used", { userId: admin.id });
+  redirect("/");
 }

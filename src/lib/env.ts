@@ -34,6 +34,17 @@ export const env = {
   get webResearchEnabled() {
     return (process.env.ENABLE_WEB_RESEARCH ?? "true") !== "false";
   },
+  /**
+   * TEMPORARY testing aid: shows a "Continue as administrator" button on the
+   * sign-in page. Off unless ENABLE_ADMIN_BYPASS=true; also switches itself
+   * off after ADMIN_BYPASS_UNTIL (YYYY-MM-DD) if that is set.
+   */
+  get adminBypassEnabled() {
+    if (process.env.ENABLE_ADMIN_BYPASS !== "true") return false;
+    const until = process.env.ADMIN_BYPASS_UNTIL;
+    if (until && !Number.isNaN(Date.parse(until)) && Date.now() > Date.parse(until) + 24 * 3600 * 1000) return false;
+    return true;
+  },
   smtp: {
     get host() { return process.env.SMTP_HOST; },
     get port() { return Number(process.env.SMTP_PORT ?? 587); },

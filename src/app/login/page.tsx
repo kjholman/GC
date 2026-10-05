@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/session";
 import { Logo } from "@/components/Logo";
+import { env } from "@/lib/env";
+import { adminBypassAction } from "@/lib/auth/actions";
 import { LoginForm } from "./LoginForm";
 
 export const metadata = { title: "Sign in" };
@@ -45,6 +47,17 @@ export default async function LoginPage() {
             <Logo tone="dark" />
           </div>
           <LoginForm />
+          {env.adminBypassEnabled && (
+            <form action={adminBypassAction} className="mt-8 rounded-[3px] border border-dashed border-[#e3c3be] bg-neg-bg/60 p-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-neg">Testing only</div>
+              <p className="mt-1 mb-3 text-[12.5px] leading-relaxed text-ink-soft">
+                Sign-in bypass is enabled for this environment. Disable it before uploading confidential materials.
+              </p>
+              <button className="w-full rounded-[3px] border border-neg bg-paper px-4 py-2.5 text-[13.5px] font-medium text-neg hover:bg-neg-bg">
+                Continue as administrator
+              </button>
+            </form>
+          )}
           <p className="mt-12 text-[11.5px] leading-relaxed text-muted">
             Access is restricted to authorised Genesys Capital personnel. All activity, including sign-in attempts, is
             recorded. Need access? Contact your platform administrator.
