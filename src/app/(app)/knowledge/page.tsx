@@ -30,7 +30,7 @@ export default async function KnowledgePage() {
       <PageHeader
         eyebrow="Institutional memory"
         title="Knowledge base"
-        subtitle="Genesys Capital's investment history. Every analysis benchmarks new opportunities against these companies and their outcomes — the more complete and candid this record, the sharper the analyst's judgement."
+        subtitle="Genesys Capital's investment history. Every analysis benchmarks new opportunities against these companies and their outcomes. The more complete and candid this record, the sharper the analyst's judgement."
       />
       <div className="mb-8 grid grid-cols-2 gap-px md:grid-cols-4 overflow-hidden rounded-[3px] border border-line bg-line">
         {[

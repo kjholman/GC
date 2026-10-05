@@ -1,0 +1,2 @@
+company,year,decision,rationale,outcome,outcome_notes,sector,modality,indication,stage,deck_filename
+"Example Therapeutics",2019,PASSED_AT_SCREENING,"Single in-vitro dataset; no composition-of-matter IP",UNKNOWN,,Therapeutics,Small molecule,NASH,Discovery,example-deck.pdf

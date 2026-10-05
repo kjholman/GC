@@ -17,9 +17,9 @@ export function AddUsersForm() {
         </Field>
         <Field label="Role">
           <select name="role" className={inputCls} defaultValue="ANALYST">
-            <option value="ANALYST">Analyst — screen and analyse deals</option>
-            <option value="PARTNER">Partner — plus IC decisions and knowledge base</option>
-            <option value="ADMIN">Administrator — plus user management</option>
+            <option value="ANALYST">Analyst: screen and analyse deals</option>
+            <option value="PARTNER">Partner: also IC decisions and knowledge base</option>
+            <option value="ADMIN">Administrator: also user management</option>
           </select>
         </Field>
         {state.error && <p className="text-[13px] text-neg">{state.error}</p>}

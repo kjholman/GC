@@ -36,7 +36,21 @@ When founders reply, **reopen the deal**: upload their materials and the analyst
 - **Knowledge base:**
   - The Genesys portfolio with outcomes and lessons (seeded from public sources).
   - The partnership's **investment principles**, applied to every analysis.
-- **Analyst calibration:** partners review each memo (agree / too optimistic / too pessimistic / wrong decision). That feedback trains the analyst's judgement on every future deal. See [docs/AI_ANALYST_DESIGN.md](docs/AI_ANALYST_DESIGN.md).
+- **Hallucination controls:**
+  - Every material claim is recorded in an evidence ledger with its source and an exact quote.
+  - Quotes, URLs and cited companies are checked in code.
+  - An independent fact-checker reviews every memo, with automatic correction.
+  - An analyst must sign off before the founder email is unlocked.
+- **House writing standard:** no em dashes, no AI-sounding phrasing; memos and emails read like the work of an experienced investment professional.
+- **Training Studio:**
+  - Deal archive with bulk CSV import, retrieved as precedent.
+  - Exemplar memos endorsed by partners.
+  - Calibration analytics, with suggested principles.
+  - Backtests against Genesys' real decisions.
+  - Editable firm parameters, the full prompt visible in-app, and a dataset export for a future proprietary model.
+- **Analyst calibration:** partners review each memo (agree / too optimistic / too pessimistic / wrong decision), and that feedback shapes every future analysis.
+
+See [docs/AI_ANALYST_DESIGN.md](docs/AI_ANALYST_DESIGN.md) for how all of this works.
 - **Roles:**
   - Analyst.
   - Partner: can move deals to IC review or Invested, and curates the knowledge base.
@@ -90,6 +104,8 @@ Choose one:
 | ![Login](docs/screenshots/login.png) | ![Overview](docs/screenshots/overview.png) |
 | ![Financials](docs/screenshots/financials.png) | ![Diligence](docs/screenshots/diligence.png) |
 | ![Founder email](docs/screenshots/founder-email.png) | ![Knowledge base](docs/screenshots/knowledge-base.png) |
+| ![Evidence ledger](docs/screenshots/evidence-ledger.png) | ![Backtest](docs/screenshots/backtest.png) |
+| ![Training Studio](docs/screenshots/training-studio.png) | |
 
 The example company in the screenshots ("Northbridge Therapeutics") is fictitious test data.
 

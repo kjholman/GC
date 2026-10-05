@@ -100,7 +100,7 @@ export async function createDealAction(_: ActionState, formData: FormData): Prom
 
   const deal = await db.deal.create({
     data: {
-      companyName: fields.companyName || `Untitled — ${files[0].name.replace(/\.[^.]+$/, "")}`,
+      companyName: fields.companyName || `Untitled: ${files[0].name.replace(/\.[^.]+$/, "")}`,
       contactName: fields.contactName,
       contactEmail: fields.contactEmail,
       source: fields.source,
@@ -206,7 +206,7 @@ export async function updateStatusAction(dealId: string, _: ActionState, formDat
         dealId,
         userId: user.id,
         type: "deal.status",
-        message: `Moved from ${deal.status.replaceAll("_", " ").toLowerCase()} to ${status.replaceAll("_", " ").toLowerCase()}${note ? ` — “${note}”` : ""}.`,
+        message: `Moved from ${deal.status.replaceAll("_", " ").toLowerCase()} to ${status.replaceAll("_", " ").toLowerCase()}${note ? `: “${note}”` : ""}.`,
       },
     }),
   ]);
@@ -233,7 +233,7 @@ export async function deleteDealAction(dealId: string) {
 
 const VERDICTS = ["AGREE", "TOO_OPTIMISTIC", "TOO_PESSIMISTIC", "WRONG_DECISION"] as const;
 
-/** Partner/analyst critique of a memo — fed into every future analysis as calibration. */
+/** Partner/analyst critique of a memo, fed into every future analysis as calibration. */
 export async function submitFeedbackAction(analysisId: string, _: ActionState, formData: FormData): Promise<ActionState> {
   const user = await requireUser();
   const verdict = String(formData.get("verdict")) as (typeof VERDICTS)[number];
@@ -241,7 +241,7 @@ export async function submitFeedbackAction(analysisId: string, _: ActionState, f
   const comment = String(formData.get("comment") ?? "").trim().slice(0, 4000);
   if (!VERDICTS.includes(verdict)) return { ok: false, error: "Choose an assessment." };
   if (verdict !== "AGREE" && comment.length < 10) {
-    return { ok: false, error: "Explain your reasoning — this is what the analyst learns from." };
+    return { ok: false, error: "Explain your reasoning. This is what the analyst learns from." };
   }
   const analysis = await db.analysis.findUnique({ where: { id: analysisId }, select: { dealId: true, version: true } });
   if (!analysis) return { ok: false, error: "Analysis not found." };
@@ -259,10 +259,31 @@ export async function submitFeedbackAction(analysisId: string, _: ActionState, f
       dealId: analysis.dealId,
       userId: user.id,
       type: "feedback",
-      message: `Reviewed memo v${analysis.version}: ${verdict.replaceAll("_", " ").toLowerCase()}${comment ? ` — “${comment.slice(0, 200)}”` : ""}`,
+      message: `Reviewed memo v${analysis.version}: ${verdict.replaceAll("_", " ").toLowerCase()}${comment ? `: “${comment.slice(0, 200)}”` : ""}`,
     },
   });
   await audit("analysis.feedback", { userId: user.id, entity: "Analysis", entityId: analysisId, meta: { verdict } });
+  revalidatePath(`/deals/${analysis.dealId}`);
+  return { ok: true };
+}
+
+/** An analyst attests they have reviewed the memo and its fact-check before it is relied on or sent. */
+export async function signOffAction(analysisId: string, _: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireUser();
+  const analysis = await db.analysis.findUnique({ where: { id: analysisId }, select: { dealId: true, version: true, verificationStatus: true, signedOffAt: true } });
+  if (!analysis) return { ok: false, error: "Analysis not found." };
+  if (analysis.signedOffAt) return { ok: true };
+  const note = String(formData.get("note") ?? "").trim().slice(0, 2000);
+  const acknowledged = formData.get("acknowledge") === "on";
+  if (!acknowledged) return { ok: false, error: "Confirm you have reviewed the memo against the source materials." };
+  if (analysis.verificationStatus !== "PASSED" && note.length < 10) {
+    return { ok: false, error: "The fact-check flagged issues. Note how you resolved or accepted them." };
+  }
+  await db.analysis.update({ where: { id: analysisId }, data: { signedOffById: user.id, signedOffAt: new Date(), signOffNote: note || null } });
+  await db.activity.create({
+    data: { dealId: analysis.dealId, userId: user.id, type: "analysis.signed_off", message: `Signed off memo v${analysis.version}${note ? `: “${note.slice(0, 200)}”` : "."}` },
+  });
+  await audit("analysis.signed_off", { userId: user.id, entity: "Analysis", entityId: analysisId, meta: { verification: analysis.verificationStatus } });
   revalidatePath(`/deals/${analysis.dealId}`);
   return { ok: true };
 }

@@ -42,7 +42,7 @@ export default async function Overview() {
       <PageHeader
         eyebrow={new Date().toLocaleDateString("en-CA", { weekday: "long", month: "long", day: "numeric", timeZone: "America/Toronto" })}
         title={`${greeting}${firstName ? `, ${firstName}` : ""}.`}
-        subtitle="Your deal flow at a glance — what needs a decision, what is awaiting founders, and what the analyst is working on."
+        subtitle="Your deal flow at a glance: what needs a decision, what is awaiting founders, and what the analyst is working on."
         actions={
           <Link href="/deals/new">
             <Button>Screen a new deck</Button>

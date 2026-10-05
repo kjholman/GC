@@ -10,6 +10,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     { href: "/deals", label: "Deal pipeline", icon: "pipeline" },
     { href: "/deals/new", label: "New screening", icon: "new" },
     { href: "/knowledge", label: "Knowledge base", icon: "knowledge" },
+    { href: "/training", label: "Training Studio", icon: "training" },
     ...(hasRole(user.role, "ADMIN") ? [{ href: "/admin", label: "Administration", icon: "admin" }] : []),
   ];
   const initials = (user.name ?? user.email)

@@ -5,6 +5,7 @@ import type { DealStatus } from "@prisma/client";
 import {
   addNoteAction,
   rerunAnalysisAction,
+  signOffAction,
   submitFeedbackAction,
   submitFollowUpAction,
   updateStatusAction,
@@ -154,7 +155,7 @@ export function FeedbackPanel({ analysisId, version, reviews }: { analysisId: st
         </ul>
       )}
       {state.ok ? (
-        <p className="text-[13px] text-pos">Thank you — feedback recorded.</p>
+        <p className="text-[13px] text-pos">Thank you. Feedback recorded.</p>
       ) : (
         <form action={action} className="space-y-3">
           <select name="verdict" value={verdict} onChange={(e) => setVerdict(e.target.value)} className={inputCls}>
@@ -178,6 +179,42 @@ export function FeedbackPanel({ analysisId, version, reviews }: { analysisId: st
           <Button type="submit" variant="secondary" disabled={pending} className="w-full">Submit review</Button>
         </form>
       )}
+    </Card>
+  );
+}
+
+export function SignOffPanel({ analysisId, version, status, signedOff }: { analysisId: string; version: number; status: string | null; signedOff: { by: string; at: string; note: string | null } | null }) {
+  const [state, action, pending] = useActionState<ActionState, FormData>(signOffAction.bind(null, analysisId), { ok: false });
+  if (signedOff) {
+    return (
+      <Card className="!border-[#c9e2d9]">
+        <div className="eyebrow mb-1 text-pos">Signed off</div>
+        <p className="text-[13px] text-ink-soft">Memo v{version} reviewed by <span className="font-medium text-ink">{signedOff.by}</span>, {signedOff.at}.</p>
+        {signedOff.note && <p className="mt-2 text-[12.5px] italic text-muted">“{signedOff.note}”</p>}
+      </Card>
+    );
+  }
+  return (
+    <Card className="!border-gold-300">
+      <div className="eyebrow mb-1 text-gold-600">Required before use</div>
+      <h3 className="font-serif text-[19px] text-navy-900">Analyst sign-off</h3>
+      <p className="mt-1.5 mb-4 text-[12.5px] leading-relaxed text-ink-soft">
+        Review the memo and the fact-check against the source materials. The founder response is unlocked once you sign off.
+      </p>
+      <form action={action} className="space-y-3">
+        <label className="flex items-start gap-2 text-[12.5px] text-ink-soft">
+          <input type="checkbox" name="acknowledge" className="mt-0.5 accent-navy-900" />
+          I have reviewed this memo, its evidence ledger and the fact-check, and it is accurate to the best of my knowledge.
+        </label>
+        <textarea
+          name="note"
+          rows={2}
+          placeholder={status === "PASSED" ? "Optional note" : "Required: how flagged issues were resolved or why they are acceptable"}
+          className={inputCls}
+        />
+        {state.error && <p className="text-[13px] text-neg">{state.error}</p>}
+        <Button type="submit" disabled={pending} className="w-full">Sign off memo v{version}</Button>
+      </form>
     </Card>
   );
 }

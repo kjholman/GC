@@ -6,7 +6,10 @@ import type { Memo } from "@/lib/ai/schema";
 import { Button, Card, REC_META, ScoreRing, SectionTitle, StatusBadge, cx, fmtDate, relTime } from "@/components/ui";
 import { AnalysisProgress } from "./AnalysisProgress";
 import { CopyButton } from "./CopyButton";
-import { FeedbackPanel, FollowUpPanel, NoteForm, RerunButton, StatusPanel } from "./DealActions";
+import { FeedbackPanel, FollowUpPanel, NoteForm, RerunButton, SignOffPanel, StatusPanel } from "./DealActions";
+import { EvidenceProvider } from "./Evidence";
+import { EvidenceLedger, VerificationBanner } from "./Verification";
+import type { VerificationReport } from "@/lib/ai/verify";
 import { DiligenceView, FinancialsView, FitView, MemoView, Paras, RequestsView } from "./Memo";
 import { PrintButton } from "./PrintButton";
 import { Tabs } from "./Tabs";
@@ -29,6 +32,7 @@ const KIND_LABEL: Record<string, string> = {
 
 export default async function DealPage({ params, searchParams }: PageProps<"/deals/[id]">) {
   const user = await requireUser();
+  const canPartner = hasRole(user.role, "PARTNER");
   const { id } = await params;
   const sp = await searchParams;
 
@@ -59,9 +63,16 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
   const isLatestShown = shown && shown.id === completed[0]?.id;
 
   const rounds = [...new Set(deal.documents.map((d) => d.round))];
+  const report = (shown?.verification as VerificationReport | null) ?? null;
+  const signer = shown?.signedOffById ? await db.user.findUnique({ where: { id: shown.signedOffById }, select: { name: true, email: true } }) : null;
+  const signedOff = shown?.signedOffAt && signer ? { by: signer.name ?? signer.email.split("@")[0], at: fmtDate(shown.signedOffAt, true), note: shown.signOffNote } : null;
+  // Evidence tags are for internal review only; founder correspondence never carries them.
+  const emailBody = memo ? memo.founderEmail.body.replace(/\s?\[E\d+\]/g, "") : "";
   const mailto = memo
-    ? `mailto:${encodeURIComponent(deal.contactEmail ?? "")}?subject=${encodeURIComponent(memo.founderEmail.subject)}&body=${encodeURIComponent(memo.founderEmail.body)}`
+    ? `mailto:${encodeURIComponent(deal.contactEmail ?? "")}?subject=${encodeURIComponent(memo.founderEmail.subject)}&body=${encodeURIComponent(emailBody)}`
     : "";
+  const flaggedIds = new Set((report?.issues ?? []).map((i) => i.location.replace("evidence ", "")));
+  const ledger = memo?.evidence?.map((e) => ({ id: e.id, claim: e.claim, sourceType: e.sourceType, sourceRef: e.sourceRef, status: e.status, flagged: flaggedIds.has(e.id) })) ?? [];
 
   return (
     <>
@@ -148,12 +159,16 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
                 <div className="font-serif text-[22px] text-navy-900">{inFlight ? "The analyst is working on this deal." : "No completed analysis yet."}</div>
                 <p className="mt-2 text-[14px] text-muted">
                   {inFlight
-                    ? "The memo appears here automatically when it is ready. You can leave this page — the analysis continues in the background."
+                    ? "The memo appears here automatically when it is ready. You can leave this page; the analysis continues in the background."
                     : "Re-run the analysis to produce a memo."}
                 </p>
               </div>
             </Card>
           ) : (
+            <EvidenceProvider evidence={ledger}>
+            <div className="mb-8">
+              <VerificationBanner report={report} signedOff={signedOff ? { by: signedOff.by, at: signedOff.at } : null} />
+            </div>
             <Tabs
               key={shown!.id}
               tabs={[
@@ -171,13 +186,19 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
                         eyebrow="Ready to send"
                         title="Response to the founders"
                         action={
-                          <div className="no-print flex gap-2">
-                            <CopyButton text={memo.founderEmail.body} label="Copy body" />
-                            <CopyButton text={`Subject: ${memo.founderEmail.subject}\n\n${memo.founderEmail.body}`} label="Copy all" />
-                            <a href={mailto}>
-                              <Button>Open in mail</Button>
-                            </a>
-                          </div>
+                          signedOff ? (
+                            <div className="no-print flex gap-2">
+                              <CopyButton text={emailBody} label="Copy body" />
+                              <CopyButton text={`Subject: ${memo.founderEmail.subject}\n\n${emailBody}`} label="Copy all" />
+                              <a href={mailto}>
+                                <Button>Open in mail</Button>
+                              </a>
+                            </div>
+                          ) : (
+                            <span className="no-print rounded-[3px] border border-gold-300 bg-gold-100/60 px-3 py-2 text-[12.5px] text-gold-600">
+                              Locked until an analyst signs off the memo
+                            </span>
+                          )
                         }
                       />
                       <div className="rounded-[3px] border border-line bg-[#fbfaf7]">
@@ -189,14 +210,15 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
                           <span className="text-muted">Subject: </span>
                           <span className="font-medium text-ink">{memo.founderEmail.subject}</span>
                         </div>
-                        <pre className="whitespace-pre-wrap px-6 py-6 font-sans text-[14px] leading-[1.75] text-ink">{memo.founderEmail.body}</pre>
+                        <pre className="whitespace-pre-wrap px-6 py-6 font-sans text-[14px] leading-[1.75] text-ink">{emailBody}</pre>
                       </div>
                       <p className="mt-4 text-[12px] text-muted">
-                        Review before sending. Replace [Your name] with your signature. Internal scores are never included in founder correspondence.
+                        Review before sending and replace [Your name] with your signature. Internal scores and evidence tags are never included in founder correspondence.
                       </p>
                     </Card>
                   ),
                 },
+                { id: "evidence", label: "Evidence", badge: memo.evidence?.length ?? 0, content: memo.evidence ? <EvidenceLedger memo={memo} report={report} /> : <Card><p className="text-[14px] text-muted">This memo predates the evidence ledger.</p></Card> },
                 {
                   id: "research",
                   label: "Research brief",
@@ -267,11 +289,21 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
                 },
               ]}
             />
+            </EvidenceProvider>
           )}
         </div>
 
         <aside className="no-print space-y-6">
           <FollowUpPanel dealId={deal.id} disabled={!!inFlight} openRequests={memo?.informationRequests.length ?? 0} />
+          {shown && (
+            <SignOffPanel key={`so-${shown.id}`} analysisId={shown.id} version={shown.version} status={shown.verificationStatus} signedOff={signedOff} />
+          )}
+          {shown && canPartner && (
+            <Link href={`/training/exemplars/new?analysis=${shown.id}`} className="block rounded-[3px] border border-line bg-paper px-5 py-4 text-[13px] text-navy-800 hover:border-navy-700">
+              <span className="eyebrow block text-gold-600">Training Studio</span>
+              Correct &amp; endorse as exemplar →
+            </Link>
+          )}
           {shown && (
             <FeedbackPanel
               key={shown.id}
@@ -280,7 +312,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
               reviews={shown.feedback.map((f) => ({ who: f.user.name ?? f.user.email.split("@")[0], verdict: f.verdict, comment: f.comment }))}
             />
           )}
-          <StatusPanel key={deal.status} dealId={deal.id} status={deal.status} canPartner={hasRole(user.role, "PARTNER")} />
+          <StatusPanel key={deal.status} dealId={deal.id} status={deal.status} canPartner={canPartner} />
           <Card>
             <div className="eyebrow mb-3">Tools</div>
             <div className="flex flex-col items-start gap-1">

@@ -22,7 +22,7 @@ export async function sendLoginCode(to: string, code: string) {
     "This code expires in 10 minutes and can be used once.",
     "If you did not request it, you can safely ignore this email.",
     "",
-    "— Genesys Capital",
+    "Genesys Capital",
   ].join("\n");
   const spaced = code.split("").join("&#8202;");
   const html = `<!doctype html><html><body style="margin:0;background:#f4f2ee;font-family:Georgia,'Times New Roman',serif;">

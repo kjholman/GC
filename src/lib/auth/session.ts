@@ -7,7 +7,7 @@ import { db } from "../db";
 import { generateSessionToken, hashToken } from "./crypto";
 
 export const SESSION_COOKIE = "ga_session";
-const SESSION_TTL_MS = 1000 * 60 * 60 * 12; // 12 hours — a working day
+const SESSION_TTL_MS = 1000 * 60 * 60 * 12; // 12 hours: a working day
 
 export async function createSession(userId: string) {
   const token = generateSessionToken();

@@ -18,6 +18,17 @@ export const SCORE_DIMENSIONS = [
   "Genesys Strategic Fit",
 ] as const;
 
+export const EVIDENCE_SOURCES = [
+  "DECK_OR_MATERIALS",
+  "RESEARCH_BRIEF",
+  "PRECEDENT",
+  "FIRM_CONTEXT",
+  "BENCHMARK",
+  "GENERAL_KNOWLEDGE",
+  "ANALYST_INFERENCE",
+] as const;
+export const EVIDENCE_STATUSES = ["VERIFIED_IN_SOURCE", "COMPANY_CLAIM", "INFERENCE", "NEEDS_VERIFICATION"] as const;
+
 const Severity = z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]);
 const Priority = z.enum(["CRITICAL", "IMPORTANT", "SUPPLEMENTARY"]);
 
@@ -132,6 +143,15 @@ export const MemoSchema = z.object({
         lesson: z.string().describe("What that investment's trajectory implies for this one."),
       }),
     ),
+    historicalPrecedents: z
+      .array(
+        z.object({
+          company: z.string(),
+          genesysDecision: z.string(),
+          relevance: z.string().describe("How this past decision and its outcome inform the view on this deal."),
+        }),
+      )
+      .describe("Past Genesys decisions from the precedents section that bear on this deal. Empty if none were provided."),
     portfolioConflicts: z.string().nullable(),
     canadianNexus: z.string().describe("Canadian HQ, IP, team or development footprint."),
     syndicateView: z.string().describe("Likely co-investors and Genesys' role (lead / co-lead / follow)."),
@@ -174,6 +194,19 @@ export const MemoSchema = z.object({
     .nullable()
     .describe("For follow-up analyses: what the new information changed and why. Null on the first screen."),
   analystCaveats: z.string().describe("What the analysis could not assess and any assumptions made."),
+
+  evidence: z
+    .array(
+      z.object({
+        id: z.string().describe("E1, E2, … referenced in the prose as [E1]."),
+        claim: z.string(),
+        sourceType: z.enum(EVIDENCE_SOURCES),
+        sourceRef: z.string().describe("Filename + page/slide, URL from the research brief, company name, or the evidence ids an inference rests on."),
+        quote: z.string().nullable().describe("Verbatim excerpt (5-40 words) copied exactly from the source, or null."),
+        status: z.enum(EVIDENCE_STATUSES),
+      }),
+    )
+    .describe("Ledger of every material claim in this memo."),
 });
 
 export type Memo = z.infer<typeof MemoSchema>;
@@ -190,3 +223,46 @@ export function normaliseMemo(memo: Memo): Memo {
     dueDiligencePlan: memo.recommendation === "ADVANCE_TO_DILIGENCE" ? memo.dueDiligencePlan : null,
   };
 }
+
+export const FingerprintSchema = z.object({
+  sector: z.string(),
+  modality: z.string(),
+  indication: z.string().nullable(),
+  stage: z.string().nullable(),
+  tags: z.array(z.string()),
+  digest: z.string(),
+});
+export type Fingerprint = z.infer<typeof FingerprintSchema>;
+
+export const SuggestionsSchema = z.object({
+  suggestions: z.array(z.object({ title: z.string(), body: z.string(), evidence: z.string() })),
+});
+
+export const VERIFICATION_PROBLEMS = [
+  "UNSUPPORTED",
+  "CONTRADICTED",
+  "MISQUOTED",
+  "NUMBER_MISMATCH",
+  "FABRICATED_ENTITY",
+  "OVERSTATED_CERTAINTY",
+  "ALREADY_PROVIDED",
+  "RULE_VIOLATION",
+  "INTERNAL_INCONSISTENCY",
+] as const;
+
+export const VerificationSchema = z.object({
+  claimsChecked: z.number().int(),
+  issues: z.array(
+    z.object({
+      location: z.string().describe("Memo field path, e.g. science.dataQuality or evidence E7."),
+      excerpt: z.string().describe("The exact text in the memo that is wrong."),
+      problem: z.enum(VERIFICATION_PROBLEMS),
+      severity: z.enum(["HIGH", "MEDIUM", "LOW"]),
+      explanation: z.string().describe("What the sources actually say, with page or URL."),
+      correction: z.string().describe("How the memo should read instead (or 'remove')."),
+    }),
+  ),
+  decisionSupported: z.boolean().describe("Whether the recommendation follows from the verified evidence and the decision rules."),
+  assessment: z.string().describe("Two or three sentences on the memo's overall factual reliability."),
+});
+export type Verification = z.infer<typeof VerificationSchema>;

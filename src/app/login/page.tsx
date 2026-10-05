@@ -35,7 +35,7 @@ export default async function LoginPage() {
         </div>
         <div className="relative mt-16 flex items-center justify-between border-t border-white/10 pt-6 text-[11.5px] tracking-wide text-white/40">
           <span>Toronto · Since 2000</span>
-          <span>Confidential — authorised personnel only</span>
+          <span>Confidential. Authorised personnel only</span>
         </div>
       </div>
 

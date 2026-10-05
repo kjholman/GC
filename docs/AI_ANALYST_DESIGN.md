@@ -21,38 +21,62 @@ Configuration is in `.env`:
 ## Pipeline (`src/lib/ai/analyst.ts`)
 
 1. **Ingest.** PDFs and images go to the model natively. PPTX (including speaker notes), DOCX and XLSX (including formulas) are converted to text on the server.
-2. **Research stage** (optional).
-   - Claude uses web search and fetch to compile a sourced brief covering: founders, target validation, competitive landscape, comparable financings and M&A, regulatory precedent, and anything that contradicts the deck.
-   - Follow-up rounds reuse the existing brief.
-3. **Underwriting stage.** One structured-output call produces the full memo:
-   - Decision: Decline, Request information, or Advance to diligence.
-   - A "worth our time" verdict, executive summary, and an 8-dimension scorecard with evidence.
-   - Science, clinical/regulatory, IP, market, team, and financials, with Bear/Base/Bull return scenarios.
-   - Portfolio fit and comparable Genesys investments.
-   - Information requests.
-   - A **due-diligence plan, issued only when the deal advances**. This is enforced in the prompt and again in code (`normaliseMemo`).
-   - A ready-to-send founder email.
-4. **Follow-up rounds.** New materials create a new memo version. That run sees every document from every round, the full previous memo and the version history. The model re-checks each outstanding request and explains what changed in `versionDelta`.
+2. **Fingerprint.** A quick classification (sector, modality, indication, stage, tags) is used to retrieve precedents.
+3. **Precedent retrieval** (`src/lib/training/retrieval.ts`).
+   - Pulls the most similar past Genesys decisions from the deal archive, with the partners' rationale and the outcome.
+   - Pulls any partner-endorsed exemplar memos for similar deals.
+   - Each match carries a readable "why", and the precedents used are stored on the analysis.
+4. **Research** (optional). Claude uses web search and fetch to compile a sourced brief covering founders, target validation, competitors, comparable deals, regulatory precedent, and contradictions with the deck.
+5. **Underwriting.** One structured-output call produces the full memo plus an **evidence ledger**.
+6. **Verification and correction** (`src/lib/ai/verify.ts`). Described below.
+7. **Human sign-off.** An analyst attests to the memo. The founder email stays locked until they do.
+8. **Follow-up rounds.** New materials create a new version. The analyst sees all documents, the prior memo and its history, and records what changed.
+
+## Preventing hallucination
+
+This is a high-stakes setting, so no single safeguard is trusted on its own.
+
+| Layer | What it does |
+|---|---|
+| Grounding rules in the prompt | Every number, named entity and decision-relevant fact must appear in the evidence ledger. Each entry has a source type, a reference (file and page, or a URL from the research brief), a verbatim quote, and a status: verified / company claim / inference / needs verification. Background knowledge must be labelled and flagged. Gaps become information requests, not plausible-sounding filler. |
+| Inline citations | Prose carries `[E4]`-style tags. The UI renders each as a chip that shows the claim, source and status on hover. |
+| Code-level checks | Quotes are matched against the actual text of the documents (PDF text is extracted server-side) and of the research brief. URLs must come from the research brief. Cited Genesys companies must exist in the firm's records; fabricated ones are removed automatically. Decision, scores and scenarios must be internally consistent with the decision rules. The founder email must not reveal scores or mention AI. |
+| Independent fact-check | A separate, adversarial model pass compares every claim and information request against the sources. It flags unsupported, contradicted, misquoted, fabricated, overstated or already-provided items, and judges whether the decision follows from the verified evidence. |
+| Automatic correction | If HIGH or MEDIUM issues are found, the memo is rewritten once with the exact corrections required, then fully re-checked. |
+| Human sign-off | The verification report (passed / warnings / failed, with every issue) is shown above the memo. An analyst must sign off, with a note whenever issues remain, before the founder email can be copied or sent. Sign-offs are audit-logged. |
+
+## House writing standard
+
+Memos and founder emails should read as if written by a senior associate at a top-tier life-science fund.
+- **The prompt** sets the standard: plain, exact sentences; numbers with units and currency; and a ban on AI-associated phrasing ("delve", "landscape", "I hope this email finds you well", rule-of-three lists, and so on). The prompts themselves contain no em dashes, because models imitate the style they are given.
+- **Every string the model returns** is passed through a sanitiser (`src/lib/ai/style.ts`) that removes em and en dashes. Numeric ranges become hyphens; clause dashes become commas.
+- **The verifier flags** any banned phrasing that remains.
 
 ## How the model becomes *Genesys'* analyst
 
-Claude cannot be fine-tuned through the public API. Firm-specific expertise comes from the four layers below, all applied on every call. In practice this is more controllable than fine-tuning, because partners can see and edit every layer.
+Claude cannot be fine-tuned through the public API. Firm-specific expertise comes from the layers below, all managed in the **Training Studio**:
 
-1. **Persona and analytical toolkit** (`src/lib/ai/prompts.ts`).
-   - The analyst is defined as a life-sciences PhD with an MBA and investment training.
-   - The prompt spells out the PhD-level checklists: data quality, translational validity, and modality-specific diligence for small molecules, biologics, cell and gene therapy, radiopharma, devices and diagnostics.
-   - It also spells out the MBA-level frameworks: rNPV, comparables, capital-to-inflection, dilution and MOIC, and term structure.
-   - It carries the Genesys investing model: co-creation, pre-seed to Series A, Canadian focus, and medtech plus biotech.
-2. **Investment principles** (Knowledge base → Investment principles). These are standing rules written by the partners. Every memo applies them and flags any conflict.
-3. **Institutional memory.**
-   - The Genesys portfolio, with outcomes and lessons, is benchmarked in every memo.
-   - The platform's recent screening decisions keep scoring consistent over time.
-4. **Partner calibration loop.**
-   - Partners mark each memo as agree / too optimistic / too pessimistic / wrong decision, and explain why.
-   - The 40 most recent critiques are added to every future analysis, with an instruction to learn the pattern.
-   - Over time, this is how the analyst converges on the partnership's judgement.
+1. **Analyst profile.** A life-sciences PhD with an MBA. The prompt includes:
+   - modality-specific diligence checklists
+   - phase-transition benchmarks
+   - Canadian reimbursement and funding context
+   - an anchored 1–10 rubric for each scorecard dimension
+   - explicit decision rules
+2. **Firm parameters** (Training Studio → Prompt & parameters). Cheque size, ownership target, reserves, return hurdle, mandate, screening bar and correspondence style, all edited by partners.
+3. **Investment principles.** Standing rules that every memo applies. Each conflict is flagged.
+4. **Deal archive.** Past Genesys decisions (invested, passed after diligence, declined at screen), with rationale, outcome and original decks. Imported in bulk from CSV and retrieved as precedent.
+5. **Exemplar memos.** Partner-corrected memos, endorsed as the standard to emulate.
+6. **Calibration.** Partner reviews of each memo feed into every analysis. The studio also mines them for recurring patterns and drafts new principles for partners to adopt.
+7. **Backtests.** Replay the analyst on archived deals using only the original deck and only earlier precedents. It reports:
+   - agreement with Genesys' real decisions
+   - a confusion matrix
+   - missed winners and false advances
+   - bias and per-sector accuracy
 
-Prompt caching keeps this cheap: the firm profile is cached for 1 hour, and institutional memory is cached separately.
+   Re-run after each change to see whether it helped.
+8. **Dataset export** (JSONL). Everything above, structured for training a Genesys-owned open-weight model as a second opinion once about 300 examples exist.
+
+Everything sent to the model can be read in full under Training Studio → Prompt & parameters.
 
 ## Reliability
 
@@ -63,4 +87,4 @@ Prompt caching keeps this cheap: the firm profile is cached for 1 hour, and inst
 
 ## Indicative cost
 
-A typical first screen is a 30–40 page deck plus a web-research pass. Input is roughly 60–150k tokens; output is roughly 20–50k tokens, including billed reasoning. At Opus 5.5 list prices ($4 / $20 per million tokens) that is about **US$1–3 per memo**. Follow-ups cost about the same. At 500 decks a year, model spend is a few thousand dollars.
+A typical first screen is a 30–40 page deck, a web-research pass, the memo and an independent fact-check (plus a correction round when needed). At Opus 5.5 list prices ($4 / $20 per million tokens) that is about **US$2–5 per memo**. Follow-ups cost about the same. At 500 decks a year, model spend is a few thousand dollars.

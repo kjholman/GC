@@ -9,6 +9,7 @@ const ICONS: Record<string, React.ReactNode> = {
   pipeline: <path d="M3 5h18M6 12h12M10 19h4" strokeWidth="1.8" stroke="currentColor" fill="none" strokeLinecap="round" />,
   new: <path d="M12 5v14M5 12h14" strokeWidth="1.8" stroke="currentColor" fill="none" strokeLinecap="round" />,
   knowledge: <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5v-15ZM4 20.5A2.5 2.5 0 0 0 6.5 23H20" strokeWidth="1.6" stroke="currentColor" fill="none" />,
+  training: <path d="M12 3 2 8l10 5 10-5-10-5Zm-6 7.2V15c0 1.7 2.7 3.5 6 3.5s6-1.8 6-3.5v-4.8" strokeWidth="1.6" stroke="currentColor" fill="none" strokeLinejoin="round" />,
   admin: <path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6l-8-3Z" strokeWidth="1.6" stroke="currentColor" fill="none" />,
 };
 

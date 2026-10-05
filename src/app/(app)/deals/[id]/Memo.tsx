@@ -1,6 +1,20 @@
 import type { ReactNode } from "react";
 import type { Memo } from "@/lib/ai/schema";
 import { Card, SectionTitle, cx, scoreColor } from "@/components/ui";
+import { EvidenceTag } from "./Evidence";
+
+/** Render text with [E#] evidence tags as inline citation chips. */
+export function Tagged({ text }: { text: string }) {
+  const parts = text.split(/(\[E\d+\])/g);
+  return (
+    <>
+      {parts.map((p, i) => {
+        const m = p.match(/^\[(E\d+)\]$/);
+        return m ? <EvidenceTag key={i} id={m[1]} /> : p;
+      })}
+    </>
+  );
+}
 
 const SEV: Record<string, string> = {
   CRITICAL: "bg-neg text-white",
@@ -13,7 +27,7 @@ export function Paras({ text, className }: { text: string; className?: string })
   return (
     <div className={cx("prose-memo text-[14.5px] leading-[1.7] text-ink-soft", className)}>
       {text.split(/\n{2,}/).map((p, i) => (
-        <p key={i} className="whitespace-pre-line">{p}</p>
+        <p key={i} className="whitespace-pre-line"><Tagged text={p} /></p>
       ))}
     </div>
   );
@@ -39,7 +53,7 @@ function Bullets({ items, marker = "—" }: { items: string[]; marker?: string }
       {items.map((t, i) => (
         <li key={i} className="flex gap-3 text-[14px] leading-relaxed text-ink-soft">
           <span className="shrink-0 text-gold-500">{marker}</span>
-          <span>{t}</span>
+          <span><Tagged text={t} /></span>
         </li>
       ))}
     </ul>
@@ -100,11 +114,11 @@ export function MemoView({ memo }: { memo: Memo }) {
               <div className="mt-3 grid gap-4 pl-0 md:grid-cols-2 md:pl-[228px]">
                 <div>
                   <div className="eyebrow mb-1">Assessment</div>
-                  <p className="text-[13.5px] leading-relaxed text-ink-soft">{s.assessment}</p>
+                  <p className="text-[13.5px] leading-relaxed text-ink-soft"><Tagged text={s.assessment} /></p>
                 </div>
                 <div>
                   <div className="eyebrow mb-1">Evidence</div>
-                  <p className="text-[13.5px] leading-relaxed text-ink-soft">{s.evidence}</p>
+                  <p className="text-[13.5px] leading-relaxed text-ink-soft"><Tagged text={s.evidence} /></p>
                 </div>
               </div>
             </details>
@@ -138,7 +152,7 @@ export function MemoView({ memo }: { memo: Memo }) {
             <tbody className="divide-y divide-line">
               {memo.clinicalRegulatory.milestones.map((m, i) => (
                 <tr key={i}>
-                  <td className="py-3 pr-4 text-ink">{m.milestone}</td>
+                  <td className="py-3 pr-4 text-ink"><Tagged text={m.milestone} /></td>
                   <td className="px-4 py-3 text-ink-soft">{m.expectedTiming}</td>
                   <td className="px-4 py-3 text-ink-soft">{m.capitalRequired ?? "—"}</td>
                   <td className="py-3 pl-4 text-right">{m.valueInflection ? <span className="text-gold-600">◆</span> : ""}</td>
@@ -196,7 +210,7 @@ export function MemoView({ memo }: { memo: Memo }) {
                 <tr key={i}>
                   <td className="py-3 pr-4 font-medium text-navy-900">{c.name}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-ink-soft">{c.stage}</td>
-                  <td className="py-3 pl-4 text-ink-soft">{c.differentiation}</td>
+                  <td className="py-3 pl-4 text-ink-soft"><Tagged text={c.differentiation} /></td>
                 </tr>
               ))}
             </tbody>
@@ -210,8 +224,8 @@ export function MemoView({ memo }: { memo: Memo }) {
           {memo.keyRisks.map((r, i) => (
             <div key={i} className="grid gap-2 py-4 first:pt-0 md:grid-cols-[90px_1fr_1fr] md:gap-6">
               <div><Pill cls={SEV[r.severity]}>{r.severity}</Pill></div>
-              <p className="text-[14px] font-medium leading-relaxed text-ink">{r.risk}</p>
-              <p className="text-[13.5px] leading-relaxed text-ink-soft"><span className="text-muted">Mitigation: </span>{r.mitigation}</p>
+              <p className="text-[14px] font-medium leading-relaxed text-ink"><Tagged text={r.risk} /></p>
+              <p className="text-[13.5px] leading-relaxed text-ink-soft"><span className="text-muted">Mitigation: </span><Tagged text={r.mitigation} /></p>
             </div>
           ))}
         </div>
@@ -278,7 +292,7 @@ export function FinancialsView({ memo }: { memo: Memo }) {
                   {s.exitValueUsdM != null && <> · US${s.exitValueUsdM.toLocaleString()}M</>}
                   {s.yearsToExit != null && <> · {s.yearsToExit} yrs</>}
                 </div>
-                <p className="mt-1.5 text-[13.5px] leading-relaxed text-ink-soft">{s.rationale}</p>
+                <p className="mt-1.5 text-[13.5px] leading-relaxed text-ink-soft"><Tagged text={s.rationale} /></p>
               </div>
             </div>
           ))}
@@ -308,6 +322,22 @@ export function FitView({ memo }: { memo: Memo }) {
         <KV label="Syndicate & role">{p.syndicateView}</KV>
         <KV label="Portfolio conflicts">{p.portfolioConflicts ?? "None identified."}</KV>
       </Card>
+      {p.historicalPrecedents?.length > 0 && (
+        <Card>
+          <SectionTitle eyebrow="Deal archive" title="Genesys precedents applied" />
+          <div className="divide-y divide-line">
+            {p.historicalPrecedents.map((h, i) => (
+              <div key={i} className="grid gap-2 py-4 first:pt-0 md:grid-cols-[220px_1fr]">
+                <div>
+                  <div className="font-serif text-[17px] text-navy-900">{h.company}</div>
+                  <div className="text-[12px] text-muted">{h.genesysDecision}</div>
+                </div>
+                <p className="text-[13.5px] leading-relaxed text-ink-soft"><Tagged text={h.relevance} /></p>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
       <Card>
         <SectionTitle eyebrow="Institutional memory" title="Comparable Genesys investments" />
         {p.comparableGenesysInvestments.length === 0 ? (
@@ -318,7 +348,7 @@ export function FitView({ memo }: { memo: Memo }) {
               <div key={i} className="border-l-2 border-gold-500 pl-5">
                 <div className="font-serif text-[19px] text-navy-900">{c.company}</div>
                 <p className="mt-1 text-[13.5px] text-ink-soft"><span className="text-muted">Similarity: </span>{c.similarity}</p>
-                <p className="mt-2 text-[13.5px] leading-relaxed text-ink"><span className="text-muted">Lesson: </span>{c.lesson}</p>
+                <p className="mt-2 text-[13.5px] leading-relaxed text-ink"><span className="text-muted">Lesson: </span><Tagged text={c.lesson} /></p>
               </div>
             ))}
           </div>
@@ -355,8 +385,8 @@ export function RequestsView({ memo }: { memo: Memo }) {
                 <li key={i} className="grid gap-2 px-6 py-4 md:grid-cols-[160px_1fr]">
                   <div className="text-[12px] font-medium uppercase tracking-[0.08em] text-muted">{r.category}</div>
                   <div>
-                    <p className="text-[14px] font-medium leading-relaxed text-ink">{r.request}</p>
-                    <p className="mt-1 text-[13px] leading-relaxed text-ink-soft">{r.rationale}</p>
+                    <p className="text-[14px] font-medium leading-relaxed text-ink"><Tagged text={r.request} /></p>
+                    <p className="mt-1 text-[13px] leading-relaxed text-ink-soft"><Tagged text={r.rationale} /></p>
                   </div>
                 </li>
               ))}

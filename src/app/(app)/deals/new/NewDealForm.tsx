@@ -9,7 +9,7 @@ const STEPS = [
   ["Read", "Every slide, figure and table in the materials"],
   ["Research", "Live search of literature, trials, competitors and comparable deals"],
   ["Benchmark", "Against Genesys Capital's portfolio history and recent decisions"],
-  ["Decide", "Decline, request information, or advance to diligence — with founder email"],
+  ["Decide", "Decline, request information, or advance to diligence, with a founder email"],
 ];
 
 export function NewDealForm() {
@@ -22,7 +22,7 @@ export function NewDealForm() {
           <Dropzone prompt="Drop the pitch deck here" />
         </Card>
         <Card>
-          <div className="eyebrow mb-5">Deal details <span className="normal-case tracking-normal font-normal">— optional; the analyst extracts these from the deck</span></div>
+          <div className="eyebrow mb-5">Deal details <span className="normal-case tracking-normal font-normal">(optional; the analyst extracts these from the deck)</span></div>
           <div className="grid gap-5 md:grid-cols-2">
             <Field label="Company name">
               <input name="companyName" className={inputCls} placeholder="e.g. Northbridge Therapeutics" />

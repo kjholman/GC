@@ -95,6 +95,9 @@ model Deal {
   contactEmail  String?
   source        String?
   status        DealStatus @default(SCREENING)
+  /// AI-extracted fingerprint used to retrieve similar historical deals.
+  indication    String?
+  tags          String[]   @default([])
   latestScore   Int?
   recommendation String?
   ownerId       String?
@@ -133,6 +136,8 @@ model Document {
   data         Bytes
   /// Text extracted server-side for non-PDF formats (pptx, docx, xlsx, csv, txt).
   extractedText String?
+  /// Plain text of PDFs, used only to check quotes in the evidence ledger.
+  plainText     String?
   uploadedById String?
   createdAt    DateTime     @default(now())
 
@@ -168,6 +173,15 @@ model Analysis {
   overallScore   Int?
   memo           Json?
   research       String?
+  /// Historical deals and exemplar memos the analyst was shown for this version.
+  precedents     Json?
+  /// Fact-check report: deterministic checks + independent model verification.
+  verification       Json?
+  verificationStatus String?
+  revisions          Int       @default(0)
+  signedOffById      String?
+  signedOffAt        DateTime?
+  signOffNote        String?
   model          String?
   inputTokens    Int?
   outputTokens   Int?
@@ -283,4 +297,137 @@ model InvestmentPrinciple {
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// ─── Training Studio ────────────────────────────────────────────────────────
+
+enum HistoricalDecision {
+  INVESTED
+  PASSED_AFTER_DILIGENCE
+  PASSED_AT_SCREENING
+}
+
+enum IngestStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+}
+
+/// A deal Genesys evaluated in the past, with the decision it actually made
+/// and what happened next. Retrieved as precedent for similar new deals and
+/// replayed in backtests.
+model HistoricalDeal {
+  id                String             @id @default(cuid())
+  companyName       String
+  decisionYear      Int?
+  decision          HistoricalDecision
+  decisionRationale String
+  outcome           PortfolioOutcome   @default(UNKNOWN)
+  outcomeNotes      String?
+  sector            String?
+  modality          String?
+  indication        String?
+  stage             String?
+  tags              String[]           @default([])
+  /// AI-written digest of the original materials (what the founders claimed, key facts).
+  digest            String?
+  icMemoText        String?
+  deckFilename      String?
+  deckMimeType      String?
+  deckData          Bytes?
+  deckExtractedText String?
+  ingestStatus      IngestStatus       @default(PENDING)
+  ingestError       String?
+  createdById       String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  backtestResults BacktestResult[]
+
+  @@index([decision])
+}
+
+/// A memo the partners corrected and endorsed as the standard to emulate.
+model Exemplar {
+  id                String   @id @default(cuid())
+  title             String
+  sourceAnalysisId  String?
+  sector            String?
+  modality          String?
+  indication        String?
+  tags              String[] @default([])
+  recommendation    String
+  overallScore      Int
+  memo              Json
+  partnerCommentary String
+  active            Boolean  @default(true)
+  createdById       String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+enum SuggestionStatus {
+  PENDING
+  ACCEPTED
+  DISMISSED
+}
+
+model PrincipleSuggestion {
+  id        String           @id @default(cuid())
+  title     String
+  body      String
+  evidence  String
+  status    SuggestionStatus @default(PENDING)
+  createdAt DateTime         @default(now())
+}
+
+enum BacktestStatus {
+  QUEUED
+  RUNNING
+  COMPLETE
+  FAILED
+}
+
+model BacktestRun {
+  id          String         @id @default(cuid())
+  label       String
+  status      BacktestStatus @default(QUEUED)
+  /// Snapshot of the training state used: principle/exemplar/archive counts, model, effort.
+  config      Json
+  total       Int            @default(0)
+  completed   Int            @default(0)
+  metrics     Json?
+  error       String?
+  createdById String?
+  createdAt   DateTime       @default(now())
+  completedAt DateTime?
+
+  results BacktestResult[]
+}
+
+model BacktestResult {
+  id               String   @id @default(cuid())
+  runId            String
+  historicalDealId String
+  expected         String
+  aiRecommendation String?
+  aiScore          Int?
+  agree            Boolean?
+  memo             Json?
+  error            String?
+  createdAt        DateTime @default(now())
+
+  run            BacktestRun    @relation(fields: [runId], references: [id], onDelete: Cascade)
+  historicalDeal HistoricalDeal @relation(fields: [historicalDealId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+}
+
+/// Partner-editable firm parameters injected into the analyst's instructions.
+model FirmSetting {
+  key         String   @id
+  value       String
+  updatedById String?
+  updatedAt   DateTime @updatedAt
 }
