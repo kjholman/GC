@@ -27,10 +27,17 @@ Configuration is in `.env`:
    - Pulls any partner-endorsed exemplar memos for similar deals.
    - Each match carries a readable "why", and the precedents used are stored on the analysis.
 4. **Research** (optional). Claude uses web search and fetch to compile a sourced brief covering founders, target validation, competitors, comparable deals, regulatory precedent, and contradictions with the deck.
-5. **Underwriting.** One structured-output call produces the full memo plus an **evidence ledger**.
-6. **Verification and correction** (`src/lib/ai/verify.ts`). Described below.
-7. **Human sign-off.** An analyst attests to the memo. The founder email stays locked until they do.
-8. **Follow-up rounds.** New materials create a new version. The analyst sees all documents, the prior memo and its history, and records what changed.
+5. **Competitive sweep** (optional, with web research).
+   - A dedicated search pass (up to 25 searches and 15 page reads) covers companies doing the same thing: direct competitors, adjacent approaches, and earlier attempts.
+   - For each company it records: stage, status (active, acquired, IPO, partnered, failed, shut down), every funding round with amount and lead and other investors, the outcome, whether its backers resemble Genesys, and the lesson for this deal.
+   - It also builds a field summary (crowding, capital raised, what separated winners, exit pattern) and an investor map.
+   - The notes are then converted into a strict table. Any company whose source URL is not in the research notes is dropped.
+   - The sweep feeds the memo's competitors, valuation, exit scenarios, syndicate view and decision, plus a dedicated "what the comparables imply" section.
+   - Follow-up rounds reuse the sweep; a re-run refreshes it.
+6. **Underwriting.** One structured-output call produces the full memo plus an **evidence ledger**.
+7. **Verification and correction** (`src/lib/ai/verify.ts`). Described below.
+8. **Human sign-off.** An analyst attests to the memo. The founder email stays locked until they do.
+9. **Follow-up rounds.** New materials create a new version. The analyst sees all documents, the prior memo and its history, and records what changed.
 
 ## Preventing hallucination
 
@@ -87,4 +94,4 @@ Everything sent to the model can be read in full under Training Studio → Promp
 
 ## Indicative cost
 
-A typical first screen is a 30–40 page deck, a web-research pass, the memo and an independent fact-check (plus a correction round when needed). At Opus 5.5 list prices ($4 / $20 per million tokens) that is about **US$2–5 per memo**. Follow-ups cost about the same. At 500 decks a year, model spend is a few thousand dollars.
+A typical first screen covers a 30–40 page deck, a web-research pass, the competitive sweep, the memo and an independent fact-check (plus a correction round when needed). At Opus 5.5 list prices ($4 / $20 per million tokens) that is about **US$3–7 per first screen**. Web search is billed separately by Anthropic at about US$10 per 1,000 searches, which adds cents per deal. Follow-ups reuse the research and sweep, so they cost less. Follow-ups cost about the same. At 500 decks a year, model spend is a few thousand dollars.

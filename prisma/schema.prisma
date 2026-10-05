@@ -173,6 +173,9 @@ model Analysis {
   overallScore   Int?
   memo           Json?
   research       String?
+  /// Competitive landscape sweep: raw sourced notes + structured table.
+  competitorNotes String?
+  competitors     Json?
   /// Historical deals and exemplar memos the analyst was shown for this version.
   precedents     Json?
   /// Fact-check report: deterministic checks + independent model verification.

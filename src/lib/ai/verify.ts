@@ -25,7 +25,7 @@ You are the independent fact-checker for Genesys Capital's investment committee.
 
 **Sources available to you:**
 - the attached documents
-- the research brief
+- the web research (the research brief and the competitive sweep notes)
 - the precedent list
 
 The memo's evidence ledger and its prose must agree with these sources.
@@ -34,7 +34,7 @@ The memo's evidence ledger and its prose must agree with these sources.
 1. **Evidence entries.** Check every entry in the evidence ledger:
    - The claim must match its source, and the quote must appear in that source.
    - VERIFIED_IN_SOURCE must really be shown by the source, not merely asserted by the company.
-2. **Numbers and named entities in the prose.** Check every number and named entity: data values, n, dollar amounts, dates, market sizes, competitors, trials, deals, people and publications. Flag any not traceable to a source, or labelled with the wrong source type.
+2. **Numbers and named entities in the prose.** Check every number and named entity: data values, n, dollar amounts, dates, market sizes, competitors, funding rounds, investors, trials, deals, people and publications. Flag any not traceable to a source, or labelled with the wrong source type.
 3. **Information requests.** Flag any request for information the materials already contain (ALREADY_PROVIDED).
 4. **The recommendation.** Check that it follows the decision rules given the verified evidence, and that the score is consistent with the scorecard.
 5. **Overstated certainty.** Flag company claims or inferences presented as established fact.
@@ -128,9 +128,10 @@ export function automatedChecks(
 
   for (const e of memo.evidence) {
     if (e.quote) {
-      const hay = e.sourceType === "RESEARCH_BRIEF" ? ctx.research ?? "" : e.sourceType === "DECK_OR_MATERIALS" ? allSource : `${allSource}\n${ctx.research ?? ""}`;
+      const web = e.sourceType === "RESEARCH_BRIEF" || e.sourceType === "COMPETITOR_SWEEP";
+      const hay = web ? ctx.research ?? "" : e.sourceType === "DECK_OR_MATERIALS" ? allSource : `${allSource}\n${ctx.research ?? ""}`;
       // Scanned PDFs have no text layer; we can only verify where text exists.
-      const verifiable = e.sourceType === "RESEARCH_BRIEF" ? !!ctx.research : allSource.trim().length > 200;
+      const verifiable = web ? !!ctx.research : allSource.trim().length > 200;
       if (verifiable) {
         if (quoteFound(e.quote, hay)) quotesVerified++;
         else
@@ -139,11 +140,11 @@ export function automatedChecks(
             excerpt: e.quote,
             problem: "MISQUOTED",
             severity: "HIGH",
-            explanation: `This quote does not appear in ${e.sourceType === "RESEARCH_BRIEF" ? "the research brief" : "the submitted materials"} (${e.sourceRef}).`,
+            explanation: `This quote does not appear in ${web ? "the web research notes" : "the submitted materials"} (${e.sourceRef}).`,
             correction: "Quote the source exactly, or mark the claim NEEDS_VERIFICATION with no quote.",
           });
       }
-    } else if (e.status === "VERIFIED_IN_SOURCE" && (e.sourceType === "DECK_OR_MATERIALS" || e.sourceType === "RESEARCH_BRIEF")) {
+    } else if (e.status === "VERIFIED_IN_SOURCE" && (e.sourceType === "DECK_OR_MATERIALS" || e.sourceType === "RESEARCH_BRIEF" || e.sourceType === "COMPETITOR_SWEEP")) {
       add({
         location: `evidence ${e.id}`, excerpt: e.claim, problem: "OVERSTATED_CERTAINTY", severity: "MEDIUM",
         explanation: "Marked verified in source but no supporting quote was given.", correction: "Provide an exact quote or downgrade the status.",
@@ -164,7 +165,7 @@ export function automatedChecks(
   const allowed = `${ctx.research ?? ""}\n${allSource}`;
   for (const u of urls) {
     if (!allowed.includes(u) && !allowed.includes(u.replace(/^https?:\/\//, ""))) {
-      add({ location: "memo", excerpt: u, problem: "FABRICATED_ENTITY", severity: "HIGH", explanation: "This URL does not appear in the research brief or the materials.", correction: "remove" });
+      add({ location: "memo", excerpt: u, problem: "FABRICATED_ENTITY", severity: "HIGH", explanation: "This URL does not appear in the web research or the materials.", correction: "remove" });
     }
   }
 
@@ -240,7 +241,7 @@ export async function modelFactCheck(args: { memo: Memo; docs: ContentBlock[]; r
         type: "text",
         text: [
           VERIFIER_PROMPT,
-          args.research ? `\n## Research brief\n${args.research}` : "\n## Research brief\n(none)",
+          args.research ? `\n## Web research (research brief and competitive sweep notes)\n${args.research}` : "\n## Web research\n(none)",
           args.precedentsText ? `\n${args.precedentsText}` : "",
           "\n## Memo to verify\n```json",
           JSON.stringify(args.memo),

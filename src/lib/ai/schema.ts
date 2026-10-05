@@ -21,6 +21,7 @@ export const SCORE_DIMENSIONS = [
 export const EVIDENCE_SOURCES = [
   "DECK_OR_MATERIALS",
   "RESEARCH_BRIEF",
+  "COMPETITOR_SWEEP",
   "PRECEDENT",
   "FIRM_CONTEXT",
   "BENCHMARK",
@@ -107,6 +108,9 @@ export const MemoSchema = z.object({
       z.object({ name: z.string(), stage: z.string(), differentiation: z.string() }),
     ),
     likelyAcquirers: z.array(z.string()),
+    comparableOutcomes: z
+      .string()
+      .describe("What the competitive sweep shows: how companies doing the same thing fared, what they raised and from whom, and what that implies for this deal's odds, valuation, syndicate and exit."),
   }),
 
   team: z.object({
@@ -266,3 +270,52 @@ export const VerificationSchema = z.object({
   assessment: z.string().describe("Two or three sentences on the memo's overall factual reliability."),
 });
 export type Verification = z.infer<typeof VerificationSchema>;
+
+const FundingRound = z.object({
+  round: z.string().describe("e.g. Seed, Series A, Series B, IPO, grant"),
+  date: z.string().nullable().describe("YYYY or YYYY-MM"),
+  amountUsdM: z.number().nullable(),
+  amountText: z.string().nullable().describe("As reported, with currency, e.g. 'C$12M'"),
+  leadInvestors: z.array(z.string()),
+  otherInvestors: z.array(z.string()),
+  sourceUrl: z.string().nullable(),
+});
+
+export const CompetitorSweepSchema = z.object({
+  competitors: z.array(
+    z.object({
+      name: z.string(),
+      headquarters: z.string().nullable(),
+      relationship: z.enum(["DIRECT", "ADJACENT", "PRECEDENT"]).describe("DIRECT: same target/mechanism or same product for the same use. ADJACENT: same indication or problem by a different approach. PRECEDENT: an earlier company that attempted the same thing."),
+      approach: z.string().describe("What they do, and how it compares with the company under review."),
+      stage: z.string().nullable().describe("Current or final development stage."),
+      status: z.enum(["ACTIVE", "ACQUIRED", "IPO", "PARTNERED", "FAILED", "SHUT_DOWN", "PIVOTED", "UNKNOWN"]),
+      outcome: z.string().describe("What happened: exits with value and acquirer, trial results, failures and why. 'Unknown' if not found."),
+      totalFundingUsdM: z.number().nullable(),
+      fundingRounds: z.array(FundingRound),
+      investorProfile: z.string().describe("Who backed them: specialist life-science VCs, generalists, corporate/strategic, government, Canadian funds."),
+      genesysLikeInvestors: z.boolean().describe("Backed by early-stage, life-science-specialist, company-building investors comparable to Genesys."),
+      lessonForThisDeal: z.string(),
+      sources: z.array(z.string()).describe("URLs from the research notes supporting this entry."),
+    }),
+  ),
+  activeInvestors: z.array(
+    z.object({
+      name: z.string(),
+      backedCompanies: z.array(z.string()),
+      type: z.string().describe("e.g. Life-science VC, generalist VC, corporate venture, government, crossover"),
+      canadian: z.boolean(),
+      genesysLike: z.boolean(),
+      relevance: z.string().describe("Potential co-investor, competitor for the deal, or signal of the field's investability."),
+    }),
+  ),
+  fieldSummary: z.object({
+    crowding: z.string().describe("How crowded the space is and where the company sits."),
+    capitalRaisedInField: z.string(),
+    whatSeparatedWinners: z.string().describe("Patterns that distinguished successful companies from failures."),
+    exitPattern: z.string().describe("How value has been realised: acquirers, licensing deals, IPOs, typical stage and values."),
+    implicationsForGenesys: z.string(),
+  }),
+  gaps: z.string().describe("What could not be found or verified."),
+});
+export type CompetitorSweep = z.infer<typeof CompetitorSweepSchema>;

@@ -9,7 +9,7 @@ import { familyOf } from "./extract";
 import { FALLBACK_BETA, anthropic, structuredCall, textOf, type ContentBlock } from "./client";
 import { plainPunctuation } from "./style";
 import { automatedChecks, correctionsBlock, modelFactCheck, sourceTexts, summarise } from "./verify";
-import { FingerprintSchema, MemoSchema, normaliseMemo, type Fingerprint, type Memo } from "./schema";
+import { CompetitorSweepSchema, FingerprintSchema, MemoSchema, normaliseMemo, type CompetitorSweep, type Fingerprint, type Memo } from "./schema";
 
 export { anthropic, structuredCall, type ContentBlock };
 
@@ -17,6 +17,9 @@ export { anthropic, structuredCall, type ContentBlock };
 const BINARY_BUDGET_BYTES = 20 * 1024 * 1024;
 import {
   ANALYST_PROFILE,
+  COMPETITOR_EXTRACT_PROMPT,
+  COMPETITOR_SWEEP_PROMPT,
+  competitorBlock,
   FINGERPRINT_PROMPT,
   METHODOLOGY,
   RESEARCH_PROMPT,
@@ -94,34 +97,83 @@ export async function fingerprint(docs: ContentBlock[]): Promise<Fingerprint> {
   return { ...data, tags: data.tags.map((t) => t.toLowerCase().trim()).filter(Boolean).slice(0, 15) };
 }
 
-/** Stage 1: live web research on the company, science, competitors and comps. */
-async function researchBrief(companyName: string, docs: ContentBlock[]): Promise<string | null> {
-  const messages: Anthropic.Beta.BetaMessageParam[] = [
-    { role: "user", content: [...docs, { type: "text", text: `Company under review: ${companyName}.\n\n${RESEARCH_PROMPT}` }] },
-  ];
-  for (let turn = 0; turn < 6; turn++) {
+/** Agentic web research with server-side search/fetch; returns sourced notes. */
+async function webResearch(prompt: string, docs: ContentBlock[], limits: { search: number; fetch: number }): Promise<string | null> {
+  const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: "user", content: [...docs, { type: "text", text: prompt }] }];
+  for (let turn = 0; turn < 8; turn++) {
     const stream = anthropic().beta.messages.stream({
       model: env.anthropicModel,
-      max_tokens: 32000,
+      max_tokens: 48000,
       thinking: { type: "adaptive" },
       output_config: { effort: "medium" },
       betas: [FALLBACK_BETA],
       fallbacks: "default",
       tools: [
-        { type: "web_search_20260209", name: "web_search", max_uses: 12 },
-        { type: "web_fetch_20260209", name: "web_fetch", max_uses: 8 },
+        { type: "web_search_20260209", name: "web_search", max_uses: limits.search },
+        { type: "web_fetch_20260209", name: "web_fetch", max_uses: limits.fetch },
       ],
       messages,
     });
     const response = await stream.finalMessage();
     if (response.stop_reason === "refusal") return null;
     if (response.stop_reason === "pause_turn") {
+      // Server-side tool loop hit its iteration limit; resume where it left off.
       messages.push({ role: "assistant", content: response.content });
       continue;
     }
     return plainPunctuation(textOf(response.content).trim()) || null;
   }
   return null;
+}
+
+/** Stage 1: background research on the company, science, regulatory precedent and contradictions. */
+function researchBrief(companyName: string, docs: ContentBlock[]) {
+  return webResearch(`Company under review: ${companyName}.\n\n${RESEARCH_PROMPT}`, docs, { search: 12, fetch: 8 });
+}
+
+const URL_RE = /https?:\/\/[^\s"'<>)\]]+/g;
+const cleanUrl = (u: string) => u.replace(/[.,;]+$/, "");
+
+/**
+ * Stage 2: competitive sweep. A search pass dedicated to companies doing the same
+ * thing (funding rounds, investors, outcomes), then a strict extraction into a
+ * table. Entries whose sources do not appear in the research notes are dropped.
+ */
+export async function competitorSweep(companyName: string, docs: ContentBlock[]): Promise<{ notes: string; sweep: CompetitorSweep } | null> {
+  const notes = await webResearch(`Company under review: ${companyName}.\n\n${COMPETITOR_SWEEP_PROMPT}`, docs, { search: 25, fetch: 15 });
+  if (!notes) return null;
+  const { data } = await structuredCall({
+    schema: CompetitorSweepSchema,
+    effort: "medium",
+    maxTokens: 32000,
+    content: [{ type: "text", text: `${COMPETITOR_EXTRACT_PROMPT}\n\n## Research notes\n${notes}` }],
+  });
+  const noteUrls = new Set([...notes.matchAll(URL_RE)].map((m) => cleanUrl(m[0])));
+  const inNotes = (u: string) => noteUrls.has(cleanUrl(u)) || [...noteUrls].some((n) => n.startsWith(cleanUrl(u)) || cleanUrl(u).startsWith(n));
+  let dropped = 0;
+  const competitors = data.competitors
+    .map((c) => ({
+      ...c,
+      sources: c.sources.filter(inNotes),
+      fundingRounds: c.fundingRounds.map((r) => ({ ...r, sourceUrl: r.sourceUrl && inNotes(r.sourceUrl) ? r.sourceUrl : null })),
+    }))
+    .filter((c) => {
+      if (c.sources.length) return true;
+      dropped++;
+      return false;
+    });
+  const kept = new Set(competitors.map((c) => c.name));
+  return {
+    notes,
+    sweep: {
+      ...data,
+      competitors,
+      activeInvestors: data.activeInvestors
+        .map((i) => ({ ...i, backedCompanies: i.backedCompanies.filter((b) => kept.has(b)) }))
+        .filter((i) => i.backedCompanies.length),
+      gaps: dropped ? `${data.gaps} ${dropped} compan${dropped === 1 ? "y was" : "ies were"} removed because no supporting source could be confirmed.`.trim() : data.gaps,
+    },
+  };
 }
 
 /** system[1]: firm parameters, principles, calibration, portfolio and recent decisions. */
@@ -181,6 +233,7 @@ export async function underwrite(args: {
   firmContext: string;
   precedents: Precedents;
   research: string | null;
+  competitors?: CompetitorSweep | null;
   omitted?: string[];
   prior?: Analysis[];
   analystContext?: string | null;
@@ -199,6 +252,7 @@ export async function underwrite(args: {
       ? `\nThese earlier files were too large to re-attach this round; rely on the prior memo for their content: ${args.omitted.join(", ")}.`
       : "",
     priorBlock ? `\n${priorBlock}` : "",
+    args.competitors ? `\n${competitorBlock(JSON.stringify(args.competitors))}` : "\n(No competitive sweep was available. Base market.comparableOutcomes on the materials and research brief, and flag that a full competitor sweep is outstanding.)",
     precedents ? `\n${precedents}` : "\n(No sufficiently similar precedents in Genesys' deal archive; set portfolioFit.historicalPrecedents to an empty list.)",
     args.research
       ? `\n## Independent research brief (live web research, compiled before this memo)\n${args.research}`
@@ -272,6 +326,24 @@ export async function runAnalysis(analysisId: string): Promise<void> {
       });
     }
 
+    // Competitive sweep: re-used on follow-ups unless a full re-run is requested.
+    const priorSweep = [...prior].reverse().find((a) => a.competitors);
+    let competitors = (priorSweep?.competitors as CompetitorSweep | undefined) ?? null;
+    let competitorNotes = priorSweep?.competitorNotes ?? null;
+    if (env.webResearchEnabled && (!competitors || analysis.trigger === "RERUN")) {
+      await setProgress(analysisId, "Sweeping competitors: funding, investors and outcomes");
+      const swept = await competitorSweep(deal.companyName, blocks).catch((err) => {
+        console.error("[analyst] competitor sweep failed; continuing without it", err);
+        return null;
+      });
+      if (swept) {
+        competitors = swept.sweep;
+        competitorNotes = swept.notes;
+      }
+    }
+    // Everything retrieved from the web is a citable source for the fact-check.
+    const webSources = [research, competitorNotes].filter(Boolean).join("\n\n") || null;
+
     await setProgress(analysisId, prior.length ? "Underwriting the new information" : "Underwriting: science, financials and fit");
     const firmContext = await buildFirmContext({ excludeDealId: deal.id });
     const underwriteArgs = {
@@ -280,6 +352,7 @@ export async function runAnalysis(analysisId: string): Promise<void> {
       omitted,
       prior,
       research,
+      competitors,
       precedents,
       firmContext,
       analystContext: analysis.analystContext,
@@ -294,14 +367,14 @@ export async function runAnalysis(analysisId: string): Promise<void> {
     const portfolioNames = (await db.portfolioCompany.findMany({ select: { name: true } })).map((p) => p.name);
     const verifyCtx = {
       sources: await sourceTexts(deal.documents),
-      research,
+      research: webSources,
       portfolioNames,
       precedentNames: precedents.historical.map((h) => h.companyName),
     };
     const precedentsText = precedentsBlock(precedents);
     const check = async (m: Memo, revisions: number) => {
       const auto = automatedChecks(m, verifyCtx);
-      const fact = await modelFactCheck({ memo: auto.sanitized, docs: blocks, research, precedentsText }).catch((err) => {
+      const fact = await modelFactCheck({ memo: auto.sanitized, docs: blocks, research: webSources, precedentsText }).catch((err) => {
         console.error("[analyst] fact-check failed", err);
         return null;
       });
@@ -330,6 +403,8 @@ export async function runAnalysis(analysisId: string): Promise<void> {
           completedAt: new Date(),
           memo: memo as unknown as Prisma.InputJsonValue,
           research,
+          competitorNotes,
+          competitors: (competitors ?? undefined) as unknown as Prisma.InputJsonValue,
           precedents: precedentsSummary(precedents) as unknown as Prisma.InputJsonValue,
           verification: report as unknown as Prisma.InputJsonValue,
           verificationStatus: report.status,

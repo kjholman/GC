@@ -2,13 +2,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { hasRole, requireUser } from "@/lib/auth/session";
-import type { Memo } from "@/lib/ai/schema";
+import type { CompetitorSweep, Memo } from "@/lib/ai/schema";
 import { Button, Card, REC_META, ScoreRing, SectionTitle, StatusBadge, cx, fmtDate, relTime } from "@/components/ui";
 import { AnalysisProgress } from "./AnalysisProgress";
 import { CopyButton } from "./CopyButton";
 import { FeedbackPanel, FollowUpPanel, NoteForm, RerunButton, SignOffPanel, StatusPanel } from "./DealActions";
 import { EvidenceProvider } from "./Evidence";
 import { EvidenceLedger, VerificationBanner } from "./Verification";
+import { CompetitorsView } from "./Competitors";
 import type { VerificationReport } from "@/lib/ai/verify";
 import { DiligenceView, FinancialsView, FitView, MemoView, Paras, RequestsView } from "./Memo";
 import { PrintButton } from "./PrintButton";
@@ -174,6 +175,12 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
               tabs={[
                 { id: "memo", label: "Investment memo", content: <MemoView memo={memo} /> },
                 { id: "fin", label: "Financials & returns", content: <FinancialsView memo={memo} /> },
+                {
+                  id: "comp",
+                  label: "Competitive landscape",
+                  badge: (shown!.competitors as CompetitorSweep | null)?.competitors.length,
+                  content: <CompetitorsView sweep={(shown!.competitors as CompetitorSweep | null) ?? null} memo={memo} />,
+                },
                 { id: "fit", label: "Portfolio fit", content: <FitView memo={memo} /> },
                 { id: "req", label: "Information requests", badge: memo.informationRequests.length, content: <RequestsView memo={memo} /> },
                 { id: "dd", label: "Due diligence", badge: memo.dueDiligencePlan ? "✓" : undefined, content: <DiligenceView memo={memo} /> },

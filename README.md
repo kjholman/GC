@@ -31,6 +31,7 @@ When founders reply, **reopen the deal**: upload their materials and the analyst
   - Financials, with Bear/Base/Bull returns and probability-weighted MOIC.
   - Portfolio fit, with comparable Genesys investments.
   - Risk register and analyst caveats.
+- **Competitive landscape:** a live sweep of companies doing the same thing. It records each company's funding rounds, lead and other investors, outcome (acquired, IPO, partnered, failed), whether its backers resemble Genesys, and the lesson for this deal. It adds a field summary and an investor map, and all of this feeds the memo's valuation, exits, syndicate view and decision.
 - **Founder response:** a copy-paste email (or "Open in mail") tailored to the decision.
 - **Deal pipeline:** stages are Screening → Pending information → Due diligence → IC review → Invested / Declined. The pipeline also has search, a deal log, notes, a document room by round, a version history, and a print/PDF export.
 - **Knowledge base:**

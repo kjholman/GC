@@ -280,6 +280,7 @@ This memo drives decisions about real capital and real founders. An unsupported 
 - **sourceType.** Every evidence entry must name where the claim came from:
   - DECK_OR_MATERIALS: the attached documents. Give the filename and page or slide in sourceRef, and a verbatim quote of 5-40 words copied exactly from the document.
   - RESEARCH_BRIEF: the web research brief. Give the URL in sourceRef and a verbatim quote from the brief.
+  - COMPETITOR_SWEEP: the competitive landscape sweep. Give the URL in sourceRef and a verbatim quote from the sweep notes.
   - PRECEDENT: Genesys' archive or portfolio, as provided above. Name the company.
   - FIRM_CONTEXT: firm parameters or principles.
   - BENCHMARK: industry benchmarks stated in these instructions.
@@ -287,7 +288,7 @@ This memo drives decisions about real capital and real founders. An unsupported 
   - ANALYST_INFERENCE: your reasoning from other evidence. Name those evidence ids in sourceRef.
 - **Quotes must be exact.** They are checked character-for-character against the source text. If you cannot quote exactly, set quote to null and status to NEEDS_VERIFICATION.
 - **Status.** Founder assertions that the materials do not substantiate are COMPANY_CLAIM, even when they appear in the deck. Use VERIFIED_IN_SOURCE only when the source itself provides the evidence (data, citation or document), not merely an assertion.
-- **Never fabricate.** Do not invent a URL, publication, trial ID, deal value, competitor, person or quote. Cite only URLs that appear in the research brief.
+- **Never fabricate.** Do not invent a URL, publication, trial ID, deal value, competitor, funding round, investor, person or quote. Cite only URLs that appear in the research brief or the competitive sweep.
 - **Cite only Genesys companies you were given.** Every Genesys investment or past decision you cite must appear in the firm context or precedents above.
 - **Gaps become requests.** If something important is unknown, say so plainly and add an information request. Do not fill gaps with plausible-sounding detail.
 - **Information requests** must target information that is genuinely absent from the materials. Check the documents before requesting something.
@@ -485,4 +486,62 @@ export function asOfInstruction(year: number | null): string {
   return year
     ? `\n## Backtest mode: evaluate as of ${year}\nThis is a historical deal, replayed to test your judgement. Evaluate it as if the current year is ${year}. Use only what an analyst could have known then. Do not use anything you know about this company's later fate, later financings, trial results or acquisition. Treat the firm parameters as applying then.`
     : `\n## Backtest mode\nThis is a historical deal, replayed to test your judgement. Evaluate it on the materials alone. Do not use anything you know about this company's later fate.`;
+}
+
+export const COMPETITOR_SWEEP_PROMPT = `
+Run a full competitive sweep for the Genesys Capital investment team on the company in the attached materials. The partners want to know who else is doing, or has tried, the same thing, and what happened to them.
+
+**Search widely. Cover:**
+- **Direct competitors:** the same target or mechanism, or the same product for the same use.
+- **Adjacent approaches:** the same indication or clinical problem, solved a different way.
+- **Precedents:** earlier companies that attempted this and were acquired, partnered, failed or shut down.
+
+Include private start-ups, public companies, big-pharma or big-medtech programmes, and academic spin-outs. Use ClinicalTrials.gov, company websites and pipelines, press releases, SEC filings, Crunchbase/PitchBook summaries, BioCentury/Endpoints/Fierce coverage, and Canadian sources (BetaKit, CVCA).
+
+**For each company, find:**
+1. What it does and how close it is to the company under review.
+2. Stage and status: active, acquired, IPO, partnered, failed, shut down or pivoted.
+3. Each funding round: date, amount, lead investors, other investors.
+4. The outcome: acquisition value and acquirer, licence terms, trial results, or why it failed.
+5. Who backed it, and whether those investors resemble Genesys. Genesys-like means early-stage, life-science-specialist, company-building investors, and Canadian funds in particular.
+
+**Then summarise:**
+- how crowded the field is
+- total capital raised in the field
+- what separated winners from failures
+- how value has been realised (exit pattern)
+- which investors are active in the space
+
+**Rules:**
+- Cite a source URL for every fact.
+- Report figures exactly as sourced, with currency.
+- If funding or an outcome cannot be found, say "not found"; never estimate.
+- Aim for the 6–15 most relevant companies, prioritising direct competitors.
+- Keep it to roughly 2,000 words of dense notes.
+`.trim();
+
+export const COMPETITOR_EXTRACT_PROMPT = `
+Convert the competitive-sweep research notes below into the structured format. Use only facts that appear in the notes:
+- Copy figures, dates and investor names exactly.
+- Put each entry's supporting URLs (from the notes) in "sources".
+- Use null or "Unknown" where the notes have no information. Never fill gaps from memory.
+- Mark genesysLikeInvestors true only when the notes name investors matching that description.
+- activeInvestors should list investors appearing in the notes, with the companies they backed.
+`.trim();
+
+export function competitorBlock(sweepJson: string | null): string | null {
+  if (!sweepJson) return null;
+  return `## Competitive landscape sweep (live web research on companies doing the same thing)
+This is a structured, sourced table of direct competitors, adjacent approaches and precedents, with their funding, investors and outcomes. Use it throughout the memo:
+- market.competitors and market.comparableOutcomes: who else is doing this, how they fared, and what that implies.
+- Valuation and financing: compare the ask with what peers raised, and from whom.
+- Exit scenarios: anchor exit routes, values and acquirers on what actually happened to peers.
+- Syndicate view: identify active, Genesys-like investors as potential co-investors, and note who is backing competitors.
+- The decision: a field where similar companies failed, or one already saturated with better-funded players, should weigh heavily.
+
+Cite these facts with sourceType COMPETITOR_SWEEP. Use the URL as sourceRef, and quote from the sweep notes.
+
+\`\`\`json
+${sweepJson}
+\`\`\``;
 }
