@@ -171,6 +171,8 @@ enum AnalysisStatus {
   RUNNING
   COMPLETE
   FAILED
+  /// Stopped by a team member before it finished.
+  STOPPED
 }
 
 enum AnalysisTrigger {

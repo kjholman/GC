@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { StepLog, asSteps, type LogStep } from "./StepLog";
+import { stopAnalysisAction } from "@/lib/deals/actions";
 
 // Each stage is matched by the first word of the server's progress line.
 const STAGES: { label: string; match: RegExp }[] = [
@@ -21,6 +22,19 @@ export function AnalysisProgress({
   const [elapsed, setElapsed] = useState(0);
   const [showLog, setShowLog] = useState(true);
   const logEnd = useRef<HTMLDivElement>(null);
+  const [stopping, setStopping] = useState(false);
+  const [stopError, setStopError] = useState<string>();
+
+  async function stop() {
+    if (!confirm("Stop this analysis? Work done so far is discarded, and you can run it again later.")) return;
+    setStopping(true);
+    const res = await stopAnalysisAction(analysisId);
+    if (!res.ok) {
+      setStopError(res.error);
+      setStopping(false);
+    }
+    router.refresh();
+  }
 
   useEffect(() => {
     const start = startedAt ? new Date(startedAt).getTime() : Date.now();
@@ -33,7 +47,7 @@ export function AnalysisProgress({
       setSteps(asSteps(data.steps));
       // The Sharminator renamed the deal after identifying the company: refresh the header.
       if (data.deal?.companyName && data.deal.companyName !== companyName) router.refresh();
-      if (data.status === "COMPLETE" || data.status === "FAILED") {
+      if (data.status === "COMPLETE" || data.status === "FAILED" || data.status === "STOPPED") {
         clearInterval(poll);
         router.refresh();
       }
@@ -64,9 +78,19 @@ export function AnalysisProgress({
             </li>
           ))}
         </ol>
-        <div className="tabular text-[12px] text-muted">
-          {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, "0")} elapsed
+        <div className="flex items-center gap-4">
+          <div className="tabular text-[12px] text-muted">
+            {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, "0")} elapsed
+          </div>
+          <button
+            onClick={stop}
+            disabled={stopping}
+            className="rounded-lg border border-line-strong bg-paper px-3 py-1.5 text-[12.5px] font-medium text-neg hover:border-neg hover:bg-neg-bg disabled:opacity-60"
+          >
+            {stopping ? "Stopping…" : "Stop analysis"}
+          </button>
         </div>
+        {stopError && <p className="w-full text-right text-[12px] text-neg">{stopError}</p>}
       </div>
       <div className="border-t border-line">
         <button onClick={() => setShowLog((v) => !v)} className="flex w-full items-center justify-between px-6 py-3 text-left text-[13px] font-medium text-navy-800 hover:bg-mist/50">
@@ -75,7 +99,7 @@ export function AnalysisProgress({
         </button>
         {showLog && (
           <div className="max-h-[360px] overflow-y-auto bg-[#f7fafb] px-6 py-4">
-            <StepLog steps={steps} live />
+            <StepLog steps={steps} live empty={progress ? "Working. Step-by-step updates appear here as each stage finishes." : undefined} />
             <div ref={logEnd} />
           </div>
         )}

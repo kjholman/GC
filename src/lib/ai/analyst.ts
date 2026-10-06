@@ -43,7 +43,16 @@ export const STATUS_FOR_RECOMMENDATION: Record<Memo["recommendation"], DealStatu
   ADVANCE_TO_DILIGENCE: "DILIGENCE",
 };
 
+/** Thrown at the next checkpoint once someone presses Stop. */
+class AnalysisStopped extends Error {}
+
+async function ensureNotStopped(id: string) {
+  const a = await db.analysis.findUnique({ where: { id }, select: { status: true } });
+  if (!a || a.status === "STOPPED") throw new AnalysisStopped();
+}
+
 async function setProgress(id: string, progress: string) {
+  await ensureNotStopped(id);
   await db.analysis.update({ where: { id }, data: { progress } });
 }
 
@@ -57,7 +66,7 @@ export type Step = { at: string; text: string; kind: StepKind };
 async function logStep(id: string, text: string, kind: StepKind = "info") {
   const entry = JSON.stringify([{ at: new Date().toISOString(), text: plainPunctuation(text), kind }]);
   await db
-    .$executeRaw`UPDATE "Analysis" SET "steps" = COALESCE("steps", '[]'::jsonb) || ${entry}::jsonb WHERE "id" = ${id}`
+    .$executeRaw`UPDATE "Analysis" SET "steps" = COALESCE("steps", '[]'::jsonb) || ${entry}::jsonb WHERE "id" = ${id} AND "status" <> 'STOPPED'`
     .catch((err) => console.error("[analyst] could not record step", err));
 }
 
@@ -279,14 +288,21 @@ export async function runAnalysis(analysisId: string): Promise<void> {
     where: { id: analysisId },
     include: { deal: { include: { documents: true } } },
   });
-  if (!analysis || analysis.status === "COMPLETE") return;
+  if (!analysis || analysis.status === "COMPLETE" || analysis.status === "STOPPED") return;
   const { deal } = analysis;
 
   await db.analysis.update({
     where: { id: analysisId },
     data: { status: "RUNNING", startedAt: new Date(), progress: "Reading submitted materials", error: null, steps: [] },
   });
-  await logStep(analysisId, analysis.version === 1 ? "Started the first analysis of this deal" : `Started analysis version ${analysis.version}`, "start");
+  const resumed = analysis.status === "QUEUED" && analysis.progress?.startsWith("Restarting");
+  await logStep(
+    analysisId,
+    resumed
+      ? "The server was updated while this was running, so the Sharminator started it again from the beginning"
+      : analysis.version === 1 ? "Started the first analysis of this deal" : `Started analysis version ${analysis.version}`,
+    resumed ? "warn" : "start",
+  );
   let companyName = deal.companyName;
 
   let prepared: PreparedFiles | null = null;
@@ -485,6 +501,7 @@ export async function runAnalysis(analysisId: string): Promise<void> {
     memo = checked.memo;
     const report = checked.report;
 
+    await ensureNotStopped(analysisId);
     const status = STATUS_FOR_RECOMMENDATION[memo.recommendation];
     await db.$transaction([
       db.analysis.update({
@@ -539,6 +556,8 @@ export async function runAnalysis(analysisId: string): Promise<void> {
     ]);
     await logStep(analysisId, `Finished: ${RECOMMENDATION_TEXT[memo.recommendation]}. The memo is ready for review and sign-off`, "done");
   } catch (err) {
+    // Someone pressed Stop: the stop action already recorded it, so just wind down.
+    if (err instanceof AnalysisStopped) return;
     const message = describeError(err);
     console.error("[analyst] analysis failed", analysisId, err);
     await logStep(analysisId, `Stopped: ${message}`, "warn");
@@ -571,13 +590,25 @@ function friendlyApiError(status: number | undefined): string {
   return "The Sharminator couldn't reach the AI service. Check the connection and try again.";
 }
 
-/** Mark work orphaned by a server restart as failed so it can be re-run. */
+/**
+ * Called when the server starts. A deploy or restart kills any analysis that was
+ * running, so recent ones are started again automatically; very old ones are
+ * marked as not finished so they can be re-run by hand.
+ */
 export async function recoverStaleAnalyses() {
   const cutoff = new Date(Date.now() - 45 * 60 * 1000);
+  const resumeCutoff = new Date(Date.now() - 6 * 60 * 60 * 1000);
   await db.analysis.updateMany({
-    where: { status: { in: ["RUNNING", "QUEUED"] }, createdAt: { lt: cutoff } },
+    where: { status: { in: ["RUNNING", "QUEUED"] }, createdAt: { lt: resumeCutoff } },
     data: { status: "FAILED", error: "The server restarted while this was running. Run the analysis again.", progress: null },
   });
+  const interrupted = await db.analysis.findMany({ where: { status: { in: ["RUNNING", "QUEUED"] } }, select: { id: true } });
+  for (const { id } of interrupted) {
+    await db.analysis.update({ where: { id }, data: { status: "QUEUED", progress: "Restarting after a server update" } });
+    // Not awaited: startup must not wait for analyses that take many minutes.
+    void runAnalysis(id).catch((err) => console.error("[startup] could not resume analysis", id, err));
+  }
+  if (interrupted.length) console.log(`[startup] resumed ${interrupted.length} interrupted analys${interrupted.length === 1 ? "is" : "es"}`);
   await db.backtestRun.updateMany({
     where: { status: { in: ["RUNNING", "QUEUED"] }, createdAt: { lt: cutoff } },
     data: { status: "FAILED", error: "Interrupted by a server restart." },

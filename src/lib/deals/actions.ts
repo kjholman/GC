@@ -180,6 +180,23 @@ export async function submitFollowUpAction(dealId: string, _: ActionState, formD
   return { ok: true };
 }
 
+export async function stopAnalysisAction(analysisId: string): Promise<ActionState> {
+  const user = await requireUser();
+  const a = await db.analysis.findUnique({ where: { id: analysisId }, select: { dealId: true, version: true, status: true } });
+  if (!a) return { ok: false, error: "That analysis no longer exists." };
+  if (a.status !== "RUNNING" && a.status !== "QUEUED") return { ok: false, error: "This analysis has already finished." };
+  const who = user.name ?? user.email.split("@")[0];
+  const entry = JSON.stringify([{ at: new Date().toISOString(), text: `Stopped by ${who}`, kind: "warn" }]);
+  await db.$transaction([
+    db.analysis.update({ where: { id: analysisId }, data: { status: "STOPPED", progress: null, completedAt: new Date(), error: `Stopped by ${who}.` } }),
+    db.$executeRaw`UPDATE "Analysis" SET "steps" = COALESCE("steps", '[]'::jsonb) || ${entry}::jsonb WHERE "id" = ${analysisId}`,
+    db.activity.create({ data: { dealId: a.dealId, userId: user.id, type: "analysis.stopped", message: `Stopped the Sharminator's analysis (version ${a.version}) before it finished.` } }),
+  ]);
+  await audit("analysis.stopped", { userId: user.id, entity: "Deal", entityId: a.dealId });
+  revalidatePath(`/deals/${a.dealId}`);
+  return { ok: true };
+}
+
 export async function rerunAnalysisAction(dealId: string): Promise<ActionState> {
   const user = await requireUser();
   try {

@@ -14,8 +14,8 @@ function clock(iso: string) {
 }
 
 /** Step-by-step log of what the Sharminator did, oldest first. `live` marks the newest line as in progress. */
-export function StepLog({ steps, live = false, className }: { steps: LogStep[]; live?: boolean; className?: string }) {
-  if (!steps.length) return <p className={cx("text-[13px] text-muted", className)}>Waiting to start…</p>;
+export function StepLog({ steps, live = false, empty, className }: { steps: LogStep[]; live?: boolean; empty?: string; className?: string }) {
+  if (!steps.length) return <p className={cx("text-[13px] text-muted", className)}>{empty ?? "Waiting to start…"}</p>;
   return (
     <ol className={cx("space-y-1.5 font-mono text-[12.5px] leading-relaxed", className)}>
       {steps.map((s, i) => {

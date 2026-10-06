@@ -56,7 +56,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
   const requestedV = typeof sp.v === "string" ? Number(sp.v) : null;
   const shown = (requestedV && completed.find((a) => a.version === requestedV)) || completed[0];
   const memo = shown?.memo as Memo | undefined;
-  const failed = latest?.status === "FAILED" ? latest : null;
+  const failed = latest?.status === "FAILED" || latest?.status === "STOPPED" ? latest : null;
   // First analysis still running: show only the progress view until the memo exists.
   const firstRun = !!inFlight && !memo;
   // Only offer "Founders replied?" when the memo actually asks the founders for something.
@@ -140,7 +140,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
       {failed && (
         <div className="mb-8 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-[#efd2ce] bg-neg-bg px-6 py-4">
           <div>
-            <div className="text-[13.5px] font-medium text-neg">Analysis version {failed.version} did not finish</div>
+            <div className="text-[13.5px] font-medium text-neg">{failed.status === "STOPPED" ? `Analysis version ${failed.version} was stopped` : `Analysis version ${failed.version} did not finish`}</div>
             <div className="mt-0.5 text-[13px] text-ink-soft">{failed.error}</div>
             {asSteps(failed.steps).length > 0 && (
               <details className="mt-2">
@@ -294,7 +294,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
                                   {a.trigger === "INITIAL_SCREEN" ? "Initial screen" : a.trigger === "NEW_INFORMATION" ? "New information" : "Re-run"}
                                 </td>
                                 <td className={cx("px-4 py-3 font-medium", a.recommendation ? REC_META[a.recommendation]?.cls : "text-muted")}>
-                                  {a.recommendation ? REC_META[a.recommendation]?.label : ({ QUEUED: "Waiting to start", RUNNING: "In progress", FAILED: "Didn't finish", COMPLETE: "Finished" } as Record<string, string>)[a.status]}
+                                  {a.recommendation ? REC_META[a.recommendation]?.label : ({ QUEUED: "Waiting to start", RUNNING: "In progress", FAILED: "Didn't finish", STOPPED: "Stopped", COMPLETE: "Finished" } as Record<string, string>)[a.status]}
                                 </td>
                                 <td className="px-4 py-3 tabular text-ink">{a.overallScore ?? "—"}</td>
                                 <td className="px-4 py-3 text-[12px] text-muted">{fmtDate(a.completedAt ?? a.createdAt, true)}</td>

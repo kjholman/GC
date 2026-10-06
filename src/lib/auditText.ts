@@ -50,6 +50,7 @@ export function describeEvent(
       return t(`${actor} moved ${deal} from ${stages[String(meta.from)] ?? "its previous stage"} to ${stages[String(meta.to)] ?? "a new stage"}`);
     case "deal.deleted": return t(`${actor} deleted a deal`, true);
     case "document.downloaded": return t(`${actor} opened a document${subject ? ` (${subject})` : ""}`);
+    case "analysis.stopped": return t(`${actor} stopped an analysis of ${deal} before it finished`);
     case "analysis.signed_off": return t(`${actor} signed off a memo${subject ? ` for ${deal}` : ""}`);
     case "analysis.feedback": return t(`${actor} reviewed a memo and ${verdicts[String(meta.verdict)] ?? "left feedback"}`);
     // Knowledge base & training
