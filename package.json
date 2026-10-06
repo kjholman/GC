@@ -11,7 +11,7 @@
     "db:migrate": "prisma migrate deploy",
     "db:seed": "prisma db seed",
     "postinstall": "prisma generate",
-    "start:render": "prisma migrate deploy && prisma db seed && next start"
+    "start:render": "prisma migrate deploy && prisma db seed && NODE_OPTIONS=--unhandled-rejections=warn next start"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",

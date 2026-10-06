@@ -15,4 +15,5 @@ WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=build /app ./
 EXPOSE 3000
+ENV NODE_OPTIONS=--unhandled-rejections=warn
 CMD ["sh", "-c", "npx prisma migrate deploy && npm start"]
