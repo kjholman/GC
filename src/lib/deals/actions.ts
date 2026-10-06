@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { AnalysisTrigger, DealStatus, DocumentKind } from "@prisma/client";
 import { Prisma } from "@prisma/client";
+import { inspectLogo } from "./logo";
 import { db } from "../db";
 import { FEEDBACK_AREA_IDS, FEEDBACK_AREA_LABEL } from "../feedback/options";
 import { interpretFeedback } from "../feedback/interpret";
@@ -143,7 +144,7 @@ async function queueNewVersion(
   userId: string,
   trigger: AnalysisTrigger,
   analystContext?: string,
-  opts: { instructions?: string; refreshResearch?: boolean } = {},
+  opts: { instructions?: string; refreshResearch?: boolean; reason?: string } = {},
 ) {
   const last = await db.analysis.findFirst({ where: { dealId }, orderBy: { version: "desc" } });
   if (last && (last.status === "RUNNING" || last.status === "QUEUED")) {
@@ -160,6 +161,7 @@ async function queueNewVersion(
       analystContext,
       instructions: opts.instructions?.trim().slice(0, 5000) || null,
       refreshResearch: !!opts.refreshResearch,
+      reason: opts.reason?.slice(0, 2000) || null,
       createdById: userId,
       priorDealStatus: deal?.status ?? null,
     },
@@ -246,19 +248,43 @@ export async function stopAnalysisAction(analysisId: string): Promise<ActionStat
   return { ok: true };
 }
 
-export async function rerunAnalysisAction(dealId: string, opts: { instructions?: string; refreshResearch?: boolean } = {}): Promise<ActionState> {
+/**
+ * Runs the analysis again. Needs a reason (typed instructions, or "the last run
+ * didn't finish") or new files, so every version records why it exists.
+ */
+export async function rerunAnalysisAction(dealId: string, formData: FormData): Promise<ActionState> {
   const user = await requireUser();
-  // A version paused for credit is continued, not replaced, so nothing it finished is redone.
-  // (New instructions or fresh research need a new version; it still reuses the saved research.)
-  if (!opts.instructions?.trim() && !opts.refreshResearch) {
-    const latest = await db.analysis.findFirst({ where: { dealId }, orderBy: { version: "desc" }, select: { id: true, status: true } });
-    if (latest?.status === "PAUSED") return resumeAnalysisAction(latest.id);
+  const text = String(formData.get("reason") ?? "").trim().slice(0, 5000);
+  const retry = formData.get("retry") === "1";
+  const refreshResearch = formData.get("refresh") === "1";
+  const files = formData.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
+  if (!text && !files.length && !retry) {
+    return { ok: false, error: "Say why you're running it again, or add new materials." };
   }
+  const reason = text || (files.length ? `New materials: ${files.map((f) => f.name).join(", ")}` : "The last run didn't finish");
   try {
-    const analysis = await queueNewVersion(dealId, user.id, "RERUN", undefined, opts);
-    await db.activity.create({
-      data: { dealId, userId: user.id, type: "analysis.rerun", message: `Asked the Sharminator to re-run the analysis (v${analysis.version})${analysis.instructions ? `, with instructions: "${analysis.instructions.slice(0, 300)}"` : ""}${analysis.refreshResearch ? "; web research redone" : ""}.` },
+    let docs: Awaited<ReturnType<typeof ingestFiles>> = [];
+    if (files.length) docs = await ingestFiles(files, "OTHER");
+    const analysis = await queueNewVersion(dealId, user.id, files.length ? "NEW_INFORMATION" : "RERUN", undefined, {
+      // Typed text guides the analysis; a plain retry changes nothing, so saved work is still reused.
+      instructions: text || undefined,
+      refreshResearch,
+      reason,
     });
+    if (docs.length) {
+      const maxRound = await db.document.aggregate({ where: { dealId }, _max: { round: true } });
+      const round = (maxRound._max.round ?? 1) + 1;
+      await db.$transaction(docs.map((d) => db.document.create({ data: { ...d, dealId, round, uploadedById: user.id } })));
+    }
+    await db.activity.create({
+      data: {
+        dealId,
+        userId: user.id,
+        type: "analysis.rerun",
+        message: `Asked the Sharminator to run the analysis again (v${analysis.version}). Reason: "${reason.slice(0, 300)}"${docs.length ? `; ${docs.length} new file${docs.length === 1 ? "" : "s"}` : ""}${refreshResearch ? "; web research redone" : ""}.`,
+      },
+    });
+    await audit("analysis.rerun", { userId: user.id, entity: "Deal", entityId: dealId });
     scheduleAnalysis(analysis.id);
   } catch (err) {
     return { ok: false, error: (err as Error).message };
@@ -387,9 +413,11 @@ export async function setLogoAction(dealId: string, formData: FormData): Promise
   if (file instanceof File && file.size > 0) {
     if (!/^image\/(png|jpe?g|gif|webp|svg\+xml)$/.test(file.type)) return { ok: false, error: "Use a PNG, JPG, GIF, WEBP or SVG image." };
     if (file.size > 1024 * 1024) return { ok: false, error: "Use an image under 1 MB." };
-    await db.deal.update({ where: { id: dealId }, data: { logo: Buffer.from(await file.arrayBuffer()), logoMime: file.type, logoCheckedAt: new Date() } });
+    const img = await inspectLogo(Buffer.from(await file.arrayBuffer()), file.type);
+    if (img.blank) return { ok: false, error: "That image looks blank. Try a different file, such as a coloured version of the logo." };
+    await db.deal.update({ where: { id: dealId }, data: { logo: new Uint8Array(img.buf), logoMime: img.mime, logoOnDark: img.light, logoNote: "Uploaded by the team", logoCheckedAt: new Date() } });
   } else {
-    await db.deal.update({ where: { id: dealId }, data: { logo: null, logoMime: null, logoCheckedAt: new Date() } });
+    await db.deal.update({ where: { id: dealId }, data: { logo: null, logoMime: null, logoOnDark: null, logoCheckedAt: new Date() } });
   }
   await audit("deal.logo_changed", { userId: user.id, entity: "Deal", entityId: dealId });
   revalidatePath("/deals/[id]", "page");

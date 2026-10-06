@@ -26,29 +26,43 @@ export function PipelineFilters({ sectors, stages }: { sectors: string[]; stages
       {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
     </select>
   );
+  // Row 1: search on the left, sort on the right (lined up with the list's right edge).
+  // Row 2: the filters, the date range and "Clear filters".
   return (
-    <div className="mb-5 flex flex-wrap items-center gap-2">
-      <form
-        className="w-full sm:w-64"
-        onSubmit={(e) => {
-          e.preventDefault();
-          set("q", q.trim());
-        }}
-      >
-        <input value={q} onChange={(e) => setQ(e.target.value)} onBlur={() => q.trim() !== (sp.get("q") ?? "") && set("q", q.trim())} placeholder="Search company, sector…" className={cx(ctl, "w-full")} aria-label="Search" />
-      </form>
-      {pick("rec", "Recommendation", [["ADVANCE_TO_DILIGENCE", "Advance to diligence"], ["PENDING_INFO", "Request information"], ["REJECT", "Decline"], ["NONE", "Not analysed yet"]])}
-      {pick("sector", "Sector", sectors.map((s) => [s, s]))}
-      {pick("stage", "Stage", stages.map((s) => [s, s]))}
-      {pick("runs", "Analyses", [["0", "None yet"], ["1", "1"], ["2", "2"], ["3", "3 or more"]])}
-      {pick("minScore", "Score", [80, 70, 60, 50].map((n) => [String(n), `${n}+`]))}
-      <span className="flex items-center gap-1.5 text-[12px] text-muted">
-        Submitted
-        <input type="date" aria-label="Submitted from" value={sp.get("from") ?? ""} onChange={(e) => set("from", e.target.value)} className={cx(ctl, "w-[124px] px-2 sm:w-[138px]")} />
-        to
-        <input type="date" aria-label="Submitted to" value={sp.get("to") ?? ""} onChange={(e) => set("to", e.target.value)} className={cx(ctl, "w-[124px] px-2 sm:w-[138px]")} />
-      </span>
-      <span className="ml-auto flex items-center gap-2 text-[12px] text-muted">
+    <div className="mb-5 space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <form
+          className="w-full sm:w-72"
+          onSubmit={(e) => {
+            e.preventDefault();
+            set("q", q.trim());
+          }}
+        >
+          <input value={q} onChange={(e) => setQ(e.target.value)} onBlur={() => q.trim() !== (sp.get("q") ?? "") && set("q", q.trim())} placeholder="Search company, sector…" className={cx(ctl, "w-full")} aria-label="Search" />
+        </form>
+        <span className="flex items-center gap-2 text-[12px] text-muted">
+          Sort
+          <select aria-label="Sort" value={sp.get("sort") ?? "updated"} onChange={(e) => set("sort", e.target.value === "updated" ? "" : e.target.value)} className={cx(ctl, "w-auto")}>
+            <option value="updated">Recently updated</option>
+            <option value="newest">Newest submitted</option>
+            <option value="oldest">Oldest submitted</option>
+            <option value="score">Highest score</option>
+            <option value="name">Company name</option>
+          </select>
+        </span>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {pick("rec", "Recommendation", [["ADVANCE_TO_DILIGENCE", "Advance to diligence"], ["PENDING_INFO", "Request information"], ["REJECT", "Decline"], ["NONE", "Not analysed yet"]])}
+        {pick("sector", "Sector", sectors.map((s) => [s, s]))}
+        {pick("stage", "Stage", stages.map((s) => [s, s]))}
+        {pick("runs", "Analyses", [["0", "None yet"], ["1", "1"], ["2", "2"], ["3", "3 or more"]])}
+        {pick("minScore", "Score", [80, 70, 60, 50].map((n) => [String(n), `${n}+`]))}
+        <span className="flex items-center gap-1.5 text-[12px] text-muted">
+          Submitted
+          <input type="date" aria-label="Submitted from" value={sp.get("from") ?? ""} onChange={(e) => set("from", e.target.value)} className={cx(ctl, "w-[124px] px-2 sm:w-[138px]")} />
+          to
+          <input type="date" aria-label="Submitted to" value={sp.get("to") ?? ""} onChange={(e) => set("to", e.target.value)} className={cx(ctl, "w-[124px] px-2 sm:w-[138px]")} />
+        </span>
         {active && (
           <button
             type="button"
@@ -56,20 +70,12 @@ export function PipelineFilters({ sectors, stages }: { sectors: string[]; stages
               setQ("");
               router.push(`/deals${sp.get("status") ? `?status=${sp.get("status")}` : ""}`);
             }}
-            className="font-medium text-navy-700 hover:underline"
+            className="ml-1 text-[12px] font-medium text-navy-700 hover:underline"
           >
             Clear filters
           </button>
         )}
-        Sort
-        <select aria-label="Sort" value={sp.get("sort") ?? "updated"} onChange={(e) => set("sort", e.target.value === "updated" ? "" : e.target.value)} className={cx(ctl, "w-auto")}>
-          <option value="updated">Recently updated</option>
-          <option value="newest">Newest submitted</option>
-          <option value="oldest">Oldest submitted</option>
-          <option value="score">Highest score</option>
-          <option value="name">Company name</option>
-        </select>
-      </span>
+      </div>
     </div>
   );
 }

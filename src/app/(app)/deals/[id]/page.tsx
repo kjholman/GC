@@ -50,7 +50,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
     include: {
       owner: { select: { name: true, email: true } },
       documents: {
-        select: { id: true, filename: true, kind: true, round: true, sizeBytes: true, createdAt: true, pageCount: true, uploadedBy: { select: { name: true, email: true } } },
+        select: { id: true, filename: true, mimeType: true, kind: true, round: true, sizeBytes: true, createdAt: true, pageCount: true, uploadedBy: { select: { name: true, email: true } } },
         orderBy: [{ round: "asc" }, { createdAt: "asc" }],
       },
       analyses: {
@@ -65,10 +65,14 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
   const slug = deal.slug ?? (await refreshSlug(deal.id));
   if (id !== slug) redirect(`/deals/${slug}${typeof sp.v === "string" ? `?v=${sp.v}` : ""}`);
   // Older deals: look for a logo the first time the page is opened.
+  // Spreadsheets the company sent (financial models, cap tables), offered for download under Financials.
+  const spreadsheets = deal.documents.filter(
+    (d) => d.kind === "FINANCIAL_MODEL" || /spreadsheet|excel|csv/.test(d.mimeType) || /\.(xlsx?|xlsm|csv|numbers)$/i.test(d.filename),
+  );
   // For the re-run dialog: the last instructions given and this deal's partner feedback.
   const lastInstructions = [...deal.analyses].sort((x, y) => y.version - x.version).find((a) => a.instructions)?.instructions ?? null;
   const feedbackHints = [...new Set(deal.analyses.flatMap((a) => a.feedback.map((f) => (f.lesson ?? f.comment).trim())).filter(Boolean))].slice(-6);
-  if (!deal.logoMime) after(() => ensureDealLogo(deal.id).catch(() => {}));
+  if (!deal.logoMime || deal.logoOnDark === null) after(() => ensureDealLogo(deal.id).catch(() => {}));
 
   const latest = deal.analyses[0];
   const inFlight = latest && (latest.status === "RUNNING" || latest.status === "QUEUED") ? latest : null;
@@ -104,6 +108,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
       context: (a.contextUsed as VersionRow["context"]) ?? null,
       steps: asSteps(a.steps),
       instructions: a.instructions,
+      reason: a.reason,
       timings: Array.isArray(a.timings) ? (a.timings as { stage: string; ms: number }[]) : [],
     };
   });
@@ -141,7 +146,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
           </div>
           <div className="flex items-center gap-4">
             <div className="flex shrink-0 flex-col items-center gap-1">
-              <DealLogo dealId={deal.id} name={deal.companyName} hasLogo={!!deal.logoMime} version={deal.logoCheckedAt?.getTime()} size={56} />
+              <DealLogo dealId={deal.id} name={deal.companyName} hasLogo={!!deal.logoMime} onDark={deal.logoOnDark} version={deal.logoCheckedAt?.getTime()} size={56} />
             </div>
             <h1 className="min-w-0 font-display font-semibold text-[32px] leading-[1.05] tracking-[-0.015em] text-navy-900 [overflow-wrap:anywhere] sm:text-[40px]">{deal.companyName}</h1>
           </div>
@@ -189,6 +194,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
             analysisId={inFlight.id}
             version={inFlight.version}
             initialProgress={inFlight.progress}
+            initialStage={inFlight.stage}
             initialSteps={asSteps(inFlight.steps)}
             avatar={<AnalystAvatar size={56} />}
             companyName={deal.companyName}
@@ -230,7 +236,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
               </details>
             )}
           </div>
-          <RerunButton dealId={deal.id} disabled={false} lastInstructions={lastInstructions} feedback={feedbackHints} />
+          <RerunButton dealId={deal.id} disabled={false} lastInstructions={lastInstructions} feedback={feedbackHints} lastRunUnfinished />
         </div>
       )}
       {memo && shown && deal.freshStartAt && deal.freshStartAt > (shown.completedAt ?? shown.createdAt) && !inFlight && (
@@ -238,7 +244,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
           <p className="min-w-0 flex-1 text-[13.5px] text-ink">
             <span className="font-medium text-warn">A file was removed after this memo was written.</span> The memo below may still reflect it. Run the analysis again for a memo that doesn&apos;t use it.
           </p>
-          <RerunButton dealId={deal.id} disabled={false} lastInstructions={lastInstructions} feedback={feedbackHints} />
+          <RerunButton dealId={deal.id} disabled={false} lastInstructions={lastInstructions} feedback={feedbackHints} lastRunUnfinished={!!failed} pausedId={paused?.id} />
         </div>
       )}
       {shown && !isLatestShown && (
@@ -289,12 +295,41 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
             <Tabs
               key={shown!.id}
               tabs={[
-                { id: "memo", label: "Investment memo", content: <MemoView memo={memo} /> },
+                { id: "memo", label: "Investment memo", content: <MemoView memo={memo} firstAnalysis={!deal.analyses.some((a) => a.version < shown!.version && a.status === "COMPLETE")} /> },
                 { id: "gaps", label: "Gaps to close", badge: memo.gaps?.length || undefined, content: <GapsView memo={memo} /> },
                 { id: "market", label: "Market", content: <MarketView memo={memo} /> },
                 { id: "ip", label: "IP", badge: memo.intellectualProperty.assets?.length, content: <IPView memo={memo} /> },
                 { id: "team", label: "Team", badge: memo.team.members?.length, content: <TeamView memo={memo} /> },
-                { id: "fin", label: "Financials & returns", content: <FinancialsView memo={memo} /> },
+                {
+                  id: "fin",
+                  label: "Financials & returns",
+                  content: (
+                    <div className="space-y-8">
+                      <Card>
+                        <SectionTitle eyebrow="Excel" title="Financial models" />
+                        <ul className="divide-y divide-line text-[13.5px]">
+                          <li className="flex flex-wrap items-center justify-between gap-3 py-3">
+                            <span className="min-w-0">
+                              <span className="block font-medium text-navy-900">Return and market model (v{shown!.version})</span>
+                              <span className="block text-[12.5px] text-muted">Built from this memo: scenarios with live formulas, expected multiple and IRR, milestones and market sizing. Change the blue inputs to test assumptions.</span>
+                            </span>
+                            <a href={`/api/analyses/${shown!.id}/model`} className="shrink-0 rounded-lg border border-line-strong px-3 py-1.5 text-[13px] font-medium text-navy-800 hover:border-navy-700">⇩ Download .xlsx</a>
+                          </li>
+                          {spreadsheets.map((d) => (
+                            <li key={d.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                              <span className="min-w-0">
+                                <span className="block truncate font-medium text-navy-900">{d.filename}</span>
+                                <span className="block text-[12.5px] text-muted">Submitted by the company{d.round > 1 ? ` (round ${d.round})` : ""} · {(d.sizeBytes / 1024 / 1024).toFixed(1)} MB</span>
+                              </span>
+                              <a href={`/api/documents/${d.id}`} download={d.filename} className="shrink-0 rounded-lg border border-line-strong px-3 py-1.5 text-[13px] font-medium text-navy-800 hover:border-navy-700">⇩ Download</a>
+                            </li>
+                          ))}
+                        </ul>
+                      </Card>
+                      <FinancialsView memo={memo} />
+                    </div>
+                  ),
+                },
                 {
                   id: "comp",
                   label: "Competitive landscape",
@@ -304,47 +339,52 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
                 { id: "fit", label: "Portfolio fit", content: <FitView memo={memo} /> },
                 { id: "req", label: "Information requests", badge: memo.informationRequests.length, content: <RequestsView memo={memo} /> },
                 { id: "dd", label: "Due diligence", badge: memo.dueDiligencePlan ? "✓" : undefined, content: <DiligenceView memo={memo} /> },
-                {
-                  id: "email",
-                  label: "Founder response",
-                  content: (
-                    <Card>
-                      <SectionTitle
-                        eyebrow="Ready to send"
-                        title="Response to the founders"
-                        action={
-                          signedOff ? (
-                            <div className="no-print flex gap-2">
-                              <CopyButton text={emailBody} label="Copy body" />
-                              <CopyButton text={`Subject: ${memo.founderEmail.subject}\n\n${emailBody}`} label="Copy all" />
-                              <a href={mailto}>
-                                <Button>Open in mail</Button>
-                              </a>
+                // A deal that does not pass screening gets no founder response.
+                ...(memo.recommendation !== "REJECT" && memo.founderEmail.body.trim()
+                  ? [
+                    {
+                      id: "email",
+                      label: "Founder response",
+                      content: (
+                        <Card>
+                          <SectionTitle
+                            eyebrow="Ready to send"
+                            title="Response to the founders"
+                            action={
+                              signedOff ? (
+                                <div className="no-print flex gap-2">
+                                  <CopyButton text={emailBody} label="Copy body" />
+                                  <CopyButton text={`Subject: ${memo.founderEmail.subject}\n\n${emailBody}`} label="Copy all" />
+                                  <a href={mailto}>
+                                    <Button>Open in mail</Button>
+                                  </a>
+                                </div>
+                              ) : (
+                                <span className="no-print rounded-lg border border-brand-300 bg-brand-100/60 px-3 py-2 text-[12.5px] text-brand-600">
+                                  Locked until an analyst signs off the memo
+                                </span>
+                              )
+                            }
+                          />
+                          <div className="rounded-lg border border-line bg-[#fbfaf7]">
+                            <div className="border-b border-line px-6 py-3 text-[13px]">
+                              <span className="text-muted">To: </span>
+                              <span className="text-ink">{deal.contactEmail ?? "[founder email]"}</span>
                             </div>
-                          ) : (
-                            <span className="no-print rounded-lg border border-brand-300 bg-brand-100/60 px-3 py-2 text-[12.5px] text-brand-600">
-                              Locked until an analyst signs off the memo
-                            </span>
-                          )
-                        }
-                      />
-                      <div className="rounded-lg border border-line bg-[#fbfaf7]">
-                        <div className="border-b border-line px-6 py-3 text-[13px]">
-                          <span className="text-muted">To: </span>
-                          <span className="text-ink">{deal.contactEmail ?? "[founder email]"}</span>
-                        </div>
-                        <div className="border-b border-line px-6 py-3 text-[13px]">
-                          <span className="text-muted">Subject: </span>
-                          <span className="font-medium text-ink">{memo.founderEmail.subject}</span>
-                        </div>
-                        <pre className="whitespace-pre-wrap px-6 py-6 font-sans text-[14px] leading-[1.75] text-ink">{emailBody}</pre>
-                      </div>
-                      <p className="mt-4 text-[12px] text-muted">
-                        Review before sending and replace [Your name] with your signature. Internal scores and evidence tags are never included in founder correspondence.
-                      </p>
-                    </Card>
-                  ),
-                },
+                            <div className="border-b border-line px-6 py-3 text-[13px]">
+                              <span className="text-muted">Subject: </span>
+                              <span className="font-medium text-ink">{memo.founderEmail.subject}</span>
+                            </div>
+                            <pre className="whitespace-pre-wrap px-6 py-6 font-sans text-[14px] leading-[1.75] text-ink">{emailBody}</pre>
+                          </div>
+                          <p className="mt-4 text-[12px] text-muted">
+                            Review before sending and replace [Your name] with your signature. Internal scores and evidence tags are never included in founder correspondence.
+                          </p>
+                        </Card>
+                      ),
+                    },
+                    ]
+                  : []),
                 {
                   id: "evidence",
                   label: "Sources",
@@ -462,7 +502,12 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
           <Card>
             <div className="eyebrow mb-3">Tools</div>
             <div className="flex flex-col items-start gap-1">
-              <RerunButton dealId={deal.id} disabled={!!inFlight} lastInstructions={lastInstructions} feedback={feedbackHints} />
+              <RerunButton dealId={deal.id} disabled={!!inFlight} lastInstructions={lastInstructions} feedback={feedbackHints} lastRunUnfinished={!!failed} pausedId={paused?.id} />
+              {memo && shown && (
+                <a href={`/api/analyses/${shown.id}/memo`} className="inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-[13.5px] font-medium text-navy-800 transition-colors hover:bg-navy-50">
+                  ⇩ Download memo (Word)
+                </a>
+              )}
               {memo && <PrintButton />}
             </div>
           </Card>

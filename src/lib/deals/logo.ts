@@ -75,6 +75,47 @@ function candidates(html: string, base: URL): string[] {
 }
 
 /**
+ * Makes a downloaded logo safe and checks how it will look: SVGs are turned into
+ * PNGs (an SVG can depend on embedded pictures, fonts or the site's stylesheet and
+ * show up blank on its own), then the image is checked for being empty or mostly
+ * white (logos made for a dark website header vanish on a white tile).
+ */
+export async function inspectLogo(buf: Buffer, mime: string): Promise<{ buf: Buffer; mime: string; blank: boolean; light: boolean }> {
+  try {
+    const sharp = (await import("sharp")).default;
+    let out = buf;
+    let outMime = mime;
+    if (mime === "image/svg+xml") {
+      out = await sharp(buf, { density: 300 }).resize({ width: 512, height: 512, fit: "inside" }).png().toBuffer();
+      outMime = "image/png";
+    }
+    if (/icon/.test(outMime)) return { buf: out, mime: outMime, blank: false, light: false }; // .ico: not readable here
+    const { data, info } = await sharp(out).resize(64, 64, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    let opaque = 0;
+    let light = 0;
+    let lumSum = 0;
+    let lumSq = 0;
+    for (let i = 0; i < data.length; i += info.channels) {
+      if (data[i + 3] < 40) continue;
+      opaque++;
+      const lum = (0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2]) / 255;
+      lumSum += lum;
+      lumSq += lum * lum;
+      if (lum > 0.85) light++;
+    }
+    const total = data.length / info.channels;
+    const mean = opaque ? lumSum / opaque : 1;
+    const spread = opaque ? Math.sqrt(Math.max(0, lumSq / opaque - mean * mean)) : 0;
+    // Blank: next to nothing drawn, or one flat light colour with no detail.
+    const blank = opaque / total < 0.01 || (opaque / total > 0.95 && mean > 0.93 && spread < 0.03);
+    return { buf: out, mime: outMime, blank, light: !blank && opaque > 0 && light / opaque > 0.85 };
+  } catch (err) {
+    console.error("[logo] could not inspect a logo", err);
+    return { buf, mime, blank: false, light: false };
+  }
+}
+
+/**
  * Finds the company's logo on its website and stores it on the deal. Never throws.
  * Returns true when a logo was saved, otherwise a short plain-English reason.
  */
@@ -88,18 +129,39 @@ export async function logoFromWebsite(dealId: string, site?: string): Promise<tr
     const page = await safeFetch(home.toString(), "text/html");
     const html = page ? (await page.text()).slice(0, 500_000) : "";
     let tried = 0;
+    let blanks = 0;
+    // A white logo (made for a dark header) is kept only if nothing in colour turns up.
+    let lightOnly: { buf: Buffer; mime: string } | null = null;
+    const save = async (img: { buf: Buffer; mime: string }, onDark: boolean) => {
+      await db.deal.update({
+        where: { id: dealId },
+        data: {
+          logo: new Uint8Array(img.buf), logoMime: img.mime, logoOnDark: onDark, logoCheckedAt: new Date(),
+          logoNote: `Found on ${home.hostname}${onDark ? " (a white logo, shown on a dark tile)" : ""}`,
+          ...(site ? { website: `https://${home.hostname}` } : {}),
+        },
+      });
+    };
     for (const url of candidates(html, page ? new URL(page.url || home.toString()) : home)) {
       tried++;
       const res = await safeFetch(url, "image/*");
       const mime = res?.headers.get("content-type")?.split(";")[0].trim().toLowerCase() ?? "";
       if (!res || !/^image\/(png|jpe?g|gif|webp|svg\+xml|x-icon|vnd\.microsoft\.icon)$/.test(mime)) continue;
-      const buf = Buffer.from(await res.arrayBuffer());
+      const raw = Buffer.from(await res.arrayBuffer());
       // Skip empty files and the 16px "no icon" placeholders the logo services return.
-      if (buf.length < 200 || buf.length > MAX_BYTES) continue;
-      await db.deal.update({ where: { id: dealId }, data: { logo: buf, logoMime: mime, logoCheckedAt: new Date(), logoNote: `Found on ${home.hostname}`, ...(site ? { website: `https://${home.hostname}` } : {}) } });
+      if (raw.length < 200 || raw.length > MAX_BYTES) continue;
+      const img = await inspectLogo(raw, mime);
+      if (img.blank) { blanks++; continue; }
+      if (img.light) { lightOnly ??= img; continue; }
+      await save(img, false);
       return true;
     }
-    return page ? `${home.hostname} has no usable logo or icon (${tried} places checked)` : `${home.hostname} could not be reached or blocked automated requests`;
+    if (lightOnly) {
+      await save(lightOnly, true);
+      return true;
+    }
+    if (!page) return `${home.hostname} could not be reached or blocked automated requests`;
+    return `${home.hostname} has no usable logo or icon (${tried} places checked${blanks ? `, ${blanks} came out blank` : ""})`;
   } catch (err) {
     console.error("[logo] could not fetch", dealId, err);
     return "the website lookup failed";

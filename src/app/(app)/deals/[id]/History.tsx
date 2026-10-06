@@ -66,6 +66,7 @@ export type VersionRow = {
   context: { portfolioCompanies?: number; principles?: string[]; firmDocuments?: string[]; pastDeals?: string[]; exampleMemos?: string[]; lessons?: number; dealReviews?: number } | null;
   steps: { at: string; text: string; kind: "start" | "info" | "done" | "warn" }[];
   instructions: string | null;
+  reason: string | null;
   timings: { stage: string; ms: number }[];
 };
 
@@ -196,11 +197,13 @@ export function VersionHistory({ dealPath, rows, shownId }: { dealPath: string; 
                   )}
                 </div>
               </details>
+              {r.reason && <p className="mt-1 text-[12.5px] text-ink-soft"><span className="text-muted">Why it was run: </span>{r.reason}</p>}
               {r.analystContext && <p className="mt-1 text-[12.5px] text-ink-soft"><span className="text-muted">Team note: </span>{r.analystContext}</p>}
-              {r.status === "COMPLETE" && (
+              {/* Only a version with an earlier finished one has anything to compare against. */}
+              {r.status === "COMPLETE" && rows.some((o) => o.version < r.version && o.status === "COMPLETE") && (
                 <div className="mt-2 rounded-lg bg-mist px-3.5 py-2.5 text-[13px] leading-relaxed text-ink">
                   <div className="text-[10.5px] font-semibold uppercase tracking-[0.1em] text-brand-600">What changed</div>
-                  {r.versionDelta ?? (r.version === 1 || !prev ? "First analysis of this deal." : "No summary of changes was recorded for this version.")}
+                  {r.versionDelta ?? "No summary of changes was recorded for this version."}
                 </div>
               )}
             </li>

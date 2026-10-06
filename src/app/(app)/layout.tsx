@@ -7,7 +7,7 @@ import { MobileNav } from "@/components/MobileNav";
 import { getAiStatus, recheckCreditIfFlagged } from "@/lib/ai/credit";
 import { resumeAllPaused } from "@/lib/deals/scheduler";
 import { after } from "next/server";
-import Link from "next/link";
+import { CreditBanner } from "@/components/CreditBanner";
 import { SharminatorEasterEgg } from "@/components/SharminatorEasterEgg";
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
@@ -63,17 +63,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
             Testing mode: anyone with this web address can get in without signing in. Ask your developer to switch this off before uploading confidential material.
           </div>
         )}
-        {ai?.creditLowSince && (
-          <div className="no-print mx-auto mb-6 max-w-[1280px] rounded-lg border border-[#efdcb4] bg-warn-bg px-4 py-3 text-[13px] text-ink">
-            <span className="font-medium text-warn">The Sharminator is paused: the Anthropic account is out of credit.</span>{" "}
-            The rest of the app works as normal. Analyses wait and resume once credit is added
-            {hasRole(user.role, "ADMIN") ? (
-              <>; then press <Link href="/administration" className="font-medium text-navy-800 underline">Check credit</Link> on the Administration page.</>
-            ) : (
-              <>. Let an administrator know.</>
-            )}
-          </div>
-        )}
+        <CreditBanner initialLow={!!ai?.creditLowSince} isAdmin={hasRole(user.role, "ADMIN")} />
         <div className="mx-auto max-w-[1280px]">{children}</div>
       </main>
       <SharminatorEasterEgg />

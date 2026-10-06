@@ -1,13 +1,14 @@
 import { cx } from "./ui";
 
 /** Company logo (fetched from its website) or, until one is found, its initials on the brand gradient. */
-export function DealLogo({ dealId, name, hasLogo, version, size = 48, className }: {
-  dealId: string; name: string; hasLogo: boolean; version?: string | number; size?: number; className?: string;
+export function DealLogo({ dealId, name, hasLogo, onDark, version, size = 48, className }: {
+  dealId: string; name: string; hasLogo: boolean; onDark?: boolean | null; version?: string | number; size?: number; className?: string;
 }) {
   const initials = name.replace(/^Untitled:\s*/i, "").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("") || "?";
   return (
     <div
-      className={cx("flex shrink-0 items-center justify-center overflow-hidden rounded-xl border border-line bg-paper", className)}
+      // A white logo (made for a dark website header) sits on navy so it stays visible.
+      className={cx("flex shrink-0 items-center justify-center overflow-hidden rounded-xl border", hasLogo && onDark ? "border-navy-900 bg-navy-900" : "border-line bg-paper", className)}
       style={{ width: size, height: size }}
     >
       {hasLogo ? (

@@ -121,7 +121,7 @@ export function CompetitorsView({ sweep, memo }: { sweep: CompetitorSweep | null
                         <p className="text-muted">No rounds found.</p>
                       ) : (
                         <div className="overflow-x-auto">
-                        <table className="w-full text-[12.5px]">
+                        <table className="stack-sm w-full text-[12.5px]">
                           <tbody className="divide-y divide-line">
                             {c.fundingRounds.map((r, i) => (
                               <tr key={i}>
@@ -156,7 +156,7 @@ export function CompetitorsView({ sweep, memo }: { sweep: CompetitorSweep | null
         <Card pad={false}>
           <div className="px-6 pt-6"><SectionTitle eyebrow="Investor map" title="Who is funding this space" /></div>
           <div className="overflow-x-auto">
-          <table className="w-full text-left text-[13px]">
+          <table className="stack-sm w-full text-left text-[13px]">
             <thead>
               <tr className="border-y border-line text-[11px] uppercase tracking-[0.12em] text-muted">
                 <th className="py-2.5 pr-3 pl-6 font-semibold">Investor</th>
@@ -168,16 +168,16 @@ export function CompetitorsView({ sweep, memo }: { sweep: CompetitorSweep | null
             <tbody className="divide-y divide-line">
               {sweep.activeInvestors.map((i) => (
                 <tr key={i.name}>
-                  <td className="py-3 pr-3 pl-6 align-top">
+                  <td data-label="Investor" className="py-3 pr-3 pl-6 align-top">
                     <div className="font-medium text-navy-900">{i.name}</div>
                     <div className="mt-0.5 flex gap-1.5">
                       {i.canadian && <span className="rounded-full bg-navy-50 px-1.5 py-px text-[10px] text-navy-700">Canadian</span>}
                       {i.genesysLike && <span className="rounded-full bg-brand-100 px-1.5 py-px text-[10px] text-brand-600">Genesys-like</span>}
                     </div>
                   </td>
-                  <td className="px-3 py-3 align-top text-ink-soft">{i.type}</td>
-                  <td className="px-3 py-3 align-top text-ink-soft">{i.backedCompanies.join(", ")}</td>
-                  <td className="py-3 pr-6 pl-3 align-top text-ink-soft">{i.relevance}</td>
+                  <td data-label="Type" className="px-3 py-3 align-top text-ink-soft">{i.type}</td>
+                  <td data-label="Backed" className="px-3 py-3 align-top text-ink-soft">{i.backedCompanies.join(", ")}</td>
+                  <td data-label="Relevance to Genesys" className="py-3 pr-6 pl-3 align-top text-ink-soft">{i.relevance}</td>
                 </tr>
               ))}
             </tbody>

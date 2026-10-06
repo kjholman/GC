@@ -113,7 +113,7 @@ export function EvidenceLedger({ memo, report }: { memo: Memo; report: Verificat
         </div>
       </div>
       <div className="overflow-x-auto">
-      <table className="w-full min-w-[620px] text-left text-[13px]">
+      <table className="stack-sm w-full sm:min-w-[620px] text-left text-[13px]">
         <thead>
           <tr className="border-y border-line text-[11px] uppercase tracking-[0.12em] text-muted">
             <th className="py-2.5 pr-3 pl-6 font-semibold">#</th>
@@ -126,15 +126,15 @@ export function EvidenceLedger({ memo, report }: { memo: Memo; report: Verificat
           {memo.evidence.map((e) => (
             <tr key={e.id} id={`ev-${e.id}`} className={cx(flagged.has(e.id) && "bg-neg-bg/60")}>
               <td className="py-3 pr-3 pl-6 align-top font-mono text-[11.5px] text-muted">{e.id}</td>
-              <td className="px-3 py-3 align-top">
+              <td data-label="Claim" className="px-3 py-3 align-top">
                 <div className="text-ink">{e.claim}</div>
                 {e.quote && <div className="mt-1 border-l-2 border-line-strong pl-2 text-[12px] italic text-muted">&ldquo;{e.quote}&rdquo;</div>}
               </td>
-              <td className="px-3 py-3 align-top text-[12px] text-ink-soft">
+              <td data-label="Source" className="px-3 py-3 align-top text-[12px] text-ink-soft">
                 <div className="font-medium">{SRC[e.sourceType]}</div>
                 <div className="text-muted [overflow-wrap:anywhere]">{e.sourceRef}</div>
               </td>
-              <td className={cx("py-3 pr-6 pl-3 align-top text-[12px] font-medium", ST[e.status])}>
+              <td data-label="Status" className={cx("py-3 pr-6 pl-3 align-top text-[12px] font-medium", ST[e.status])}>
                 {STATUS_LABEL[e.status] ?? e.status}
                 {flagged.has(e.id) && <div className="text-neg">⚠ Needs a look</div>}
               </td>

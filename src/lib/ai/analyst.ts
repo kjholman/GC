@@ -10,7 +10,7 @@ import { FALLBACK_BETA, anthropic, structuredCall, textOf, type ContentBlock } f
 import { plainPunctuation } from "./style";
 import { isCreditError, recordCreditOk, recordCreditProblem } from "./credit";
 import { meteredUsd, recordUsage, withMeter } from "./usage";
-import { cleanDomain, logoFromDeckPdf, logoFromWebsite, websiteFromText } from "../deals/logo";
+import { cleanDomain, inspectLogo, logoFromDeckPdf, logoFromWebsite, websiteFromText } from "../deals/logo";
 import { refreshSlug } from "../deals/slug";
 import { sendAnalysisProblem, sendAnalysisReady } from "../mailer";
 import { FEEDBACK_AREA_LABEL } from "../feedback/options";
@@ -76,9 +76,12 @@ async function ensureNotStopped(id: string) {
   if (!a || a.status === "STOPPED") throw new AnalysisStopped();
 }
 
-async function setProgress(id: string, progress: string) {
+/** The four stages shown on the progress card, set explicitly so a reworded status line can't mislabel them. */
+type Stage = "reading" | "researching" | "writing" | "checking";
+
+async function setProgress(id: string, progress: string, stage: Stage) {
   await ensureNotStopped(id);
-  await db.analysis.update({ where: { id }, data: { progress } });
+  await db.analysis.update({ where: { id }, data: { progress, stage } });
 }
 
 export type StepKind = "start" | "info" | "done" | "warn";
@@ -252,9 +255,10 @@ export async function findDealLogo(dealId: string, opts: { force?: boolean; anal
     // Last resort: the logo image on the deck's title slide.
     const deck = docs.find((x) => x.mimeType === "application/pdf" && x.kind === "PITCH_DECK") ?? docs.find((x) => x.mimeType === "application/pdf");
     if (deck?.data) {
-      const img = await logoFromDeckPdf(Buffer.from(deck.data));
-      if (img) {
-        await db.deal.update({ where: { id: dealId }, data: { logo: new Uint8Array(img.buf), logoMime: img.mime, logoNote: "Taken from the title slide of the deck" } });
+      const found = await logoFromDeckPdf(Buffer.from(deck.data));
+      const img = found ? await inspectLogo(found.buf, found.mime) : null;
+      if (img && !img.blank) {
+        await db.deal.update({ where: { id: dealId }, data: { logo: new Uint8Array(img.buf), logoMime: img.mime, logoOnDark: img.light, logoNote: "Taken from the title slide of the deck" } });
         await log("Took the company logo from the deck's title slide");
         return true;
       }
@@ -270,8 +274,23 @@ export async function findDealLogo(dealId: string, opts: { force?: boolean; anal
   }
 }
 
-/** For deals opened without a logo: an automatic, at-most-hourly attempt. */
+/**
+ * On opening a deal: logos saved before they were checked are checked once (a blank
+ * one is replaced, a white one goes on a dark tile); deals without a logo get an
+ * automatic, at-most-hourly lookup.
+ */
 export async function ensureDealLogo(dealId: string): Promise<void> {
+  const d = await db.deal.findUnique({ where: { id: dealId }, select: { logo: true, logoMime: true, logoOnDark: true } });
+  if (d?.logo && d.logoMime && d.logoOnDark === null) {
+    const img = await inspectLogo(Buffer.from(d.logo), d.logoMime);
+    if (img.blank) {
+      await db.deal.update({ where: { id: dealId }, data: { logo: null, logoMime: null, logoOnDark: null } });
+      await findDealLogo(dealId, { force: true });
+    } else {
+      await db.deal.update({ where: { id: dealId }, data: { logo: new Uint8Array(img.buf), logoMime: img.mime, logoOnDark: img.light, logoCheckedAt: new Date() } });
+    }
+    return;
+  }
   await findDealLogo(dealId);
 }
 
@@ -449,7 +468,7 @@ export async function underwrite(args: {
   const task = [
     priorBlock
       ? `New information has been received for ${args.companyName}. Re-assess the opportunity using everything attached (documents from every round) and the prior memo below. Write a complete, updated memo, not a diff, and explain what changed in versionDelta.`
-      : `Screen this opportunity (${args.companyName}) and write the investment memo.`,
+      : `Screen this opportunity (${args.companyName}) and write the investment memo. This is the first analysis of this deal, so leave versionDelta as an empty string.`,
     args.backtest ? asOfInstruction(args.backtest.year) : "",
     args.analystContext ? `\n## Note from the Genesys team\n${args.analystContext}` : "",
     args.instructions
@@ -643,7 +662,7 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
 
   await db.analysis.update({
     where: { id: analysisId },
-    data: { status: "RUNNING", startedAt: new Date(), progress: "Reading submitted materials", error: null },
+    data: { status: "RUNNING", startedAt: new Date(), progress: "Reading submitted materials", stage: "reading", error: null },
   });
   await logStep(
     analysisId,
@@ -661,7 +680,7 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
       orderBy: { version: "asc" },
       include: { feedback: { select: { verdict: true, comment: true, areas: true, lesson: true, correctedRecommendation: true } } },
     });
-    await setProgress(analysisId, "Reading submitted materials");
+    await setProgress(analysisId, "Reading submitted materials", "reading");
     const pages = deal.documents.reduce((n, d) => n + (d.pageCount ?? 0), 0);
     const tRead = Date.now();
     await logStep(analysisId, `Reading ${plural(deal.documents.length, "document")}${pages ? ` (${plural(pages, "page")})` : ""}: ${listNames(deal.documents.map((d) => d.filename))}`, "start");
@@ -731,8 +750,9 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
       if (deal.dossierDocsKey == null) await db.deal.update({ where: { id: deal.id }, data: { dossierDocsKey: profileKey } });
     }
     // Company logo (website on file, website in the deck, web search, then the deck's title slide).
-    void findDealLogo(deal.id, { force: true, analysisId });
-    await setProgress(analysisId, "Looking up similar past Genesys deals");
+    // At most hourly (opening the deal also triggers it), so resumes and re-runs don't repeat the search.
+    void findDealLogo(deal.id, { analysisId });
+    await setProgress(analysisId, "Looking up similar past Genesys deals", "reading");
     const tCtx = Date.now();
     await logStep(analysisId, "Looking for similar deals in Genesys's history", "start");
     const precedents = await findPrecedents(probe);
@@ -827,7 +847,7 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
       if (names.length) await logStep(analysisId, `Re-using research already done: ${names.join(", ")}`, "info");
     }
     if (env.webResearchEnabled && (missing.length || !sweepDone)) {
-      await setProgress(analysisId, "Researching science, founders, patents, market and competitors");
+      await setProgress(analysisId, "Researching science, founders, patents, market and competitors", "researching");
       const todo = [...missing.map((k) => PASS_LABEL[k]), ...(!sweepDone ? ["competitors and their funding"] : [])];
       const tRes = Date.now();
       await logStep(analysisId, `Searching the web in parallel: ${todo.join(", ")}`, "start");
@@ -907,7 +927,7 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
     // Everything retrieved from the web is a citable source for the fact-check.
     const webSources = [research, competitorNotes].filter(Boolean).join("\n\n") || null;
 
-    await setProgress(analysisId, prior.length ? "Writing the memo with the new information" : "Writing the memo");
+    await setProgress(analysisId, prior.length ? "Writing the memo with the new information" : "Writing the memo", "writing");
     const firmContext = await buildFirmContext({ excludeDealId: deal.id });
     const underwriteArgs = {
       companyName,
@@ -931,6 +951,7 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
     const savedDraft = draftSource?.draft;
     const textDocs = textOnlyDocs(deal.documents);
     // Live progress: each part of the memo is logged as it starts being written.
+    const hasEarlierVersion = prior.some((a) => a.status === "COMPLETE" && (!deal.freshStartAt || a.createdAt > deal.freshStartAt));
     // Each part's time runs until the next part starts; the last part ends with the memo.
     const sectionLogger = (verb: string) => {
       let chain = Promise.resolve();
@@ -944,13 +965,13 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
       };
       const on = (key: string) => {
         const label = MEMO_SECTION_LABEL[key];
-        if (!label || seen.has(key)) return;
+        if (!label || seen.has(key) || (key === "versionDelta" && !hasEarlierVersion)) return;
         seen.add(key);
         const now = Date.now();
         close(now);
         prev = { label, at: now };
         chain = chain
-          .then(() => setProgress(analysisId, `${verb}: ${label}`))
+          .then(() => setProgress(analysisId, `${verb}: ${label}`, verb === "Writing the memo" ? "writing" : "checking"))
           .then(() => logStep(analysisId, `${verb}: ${label} (${fmtElapsed(now - start)} in)`, "info"))
           .catch(() => {});
       };
@@ -976,7 +997,7 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
     const model = draft.model;
 
     // ── Verification: deterministic checks + independent fact-check, one revision if needed.
-    await setProgress(analysisId, "Fact-checking every claim against the sources");
+    await setProgress(analysisId, "Fact-checking every claim against the sources", "checking");
     const tFc = Date.now();
     await logStep(analysisId, `Fact-checking ${plural(memo.evidence?.length ?? 0, "claim")} against the documents and research`, "start");
     const portfolioNames = (await db.portfolioCompany.findMany({ select: { name: true } })).map((p) => p.name);
@@ -1022,7 +1043,7 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
       );
       await saveTiming(analysisId, "Fact-checking", Date.now() - tFc);
       if (needsFix) {
-        await setProgress(analysisId, "Fixing the points the fact-check found");
+        await setProgress(analysisId, "Fixing the points the fact-check found", "checking");
         const tFix = Date.now();
         await logStep(analysisId, "Rewriting the memo to fix the serious points", "start");
         const fixSections = sectionLogger("Correcting the memo");
@@ -1030,7 +1051,7 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
         await fixSections.end();
         usage.input_tokens += revised.usage.input_tokens;
         usage.output_tokens += revised.usage.output_tokens;
-        await setProgress(analysisId, "Re-checking the corrected memo");
+        await setProgress(analysisId, "Re-checking the corrected memo", "checking");
         checked = await check(revised.memo, 1);
         await logStep(
           analysisId,
@@ -1135,8 +1156,11 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
     ]);
     await logStep(analysisId, `Finished: ${RECOMMENDATION_TEXT[memo.recommendation]}. The memo is ready for review and sign-off`, "done");
     const slug = await refreshSlug(deal.id);
-    // The finished memo may name the website; try once more if there is still no logo.
-    void findDealLogo(deal.id, { force: true });
+    // The finished memo may name the website: check that site (no new web search) if there is still no logo.
+    void (async () => {
+      const cur = await db.deal.findUnique({ where: { id: deal.id }, select: { logoMime: true, website: true } });
+      if (!cur?.logoMime && cur?.website) await logoFromWebsite(deal.id);
+    })().catch(() => {});
     await notifyStarter(analysis.createdById, async (to, firstName) =>
       sendAnalysisReady({
         to, firstName, companyName: (await db.deal.findUnique({ where: { id: deal.id }, select: { companyName: true } }))?.companyName ?? deal.companyName,

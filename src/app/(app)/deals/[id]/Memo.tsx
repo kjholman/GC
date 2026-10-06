@@ -60,7 +60,7 @@ function Bullets({ items, marker = "•" }: { items: string[]; marker?: string }
   );
 }
 
-export function MemoView({ memo }: { memo: Memo }) {
+export function MemoView({ memo, firstAnalysis = false }: { memo: Memo; firstAnalysis?: boolean }) {
   return (
     <div className="space-y-8">
       <Card className={cx("border-l-4", memo.worthOurTime.verdict ? "border-l-pos" : "border-l-neg")}>
@@ -74,7 +74,7 @@ export function MemoView({ memo }: { memo: Memo }) {
         <Paras text={memo.worthOurTime.rationale} className="mt-4" />
       </Card>
 
-      {memo.versionDelta && (
+      {memo.versionDelta && !firstAnalysis && (
         <Card className="!bg-brand-100/50 !border-brand-300">
           <div className="eyebrow mb-2 text-brand-600">What changed in this version</div>
           <Paras text={memo.versionDelta} />
@@ -141,7 +141,7 @@ export function MemoView({ memo }: { memo: Memo }) {
         <KV label="Probability of success">{memo.clinicalRegulatory.probabilityOfSuccess}</KV>
         <div className="mt-2 overflow-x-auto">
           <div className="overflow-x-auto">
-          <table className="w-full text-left text-[13.5px]">
+          <table className="stack-sm w-full text-left text-[13.5px]">
             <thead>
               <tr className="border-b border-line text-[11px] uppercase tracking-[0.12em] text-muted">
                 <th className="py-2 pr-4 font-semibold">Milestone</th>
@@ -153,10 +153,10 @@ export function MemoView({ memo }: { memo: Memo }) {
             <tbody className="divide-y divide-line">
               {memo.clinicalRegulatory.milestones.map((m, i) => (
                 <tr key={i}>
-                  <td className="py-3 pr-4 text-ink"><Tagged text={m.milestone} /></td>
-                  <td className="px-4 py-3 text-ink-soft">{m.expectedTiming}</td>
-                  <td className="px-4 py-3 text-ink-soft">{m.capitalRequired ?? "Not stated"}</td>
-                  <td className="py-3 pl-4 text-right">{m.valueInflection ? <span className="text-brand-600">◆</span> : ""}</td>
+                  <td data-label="Milestone" className="py-3 pr-4 text-ink"><Tagged text={m.milestone} /></td>
+                  <td data-label="Timing" className="px-4 py-3 text-ink-soft">{m.expectedTiming}</td>
+                  <td data-label="Capital" className="px-4 py-3 text-ink-soft">{m.capitalRequired ?? "Not stated"}</td>
+                  <td data-label="Inflection" className="py-3 pl-4 text-right">{m.valueInflection ? <span className="text-brand-600">◆</span> : ""}</td>
                 </tr>
               ))}
             </tbody>
@@ -477,7 +477,7 @@ export function MarketView({ memo }: { memo: Memo }) {
         <Card>
           <SectionTitle eyebrow="Epidemiology" title="Patient population" />
           <div className="overflow-x-auto">
-          <table className="w-full text-left text-[13.5px]">
+          <table className="stack-sm w-full text-left text-[13.5px]">
             <thead>
               <tr className="border-b border-line text-[11px] uppercase tracking-[0.12em] text-muted">
                 <th className="py-2 pr-4 font-semibold">Segment</th>
@@ -489,10 +489,10 @@ export function MarketView({ memo }: { memo: Memo }) {
             <tbody className="divide-y divide-line">
               {m.patientPopulation.map((p, i) => (
                 <tr key={i}>
-                  <td className="py-3 pr-4 text-ink">{p.segment}</td>
-                  <td className="px-4 py-3 text-ink-soft">{p.geography}</td>
-                  <td className="px-4 py-3 font-display font-semibold text-[16px] tabular text-navy-900">{p.value}</td>
-                  <td className="py-3 pl-4 text-[12.5px] text-ink-soft"><Tagged text={p.basis} /></td>
+                  <td data-label="Segment" className="py-3 pr-4 text-ink">{p.segment}</td>
+                  <td data-label="Geography" className="px-4 py-3 text-ink-soft">{p.geography}</td>
+                  <td data-label="Patients" className="px-4 py-3 font-display font-semibold text-[16px] tabular text-navy-900">{p.value}</td>
+                  <td data-label="Basis" className="py-3 pl-4 text-[12.5px] text-ink-soft"><Tagged text={p.basis} /></td>
                 </tr>
               ))}
             </tbody>
@@ -512,7 +512,7 @@ export function MarketView({ memo }: { memo: Memo }) {
         <Card>
           <SectionTitle eyebrow="Pricing" title="Analogues" />
           <div className="overflow-x-auto">
-          <table className="w-full text-left text-[13.5px]">
+          <table className="stack-sm w-full text-left text-[13.5px]">
             <tbody className="divide-y divide-line">
               {m.pricingAnalogues.map((p, i) => (
                 <tr key={i}>
@@ -570,7 +570,7 @@ export function IPView({ memo }: { memo: Memo }) {
             <p className="px-6 pb-6 text-[14px] text-muted">No patents or applications were identified in the materials or the IP research.</p>
           ) : (
             <div className="overflow-x-auto">
-            <table className="w-full text-left text-[13px]">
+            <table className="stack-sm w-full text-left text-[13px]">
               <thead>
                 <tr className="border-y border-line text-[11px] uppercase tracking-[0.12em] text-muted">
                   <th className="py-2.5 pr-3 pl-6 font-semibold">Identifier</th>
@@ -583,14 +583,14 @@ export function IPView({ memo }: { memo: Memo }) {
               <tbody className="divide-y divide-line">
                 {ip.assets.map((a, i) => (
                   <tr key={i}>
-                    <td className="py-3 pr-3 pl-6 align-top font-mono text-[12px] text-navy-900">{a.identifier}</td>
-                    <td className="px-3 py-3 align-top">
+                    <td data-label="Identifier" className="py-3 pr-3 pl-6 align-top font-mono text-[12px] text-navy-900">{a.identifier}</td>
+                    <td data-label="Title and type" className="px-3 py-3 align-top">
                       <div className="text-ink">{a.title}</div>
                       <div className="text-[11.5px] text-muted">{a.type.replaceAll("_", " ").toLowerCase()}{a.jurisdictions ? ` · ${a.jurisdictions}` : ""}</div>
                     </td>
-                    <td className="px-3 py-3 align-top"><span className={cx("rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]", IP_STATUS[a.status])}>{a.status.toLowerCase()}</span></td>
-                    <td className="px-3 py-3 align-top text-ink-soft">{a.ownerOrAssignee ?? "Unknown"}</td>
-                    <td className="py-3 pr-6 pl-3 align-top text-ink-soft">{a.estimatedExpiry ?? "Unknown"}</td>
+                    <td data-label="Status" className="px-3 py-3 align-top"><span className={cx("rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]", IP_STATUS[a.status])}>{a.status.toLowerCase()}</span></td>
+                    <td data-label="Owner" className="px-3 py-3 align-top text-ink-soft">{a.ownerOrAssignee ?? "Unknown"}</td>
+                    <td data-label="Expiry" className="py-3 pr-6 pl-3 align-top text-ink-soft">{a.estimatedExpiry ?? "Unknown"}</td>
                   </tr>
                 ))}
               </tbody>

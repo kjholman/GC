@@ -11,7 +11,8 @@ export function LoginForm({ people }: { people: LoginPerson[] }) {
   const [verifyState, verify, verifying] = useActionState<VerifyCodeState, FormData>(verifyCodeAction, { ok: false });
   const [restart, setRestart] = useState(0);
   const [picked, setPicked] = useState<string | null>(null);
-  const [byEmail, setByEmail] = useState(people.length === 0);
+  // The team picker is the only way in; the email box appears only if no team is configured.
+  const byEmail = people.length === 0;
   const sent = requestState.ok && requestState.email && restart === 0;
   const pickedPerson = people.find((p) => p.id === picked);
 
@@ -65,21 +66,6 @@ export function LoginForm({ people }: { people: LoginPerson[] }) {
         <Button type="submit" disabled={requesting || (!byEmail && !pickedPerson)} className="w-full py-3">
           {requesting ? "Sending code…" : byEmail ? "Email me a sign-in code" : pickedPerson ? `Log in as ${pickedPerson.name}` : "Choose your name"}
         </Button>
-        {people.length > 0 && (
-          <>
-            <div className="flex items-center gap-3 text-[11.5px] uppercase tracking-[0.14em] text-muted">
-              <span className="h-px flex-1 bg-line" />or<span className="h-px flex-1 bg-line" />
-            </div>
-            <button
-              type="button"
-              onClick={() => { setByEmail((v) => !v); setPicked(null); }}
-              className="flex w-full items-center justify-center gap-2 rounded-lg border border-line bg-paper px-4 py-3 text-[13.5px] font-medium text-navy-900 transition-colors hover:border-navy-700"
-            >
-              <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden><rect x="2.5" y="4.5" width="15" height="11" rx="2" /><path d="m3 5.5 7 5 7-5" /></svg>
-              {byEmail ? "Choose from the team instead" : "Sign in with a different email"}
-            </button>
-          </>
-        )}
       </form>
     );
   }
@@ -105,7 +91,7 @@ export function LoginForm({ people }: { people: LoginPerson[] }) {
         onClick={() => setRestart((n) => n + 1)}
         className="w-full text-center text-[13px] text-navy-700 underline-offset-4 hover:underline"
       >
-        Use a different email or resend
+        Choose someone else or resend the code
       </button>
     </form>
   );

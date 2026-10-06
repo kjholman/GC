@@ -111,6 +111,8 @@ model Deal {
   logo          Bytes?
   logoMime      String?
   logoCheckedAt DateTime?
+  /// true = a white logo shown on a dark tile; null = not inspected yet (older logos).
+  logoOnDark    Boolean?
   /// Factual summary of the submitted materials, given to the web-research passes instead of the full deck.
   /// What the automatic logo lookup found or why it found nothing, shown on the deal.
   logoNote        String?
@@ -212,6 +214,8 @@ model Analysis {
   trigger        AnalysisTrigger @default(INITIAL_SCREEN)
   status         AnalysisStatus  @default(QUEUED)
   progress       String?
+  /// Progress-card stage: reading, researching, writing or checking.
+  stage          String?
   /// Work saved as it finishes (each research pass, competitor sweep, draft memo) so a
   /// stopped, failed or resumed analysis never redoes it.
   checkpoint     Json?
@@ -229,6 +233,8 @@ model Analysis {
   analystContext String?
   /// The team's instructions for this run: what to focus on or do differently from earlier versions.
   instructions   String?
+  /// Why this version was run (required for re-runs): the reason typed, new files, or a retry.
+  reason         String?
   /// true = redo the web research instead of reusing what the deal already has.
   refreshResearch Boolean        @default(false)
   recommendation String?

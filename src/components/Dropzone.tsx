@@ -10,13 +10,14 @@ function fmtSize(n: number) {
 }
 
 /** Multi-file drop target that keeps a real <input type="file"> in sync for form submission. */
-export function Dropzone({ name = "files", prompt, compact = false }: { name?: string; prompt: string; compact?: boolean }) {
+export function Dropzone({ name = "files", prompt, compact = false, onFilesChange }: { name?: string; prompt: string; compact?: boolean; onFilesChange?: (count: number) => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [over, setOver] = useState(false);
 
   const sync = (next: File[]) => {
     setFiles(next);
+    onFilesChange?.(next.length);
     const dt = new DataTransfer();
     next.forEach((f) => dt.items.add(f));
     if (inputRef.current) inputRef.current.files = dt.files;

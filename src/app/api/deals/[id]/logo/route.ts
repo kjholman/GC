@@ -11,7 +11,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       "Content-Type": deal.logoMime,
       "Cache-Control": "private, max-age=86400",
       // Logos come from third-party sites: never let one run script (matters for SVG).
-      "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'",
+      "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:",
       "X-Content-Type-Options": "nosniff",
     },
   });

@@ -86,14 +86,7 @@ export default async function Overview() {
               <p className="text-sm text-muted">No deals yet.</p>
             ) : (
               <>
-                <div className="flex h-3 overflow-hidden rounded-full bg-line">
-                  {FUNNEL.map((s) =>
-                    byStatus[s] ? (
-                      <div key={s} className={STATUS_META[s].dot} style={{ width: `${((byStatus[s] ?? 0) / total) * 100}%` }} title={STATUS_META[s].label} />
-                    ) : null,
-                  )}
-                </div>
-                <div className="mt-5 grid grid-cols-3 gap-y-4 md:grid-cols-6">
+                <div className="grid grid-cols-3 gap-y-4 md:grid-cols-6">
                   {FUNNEL.map((s) => (
                     <Link key={s} href={`/deals?status=${s}`} className="group">
                       <div className="flex items-center gap-2 text-[12px] text-muted group-hover:text-navy-800">

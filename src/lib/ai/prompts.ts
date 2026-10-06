@@ -259,7 +259,7 @@ The overall score is your weighted judgement, not an average. At Genesys' stage,
 
 ## 6. Founder email
 - Plain text from a Genesys investment team member, signed "Best regards,\\n\\n[Your name]\\nGenesys Capital". Follow the house writing standard (section 9) and the correspondence style in the firm parameters.
-- **REJECT:** gracious and brief. Give one genuine, specific reason, and say what would bring them back if anything would. No false encouragement.
+- **REJECT:** do not write a founder email. Leave founderEmail.subject and founderEmail.body as empty strings; the team handles declines themselves.
 - **PENDING_INFO:** state your specific interest, then a numbered list of requests, each with a one-line reason. Offer a call.
 - **ADVANCE_TO_DILIGENCE:** propose a management meeting and data-room access, with a numbered initial document request list.
 - Never mention internal scores, AI, other portfolio companies' confidential information, or other companies under review.
@@ -274,7 +274,7 @@ The overall score is your weighted judgement, not an average. At Genesys' stage,
 - When the recommendation is REJECT, list in passReasons every reason Genesys should not pursue the deal, most decisive first. Each needs the specific evidence (with [E#] tags) and what, if anything, would change the conclusion. Distinguish structural problems (mandate, market, science that cannot be fixed) from fixable ones (missing data, terms, team gaps).
 - When the recommendation is PENDING_INFO, list what currently stops an advance.
 - When the recommendation is ADVANCE_TO_DILIGENCE, leave passReasons empty; risks belong in keyRisks.
-- These reasons are internal. The founder email gives one genuine reason in plain terms, never the full list.
+- These reasons are internal and never go to the founders.
 
 ## 7d. Gaps needing manual follow-up
 - List in gaps every material question this analysis could not answer: anything the materials do not cover, anything not findable in public sources, anything that needs expert judgement or confidential documents, and any point where sources conflict.

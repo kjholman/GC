@@ -147,3 +147,23 @@ h1, h2, h3, h4 {
   }
   select:disabled { opacity: 0.6; }
 }
+
+/* Memo tables become stacked cards on phones: one block per row, column names as labels. */
+@media (max-width: 639px) {
+  table.stack-sm thead { display: none; }
+  table.stack-sm, table.stack-sm tbody, table.stack-sm tr, table.stack-sm td { display: block; width: 100%; }
+  table.stack-sm tr { padding: 0.75rem 1.25rem; }
+  table.stack-sm td { padding: 0.15rem 0 !important; text-align: left !important; white-space: normal !important; }
+  table.stack-sm td:first-child { font-weight: 500; }
+  table.stack-sm td:empty { display: none; }
+  table.stack-sm td[data-label]:not(:first-child)::before {
+    content: attr(data-label);
+    display: block;
+    margin-top: 0.45rem;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+}

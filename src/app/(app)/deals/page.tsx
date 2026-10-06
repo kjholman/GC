@@ -147,7 +147,7 @@ export default async function DealsPage({ searchParams }: PageProps<"/deals">) {
             {deals.map((d) => (
               <li key={d.id}>
                 <Link href={`/deals/${d.slug ?? d.id}`} className="flex items-start gap-4 px-4 py-4 hover:bg-mist/70">
-                  <DealLogo dealId={d.id} name={d.companyName} hasLogo={!!d.logoMime} version={d.logoCheckedAt?.getTime()} size={44} />
+                  <DealLogo dealId={d.id} name={d.companyName} hasLogo={!!d.logoMime} onDark={d.logoOnDark} version={d.logoCheckedAt?.getTime()} size={44} />
                   <div className="min-w-0 flex-1">
                     <div className="font-medium text-navy-900">{d.companyName}</div>
                     <div className="mt-0.5 line-clamp-2 text-[12.5px] text-muted">{d.oneLiner ?? ([d.sector, d.modality].filter(Boolean).join(" · ") || "Awaiting analysis")}</div>
@@ -188,7 +188,7 @@ export default async function DealsPage({ searchParams }: PageProps<"/deals">) {
                 <tr key={d.id} className="group transition-colors hover:bg-mist/70">
                   <td className="py-4 pr-4 pl-6">
                     <div className="flex items-center gap-3">
-                      <DealLogo dealId={d.id} name={d.companyName} hasLogo={!!d.logoMime} version={d.logoCheckedAt?.getTime()} size={36} className="!rounded-lg" />
+                      <DealLogo dealId={d.id} name={d.companyName} hasLogo={!!d.logoMime} onDark={d.logoOnDark} version={d.logoCheckedAt?.getTime()} size={36} className="!rounded-lg" />
                       <div className="min-w-0">
                         <Link href={`/deals/${d.slug ?? d.id}`} className="font-medium text-navy-900 group-hover:underline">
                           {d.companyName}

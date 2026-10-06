@@ -257,7 +257,7 @@ export const MemoSchema = z.object({
 
   founderEmail: z.object({
     subject: z.string(),
-    body: z.string().describe("Plain text, ready to paste. Signed with [Your name] placeholder."),
+    body: z.string().describe("Plain text, ready to paste. Signed with [Your name] placeholder. Empty string (and empty subject) when the recommendation is REJECT."),
   }),
 
   versionDelta: z.string().describe("For follow-up analyses: what the new information changed and why. Empty string on the first screen."),

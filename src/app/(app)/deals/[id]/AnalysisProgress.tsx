@@ -6,19 +6,20 @@ import { StepLog, asSteps, type LogStep } from "./StepLog";
 import { stopAnalysisAction } from "@/lib/deals/actions";
 import { useConfirm } from "@/components/Confirm";
 
-// Each stage is matched by the first word of the server's progress line.
-const STAGES: { label: string; match: RegExp }[] = [
-  { label: "Reading", match: /^(Reading|Looking)/ },
-  { label: "Researching", match: /^Researching/ },
-  { label: "Writing the memo", match: /^Writing/ },
-  { label: "Fact-checking", match: /^(Fact-checking|Fixing|Re-checking)/ },
+// The server says which stage it is in; the wording match is only for runs started before it did.
+const STAGES: { key: string; label: string; match: RegExp }[] = [
+  { key: "reading", label: "Reading", match: /^(Reading|Looking)/ },
+  { key: "researching", label: "Researching", match: /^Researching/ },
+  { key: "writing", label: "Writing the memo", match: /^Writing/ },
+  { key: "checking", label: "Fact-checking", match: /^(Fact-checking|Fixing|Re-checking|Correcting)/ },
 ];
 
 export function AnalysisProgress({
-  analysisId, version, initialProgress, initialSteps, startedAt, companyName, avatar,
-}: { analysisId: string; version: number; initialProgress: string | null; initialSteps: LogStep[]; startedAt: string | null; companyName: string; avatar?: React.ReactNode }) {
+  analysisId, version, initialProgress, initialStage, initialSteps, startedAt, companyName, avatar,
+}: { analysisId: string; version: number; initialProgress: string | null; initialStage?: string | null; initialSteps: LogStep[]; startedAt: string | null; companyName: string; avatar?: React.ReactNode }) {
   const router = useRouter();
   const [progress, setProgress] = useState(initialProgress);
+  const [stage, setStage] = useState(initialStage ?? null);
   const [steps, setSteps] = useState(initialSteps);
   const [elapsed, setElapsed] = useState(0);
   const [cost, setCost] = useState(0);
@@ -47,6 +48,7 @@ export function AnalysisProgress({
   }
 
   useEffect(() => {
+    const lastCost: { current: number | null } = { current: null };
     const start = startedAt ? new Date(startedAt).getTime() : Date.now();
     const tick = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 1000);
     const poll = setInterval(async () => {
@@ -54,8 +56,14 @@ export function AnalysisProgress({
       if (!res.ok) return;
       const data = await res.json();
       setProgress(data.progress);
+      setStage(data.stage ?? null);
       setSteps(asSteps(data.steps));
-      if (typeof data.costUsd === "number") setCost(data.costUsd);
+      if (typeof data.costUsd === "number") {
+        // Spend went up: an AI request just succeeded, so credit is available again.
+        if (lastCost.current != null && data.costUsd > lastCost.current) window.dispatchEvent(new Event("sharminator:ai-ok"));
+        lastCost.current = data.costUsd;
+        setCost(data.costUsd);
+      }
       // Renamed after identifying the company: follow the deal to its new address.
       const here = window.location.pathname;
       const there = data.deal?.slug ? `/deals/${data.deal.slug}` : here;
@@ -73,7 +81,8 @@ export function AnalysisProgress({
     if (box) box.scrollTop = box.scrollHeight;
   }, [steps.length]);
 
-  const stageIdx = Math.max(0, STAGES.findIndex((s) => s.match.test(progress ?? "")));
+  const byKey = STAGES.findIndex((s) => s.key === stage);
+  const stageIdx = Math.max(0, byKey >= 0 ? byKey : STAGES.findIndex((s) => s.match.test(progress ?? "")));
   const QUIPS = [
     "Reading the whole deck. Even the appendix.",
     "Searching the internet so you don't have to.",
