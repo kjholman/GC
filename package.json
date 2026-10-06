@@ -44,6 +44,6 @@
     "seed": "tsx prisma/seed.ts"
   },
   "engines": {
-    "node": ">=22"
+    "node": "22.x"
   }
 }
