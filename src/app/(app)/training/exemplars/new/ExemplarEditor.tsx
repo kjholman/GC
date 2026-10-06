@@ -11,8 +11,8 @@ export function ExemplarEditor({ analysisId, companyName, version, memo }: { ana
     <form action={action} className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
       <div className="space-y-6">
         <Card>
-          <div className="eyebrow mb-1 text-gold-600">Correcting memo v{version}</div>
-          <h2 className="mb-5 font-serif text-[24px] text-navy-900">{companyName}</h2>
+          <div className="eyebrow mb-1 text-brand-600">Correcting memo v{version}</div>
+          <h2 className="mb-5 font-display font-semibold text-[24px] text-navy-900">{companyName}</h2>
           <div className="grid gap-4 md:grid-cols-3">
             <Field label="Exemplar title"><input name="title" defaultValue={companyName} className={inputCls} /></Field>
             <Field label="Correct decision">
@@ -45,9 +45,9 @@ export function ExemplarEditor({ analysisId, companyName, version, memo }: { ana
       </div>
       <div>
         <div className="sticky top-10 space-y-5">
-          <Card className="!border-gold-300">
-            <div className="eyebrow mb-1 text-gold-600">Required</div>
-            <h3 className="mb-3 font-serif text-[19px] text-navy-900">Partner commentary</h3>
+          <Card className="!border-brand-300">
+            <div className="eyebrow mb-1 text-brand-600">Required</div>
+            <h3 className="mb-3 font-display font-semibold text-[19px] text-navy-900">Partner commentary</h3>
             <p className="mb-3 text-[12.5px] leading-relaxed text-ink-soft">
               What makes this the right analysis, and what did the AI get wrong? The analyst reads this whenever it sees a similar deal.
             </p>

@@ -14,8 +14,8 @@ export function LoginForm() {
     return (
       <form action={(fd) => { setRestart(0); request(fd); }} className="space-y-6">
         <div>
-          <div className="eyebrow mb-2 text-gold-600">Secure sign-in</div>
-          <h2 className="font-serif text-[30px] leading-tight text-navy-900">Welcome back</h2>
+          <div className="eyebrow mb-2 text-brand-600">Secure sign-in</div>
+          <h2 className="font-display font-semibold text-[30px] leading-tight text-navy-900">Welcome back</h2>
           <p className="mt-2 text-[14px] text-ink-soft">Enter your Genesys Capital email. We&apos;ll send you a one-time code.</p>
         </div>
         <label className="block">
@@ -42,8 +42,8 @@ export function LoginForm() {
   return (
     <form action={verify} className="space-y-6">
       <div>
-        <div className="eyebrow mb-2 text-gold-600">Check your inbox</div>
-        <h2 className="font-serif text-[30px] leading-tight text-navy-900">Enter your code</h2>
+        <div className="eyebrow mb-2 text-brand-600">Check your inbox</div>
+        <h2 className="font-display font-semibold text-[30px] leading-tight text-navy-900">Enter your code</h2>
         <p className="mt-2 text-[14px] text-ink-soft">
           If <span className="font-medium text-ink">{requestState.email}</span> is authorised, a 6-digit code is on its way.
           It expires in 10 minutes.
@@ -106,7 +106,7 @@ function CodeInput() {
             autoComplete={i === 0 ? "one-time-code" : "off"}
             autoFocus={i === 0}
             aria-label={`Digit ${i + 1}`}
-            className="h-14 w-full rounded-[3px] border border-line-strong bg-paper text-center font-serif text-[26px] text-navy-900 focus:border-navy-700 focus:outline-none focus:ring-2 focus:ring-navy-100"
+            className="h-14 w-full rounded-lg border border-line-strong bg-paper text-center font-display font-semibold text-[26px] text-navy-900 focus:border-navy-700 focus:outline-none focus:ring-2 focus:ring-navy-100"
           />
         ))}
       </div>

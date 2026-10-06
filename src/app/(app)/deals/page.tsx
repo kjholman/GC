@@ -50,7 +50,7 @@ export default async function DealsPage({ searchParams }: PageProps<"/deals">) {
       <PageHeader
         eyebrow="Deal flow"
         title="Pipeline"
-        subtitle="Every opportunity the team has screened, with the AI analyst's latest recommendation."
+        subtitle="Every opportunity the team has screened, with the Sharminator's latest recommendation."
         actions={
           <Link href="/deals/new">
             <Button>Screen a new deck</Button>
@@ -65,11 +65,11 @@ export default async function DealsPage({ searchParams }: PageProps<"/deals">) {
               key={t}
               href={`/deals?status=${t}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
               className={cx(
-                "rounded-[3px] px-3 py-1.5 text-[13px] transition-colors",
+                "rounded-lg px-3 py-1.5 text-[13px] transition-colors",
                 status === t ? "bg-navy-900 text-white" : "text-ink-soft hover:bg-paper",
               )}
             >
-              {label(t)} <span className={cx("ml-1 tabular", status === t ? "text-gold-300" : "text-muted")}>{countFor(t)}</span>
+              {label(t)} <span className={cx("ml-1 tabular", status === t ? "text-brand-300" : "text-muted")}>{countFor(t)}</span>
             </Link>
           ))}
         </div>
@@ -89,7 +89,7 @@ export default async function DealsPage({ searchParams }: PageProps<"/deals">) {
                 <th className="py-3 pr-4 pl-6 font-semibold">Company</th>
                 <th className="px-4 py-3 font-semibold">Sector · Modality</th>
                 <th className="px-4 py-3 font-semibold">Stage</th>
-                <th className="px-4 py-3 font-semibold">AI recommendation</th>
+                <th className="px-4 py-3 font-semibold">Sharminator call</th>
                 <th className="px-4 py-3 text-center font-semibold">Score</th>
                 <th className="px-4 py-3 font-semibold">Status</th>
                 <th className="py-3 pr-6 pl-4 text-right font-semibold">Updated</th>
@@ -97,7 +97,7 @@ export default async function DealsPage({ searchParams }: PageProps<"/deals">) {
             </thead>
             <tbody className="divide-y divide-line">
               {deals.map((d) => (
-                <tr key={d.id} className="group transition-colors hover:bg-ivory/70">
+                <tr key={d.id} className="group transition-colors hover:bg-mist/70">
                   <td className="py-4 pr-4 pl-6">
                     <Link href={`/deals/${d.id}`} className="font-medium text-navy-900 group-hover:underline">
                       {d.companyName}

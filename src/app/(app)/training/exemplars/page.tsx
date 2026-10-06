@@ -23,7 +23,7 @@ export default async function ExemplarsPage() {
             <Card key={e.id} className={cx(!e.active && "opacity-50")}>
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h3 className="font-serif text-[20px] text-navy-900">{e.title}</h3>
+                  <h3 className="font-display font-semibold text-[20px] text-navy-900">{e.title}</h3>
                   <div className="mt-1 text-[12.5px] text-muted">{[e.sector, e.modality].filter(Boolean).join(" · ")}</div>
                 </div>
                 <div className="text-right">
@@ -31,7 +31,7 @@ export default async function ExemplarsPage() {
                   <div className="text-[12px] tabular text-muted">score {e.overallScore}</div>
                 </div>
               </div>
-              <p className="mt-4 border-l-2 border-gold-500 pl-3 text-[13.5px] italic leading-relaxed text-ink">{e.partnerCommentary}</p>
+              <p className="mt-4 border-l-2 border-brand-500 pl-3 text-[13.5px] italic leading-relaxed text-ink">{e.partnerCommentary}</p>
               <div className="mt-4 flex items-center justify-between text-[12px] text-muted">
                 <span>Endorsed {fmtDate(e.createdAt)}</span>
                 <span className="flex gap-4">

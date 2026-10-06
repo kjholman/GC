@@ -24,13 +24,13 @@ export function Nav({ items }: { items: { href: string; label: string; icon: str
             key={item.href}
             href={item.href}
             className={cx(
-              "group flex items-center gap-3 border-l-2 px-4 py-2.5 text-[13.5px] transition-colors",
+              "group mx-3 flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13.5px] transition-colors",
               active
-                ? "border-gold-500 bg-white/[0.06] text-white"
-                : "border-transparent text-white/60 hover:bg-white/[0.03] hover:text-white",
+                ? "bg-white/[0.09] font-medium text-white shadow-[inset_3px_0_0_#29a2b5]"
+                : "text-white/65 hover:bg-white/[0.05] hover:text-white",
             )}
           >
-            <svg viewBox="0 0 24 24" className={cx("h-[17px] w-[17px]", active ? "text-gold-300" : "text-white/45")} fill="currentColor">
+            <svg viewBox="0 0 24 24" className={cx("h-[17px] w-[17px]", active ? "text-brand-400" : "text-white/45")} fill="currentColor">
               {ICONS[item.icon]}
             </svg>
             {item.label}

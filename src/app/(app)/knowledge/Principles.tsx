@@ -11,8 +11,8 @@ export function Principles({ principles, canEdit }: { principles: P[]; canEdit: 
   const [k, setK] = useState(0);
   return (
     <Card>
-      <div className="eyebrow mb-1 text-gold-600">Applied to every analysis</div>
-      <h2 className="font-serif text-[22px] text-navy-900">Investment principles</h2>
+      <div className="eyebrow mb-1 text-brand-600">Applied to every analysis</div>
+      <h2 className="font-display font-semibold text-[22px] text-navy-900">Investment principles</h2>
       <p className="mt-1.5 mb-5 max-w-3xl text-[13.5px] leading-relaxed text-ink-soft">
         The partnership&apos;s standing rules and preferences. The analyst applies them to every screen and flags any conflict explicitly.
       </p>
@@ -20,7 +20,7 @@ export function Principles({ principles, canEdit }: { principles: P[]; canEdit: 
       <ol className="mb-6 divide-y divide-line">
         {principles.map((p, i) => (
           <li key={p.id} className={cx("flex gap-4 py-3.5", !p.active && "opacity-45")}>
-            <span className="font-serif text-[17px] text-gold-500 tabular">{String(i + 1).padStart(2, "0")}</span>
+            <span className="font-display font-semibold text-[17px] text-brand-500 tabular">{String(i + 1).padStart(2, "0")}</span>
             <div className="flex-1">
               <div className="text-[14px] font-medium text-navy-900">{p.title}</div>
               <p className="mt-0.5 text-[13.5px] leading-relaxed text-ink-soft">{p.body}</p>

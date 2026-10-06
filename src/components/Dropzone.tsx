@@ -34,16 +34,16 @@ export function Dropzone({ name = "files", prompt, compact = false }: { name?: s
           sync([...files, ...Array.from(e.dataTransfer.files)]);
         }}
         className={cx(
-          "flex cursor-pointer flex-col items-center justify-center rounded-[3px] border border-dashed text-center transition-colors",
+          "flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed text-center transition-colors",
           compact ? "px-6 py-7" : "px-8 py-14",
-          over ? "border-gold-500 bg-gold-100/60" : "border-line-strong bg-ivory/60 hover:border-navy-700 hover:bg-navy-50/60",
+          over ? "border-brand-500 bg-brand-100/60" : "border-line-strong bg-mist/60 hover:border-navy-700 hover:bg-navy-50/60",
         )}
       >
-        <svg viewBox="0 0 24 24" className="mb-3 h-8 w-8 text-gold-500" fill="none" stroke="currentColor" strokeWidth="1.3">
+        <svg viewBox="0 0 24 24" className="mb-3 h-8 w-8 text-brand-500" fill="none" stroke="currentColor" strokeWidth="1.3">
           <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z" />
           <path d="M14 3v5h5M12 18v-6M9 15l3-3 3 3" />
         </svg>
-        <div className="font-serif text-[18px] text-navy-900">{prompt}</div>
+        <div className="font-display font-semibold text-[18px] text-navy-900">{prompt}</div>
         <div className="mt-1.5 text-[12.5px] text-muted">
           Drag and drop several files at once, or <span className="text-navy-700 underline underline-offset-2">browse</span> · PDF preferred for decks · PPTX, DOCX, XLSX, CSV, images · up to 500 MB each
         </div>
@@ -63,10 +63,10 @@ export function Dropzone({ name = "files", prompt, compact = false }: { name?: s
         </div>
       )}
       {files.length > 0 && (
-        <ul className="mt-3 divide-y divide-line rounded-[3px] border border-line bg-paper">
+        <ul className="mt-3 divide-y divide-line rounded-lg border border-line bg-paper">
           {files.map((f, i) => (
             <li key={`${f.name}-${i}`} className="flex items-center gap-3 px-4 py-2.5 text-[13px]">
-              <span className="rounded-[2px] bg-navy-50 px-1.5 py-0.5 font-mono text-[10px] uppercase text-navy-700">
+              <span className="rounded-md bg-navy-50 px-1.5 py-0.5 font-mono text-[10px] uppercase text-navy-700">
                 {f.name.split(".").pop()}
               </span>
               <span className="min-w-0 flex-1 truncate text-ink">{f.name}</span>

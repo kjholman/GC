@@ -47,12 +47,12 @@ export function NewDealForm() {
 
       <div>
         <div className="sticky top-10 space-y-5">
-          <Card className="!bg-navy-950 !border-navy-950 text-white">
-            <div className="eyebrow mb-5 !text-gold-300">What happens next</div>
+          <Card className="bg-brand-gradient !border-transparent text-white">
+            <div className="eyebrow mb-5 !text-white/80">What happens next</div>
             <ol className="space-y-5">
               {STEPS.map(([t, d], i) => (
                 <li key={t} className="flex gap-4">
-                  <span className="font-serif text-[18px] text-gold-300 tabular">{String(i + 1).padStart(2, "0")}</span>
+                  <span className="font-display font-semibold text-[18px] text-white tabular">{String(i + 1).padStart(2, "0")}</span>
                   <div>
                     <div className="text-[14px] font-medium">{t}</div>
                     <div className="mt-0.5 text-[12.5px] leading-relaxed text-white/60">{d}</div>
@@ -61,7 +61,7 @@ export function NewDealForm() {
               ))}
             </ol>
           </Card>
-          {state.error && <p className="rounded-[3px] border border-[#efd2ce] bg-neg-bg px-4 py-3 text-[13px] text-neg">{state.error}</p>}
+          {state.error && <p className="rounded-lg border border-[#efd2ce] bg-neg-bg px-4 py-3 text-[13px] text-neg">{state.error}</p>}
           <Button type="submit" disabled={pending} className="w-full py-3.5">
             {pending ? "Uploading materials… large files can take a few minutes" : "Begin analysis"}
           </Button>

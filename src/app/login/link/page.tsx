@@ -17,14 +17,14 @@ export default async function SignInLinkPage({ searchParams }: PageProps<"/login
   const valid = !!link && !link.usedAt && link.expiresAt > new Date() && link.user.active;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-ivory px-6">
+    <div className="flex min-h-screen items-center justify-center bg-mist px-6">
       <div className="w-full max-w-[420px]">
-        <div className="mb-10"><Logo tone="dark" /></div>
+        <div className="mb-10"><Logo /></div>
         {valid ? (
           <form action={redeemSignInLinkAction.bind(null, token)} className="space-y-6">
             <div>
-              <div className="eyebrow mb-2 text-gold-600">Secure sign-in</div>
-              <h1 className="font-serif text-[30px] leading-tight text-navy-900">Continue to Genesys Analyst</h1>
+              <div className="eyebrow mb-2 text-brand-600">Secure sign-in</div>
+              <h1 className="font-display font-semibold text-[30px] leading-tight text-navy-900">Continue to Genesys Analyst</h1>
               <p className="mt-2 text-[14px] text-ink-soft">
                 Signing in as <span className="font-medium text-ink">{link!.user.email}</span>. This link works once.
               </p>
@@ -33,7 +33,7 @@ export default async function SignInLinkPage({ searchParams }: PageProps<"/login
           </form>
         ) : (
           <div>
-            <h1 className="font-serif text-[28px] leading-tight text-navy-900">This sign-in link is no longer valid</h1>
+            <h1 className="font-display font-semibold text-[28px] leading-tight text-navy-900">This sign-in link is no longer valid</h1>
             <p className="mt-3 text-[14px] text-ink-soft">
               Links work once and expire after 24 hours. Ask a platform administrator for a new one.
             </p>

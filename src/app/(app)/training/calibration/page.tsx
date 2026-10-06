@@ -45,7 +45,7 @@ export default async function CalibrationPage() {
                 {VERDICTS.map((v) => (
                   <div key={v}>
                     <div className="flex items-center gap-2 text-[12px] text-muted"><span className={cx("h-2 w-2 rounded-full", VCLS[v])} />{v.replaceAll("_", " ").toLowerCase()}</div>
-                    <div className="mt-1 pl-4 font-serif text-2xl tabular text-navy-900">{counts[v]}</div>
+                    <div className="mt-1 pl-4 font-display font-semibold text-2xl tabular text-navy-900">{counts[v]}</div>
                   </div>
                 ))}
               </div>
@@ -70,15 +70,15 @@ export default async function CalibrationPage() {
         </Card>
 
         <Card>
-          <div className="eyebrow mb-1 text-gold-600">Turn feedback into rules</div>
-          <h3 className="font-serif text-[20px] text-navy-900">Suggested principles</h3>
+          <div className="eyebrow mb-1 text-brand-600">Turn feedback into rules</div>
+          <h3 className="font-display font-semibold text-[20px] text-navy-900">Suggested principles</h3>
           <p className="mt-1.5 mb-4 text-[12.5px] leading-relaxed text-ink-soft">
             The analyst looks for corrections the partners keep making and drafts standing principles. Nothing changes until a partner accepts a suggestion.
           </p>
           {canEdit && <GenerateSuggestions disabled={total < 3} />}
           <div className="mt-5 space-y-4">
             {suggestions.map((s) => (
-              <div key={s.id} className="rounded-[3px] border border-line bg-ivory/60 p-4">
+              <div key={s.id} className="rounded-lg border border-line bg-mist/60 p-4">
                 <div className="text-[14px] font-medium text-navy-900">{s.title}</div>
                 <p className="mt-1 text-[13px] leading-relaxed text-ink">{s.body}</p>
                 <p className="mt-2 text-[12px] leading-relaxed text-muted"><span className="font-medium">Evidence: </span>{s.evidence}</p>

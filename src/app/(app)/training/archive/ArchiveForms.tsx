@@ -19,8 +19,8 @@ export function ImportCsvForm() {
   const [state, action, pending] = useActionState<TrainState, FormData>(importArchiveCsvAction, { ok: false });
   return (
     <Card>
-      <div className="eyebrow mb-1 text-gold-600">Bulk import</div>
-      <h3 className="font-serif text-[20px] text-navy-900">Import deal history</h3>
+      <div className="eyebrow mb-1 text-brand-600">Bulk import</div>
+      <h3 className="font-display font-semibold text-[20px] text-navy-900">Import deal history</h3>
       <p className="mt-1.5 mb-4 text-[12.5px] leading-relaxed text-ink-soft">
         Upload a CSV with one row per deal, plus the original decks. Decks are matched to rows by the <code className="text-[11.5px]">deck_filename</code> column.{" "}
         <a href="/templates/deal-archive-template.csv" className="text-navy-700 underline">Download template</a>
@@ -40,8 +40,8 @@ export function AddHistoricalForm() {
   const [k, setK] = useState(0);
   return (
     <Card>
-      <div className="eyebrow mb-1 text-gold-600">Single deal</div>
-      <h3 className="mb-4 font-serif text-[20px] text-navy-900">Add a past decision</h3>
+      <div className="eyebrow mb-1 text-brand-600">Single deal</div>
+      <h3 className="mb-4 font-display font-semibold text-[20px] text-navy-900">Add a past decision</h3>
       <form key={k} action={async (fd) => { await action(fd); setK((n) => n + 1); }} className="space-y-3">
         <Field label="Company"><input name="companyName" required className={inputCls} /></Field>
         <div className="grid grid-cols-2 gap-3">

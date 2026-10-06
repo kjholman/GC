@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/session";
 import { Logo } from "@/components/Logo";
+import { DnaHelix } from "@/components/DnaHelix";
 import { env } from "@/lib/env";
 import { adminBypassAction } from "@/lib/auth/actions";
 import { emailDeliveryConfigured } from "@/lib/mailer";
@@ -13,44 +14,28 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const sp = await searchParams;
   const emailEnabled = emailDeliveryConfigured();
   return (
-    <div className="grid min-h-screen lg:grid-cols-[1.05fr_1fr]">
-      <div className="relative hidden overflow-hidden bg-navy-950 px-14 py-12 text-white lg:flex lg:flex-col">
-        <svg className="pointer-events-none absolute inset-0 h-full w-full opacity-[0.07]" aria-hidden="true">
-          <defs>
-            <pattern id="grid" width="56" height="56" patternUnits="userSpaceOnUse">
-              <path d="M56 0H0V56" fill="none" stroke="white" strokeWidth="0.6" />
-            </pattern>
-          </defs>
-          <rect width="100%" height="100%" fill="url(#grid)" />
-        </svg>
-        <div className="pointer-events-none absolute -right-40 -bottom-40 h-[520px] w-[520px] rounded-full border border-gold-500/25" />
-        <div className="pointer-events-none absolute -right-20 -bottom-20 h-[360px] w-[360px] rounded-full border border-gold-500/20" />
-        <div className="relative">
-          <Logo />
-        </div>
-        <div className="relative mt-auto max-w-lg">
-          <div className="eyebrow mb-5 !text-gold-300">Investment Analyst Platform</div>
-          <h1 className="font-serif text-[44px] leading-[1.08] tracking-[-0.01em]">
-            Rigorous conviction, <em className="text-gold-300">from first deck</em> to Investment Committee.
-          </h1>
-          <p className="mt-6 max-w-md text-[15px] leading-relaxed text-white/65">
-            Scientific and financial underwriting for Canada&apos;s life sciences ventures, calibrated to two decades of
-            Genesys Capital investment history.
-          </p>
-        </div>
-        <div className="relative mt-16 flex items-center justify-between border-t border-white/10 pt-6 text-[11.5px] tracking-wide text-white/40">
-          <span>Toronto · Since 2000</span>
-          <span>Confidential. Authorised personnel only</span>
-        </div>
-      </div>
+    <div className="flex min-h-screen flex-col bg-paper">
+      <header className="flex items-center justify-between px-6 py-4 lg:px-8">
+        <Logo />
+        <span className="hidden text-[13px] text-ink-soft sm:block">Analyst Platform · Authorised personnel only</span>
+      </header>
 
-      <div className="flex items-center justify-center bg-ivory px-6 py-16">
-        <div className="w-full max-w-[400px]">
-          <div className="mb-10 lg:hidden">
-            <Logo tone="dark" />
+      <div className="relative mx-4 mb-4 flex flex-1 overflow-hidden rounded-2xl lg:mx-4">
+        <DnaHelix className="absolute inset-0 h-full w-full" />
+        <div className="relative grid w-full items-center gap-10 px-8 py-14 lg:grid-cols-[1.15fr_440px] lg:px-14">
+          <div className="max-w-2xl text-white">
+            <div className="mb-5 text-[12px] font-medium uppercase tracking-[0.22em] text-brand-300">Genesys Capital · Analyst Platform</div>
+            <h1 className="font-display font-semibold text-[46px] font-semibold leading-[1.08] tracking-[-0.015em] lg:text-[58px]">
+              Catalysts for Medical Breakthroughs
+            </h1>
+            <p className="mt-6 max-w-xl text-[16px] leading-relaxed text-white/75">
+              Scientific and financial underwriting for life sciences ventures, informed by more than 25 years of Genesys Capital investment experience.
+            </p>
           </div>
+
+          <div className="w-full rounded-2xl bg-paper p-8 shadow-[0_30px_60px_-20px_rgba(0,0,0,0.5)]">
           {sp.link === "invalid" && (
-            <p className="mb-6 rounded-[3px] border border-[#efd2ce] bg-neg-bg px-4 py-3 text-[13px] text-neg">
+            <p className="mb-6 rounded-lg border border-[#efd2ce] bg-neg-bg px-4 py-3 text-[13px] text-neg">
               That sign-in link has expired or was already used. Ask an administrator for a new one.
             </p>
           )}
@@ -58,28 +43,29 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
             <LoginForm />
           ) : (
             <div>
-              <div className="eyebrow mb-2 text-gold-600">Secure sign-in</div>
-              <h2 className="font-serif text-[30px] leading-tight text-navy-900">Sign in with your link</h2>
+              <div className="eyebrow mb-2 !text-brand-600">Secure sign-in</div>
+              <h2 className="font-display font-semibold text-[30px] font-semibold leading-tight text-ink">Sign in with your link</h2>
               <p className="mt-3 text-[14px] leading-relaxed text-ink-soft">
                 Access is by personal sign-in link. Ask a platform administrator to send you one. Each link works once and expires after 24 hours; your session then lasts several days.
               </p>
             </div>
           )}
           {env.adminBypassEnabled && (
-            <form action={adminBypassAction} className="mt-8 rounded-[3px] border border-dashed border-[#e3c3be] bg-neg-bg/60 p-4">
+            <form action={adminBypassAction} className="mt-8 rounded-lg border border-dashed border-[#e3c3be] bg-neg-bg/60 p-4">
               <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-neg">Testing only</div>
               <p className="mt-1 mb-3 text-[12.5px] leading-relaxed text-ink-soft">
                 Sign-in bypass is enabled for this environment. Disable it before uploading confidential materials.
               </p>
-              <button className="w-full rounded-[3px] border border-neg bg-paper px-4 py-2.5 text-[13.5px] font-medium text-neg hover:bg-neg-bg">
+              <button className="w-full rounded-lg border border-neg bg-paper px-4 py-2.5 text-[13.5px] font-medium text-neg hover:bg-neg-bg">
                 Continue as administrator
               </button>
             </form>
           )}
-          <p className="mt-12 text-[11.5px] leading-relaxed text-muted">
+          <p className="mt-8 text-[11.5px] leading-relaxed text-muted">
             Access is restricted to authorised Genesys Capital personnel. All activity, including sign-in attempts, is
             recorded. Need access? Contact your platform administrator.
           </p>
+          </div>
         </div>
       </div>
     </div>

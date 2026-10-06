@@ -9,8 +9,8 @@ export function AddUsersForm() {
   const [state, action, pending] = useActionState<AdminState, FormData>(addUsersAction, { ok: false });
   return (
     <Card>
-      <div className="eyebrow mb-1 text-gold-600">Grant access</div>
-      <h3 className="mb-5 font-serif text-[20px] text-navy-900">Authorise users</h3>
+      <div className="eyebrow mb-1 text-brand-600">Grant access</div>
+      <h3 className="mb-5 font-display font-semibold text-[20px] text-navy-900">Authorise users</h3>
       <form action={action} className="space-y-4">
         <Field label="Email addresses" hint="One per line, or comma-separated.">
           <textarea name="emails" rows={5} placeholder={"jane.doe@genesyscapital.com\njohn.smith@genesyscapital.com"} className={inputCls} />
@@ -52,7 +52,7 @@ export function UserRow({ user, isSelf }: { user: RowUser; isSelf: boolean }) {
             defaultValue={user.role}
             disabled={isSelf}
             onChange={(e) => e.currentTarget.form?.requestSubmit()}
-            className="rounded-[3px] border border-line bg-paper px-2 py-1 text-[12.5px]"
+            className="rounded-lg border border-line bg-paper px-2 py-1 text-[12.5px]"
           >
             <option value="ANALYST">Analyst</option>
             <option value="PARTNER">Partner</option>
@@ -102,21 +102,21 @@ function SignInLinkButton({ userId, email }: { userId: string; email: string }) 
       </button>
       {link && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-navy-950/40 p-6" onClick={(e) => e.target === e.currentTarget && setLink(null)}>
-          <div className="w-full max-w-lg rounded-[3px] border border-line bg-paper p-6 text-left shadow-[var(--shadow-lift)]">
-            <div className="eyebrow mb-1 text-gold-600">Single-use sign-in link</div>
-            <h3 className="font-serif text-[20px] text-navy-900">{email}</h3>
+          <div className="w-full max-w-lg rounded-lg border border-line bg-paper p-6 text-left shadow-[var(--shadow-lift)]">
+            <div className="eyebrow mb-1 text-brand-600">Single-use sign-in link</div>
+            <h3 className="font-display font-semibold text-[20px] text-navy-900">{email}</h3>
             <p className="mt-2 text-[12.5px] leading-relaxed text-ink-soft">
               Send this to the user by any channel (Teams, text, your own email). It works once and expires {link.expires}. Creating a new link cancels this one.
             </p>
-            <div className="mt-4 rounded-[3px] border border-line bg-ivory px-3 py-2 font-mono text-[11.5px] text-ink [overflow-wrap:anywhere]">{link.url}</div>
+            <div className="mt-4 rounded-lg border border-line bg-mist px-3 py-2 font-mono text-[11.5px] text-ink [overflow-wrap:anywhere]">{link.url}</div>
             <div className="mt-4 flex justify-end gap-2">
-              <button onClick={() => setLink(null)} className="rounded-[3px] px-4 py-2 text-[13px] text-muted hover:text-ink">Close</button>
+              <button onClick={() => setLink(null)} className="rounded-lg px-4 py-2 text-[13px] text-muted hover:text-ink">Close</button>
               <button
                 onClick={async () => {
                   await navigator.clipboard.writeText(link.url);
                   setCopied(true);
                 }}
-                className="rounded-[3px] bg-navy-900 px-4 py-2 text-[13px] font-medium text-white hover:bg-navy-800"
+                className="rounded-lg bg-navy-900 px-4 py-2 text-[13px] font-medium text-white hover:bg-navy-800"
               >
                 {copied ? "Copied ✓" : "Copy link"}
               </button>

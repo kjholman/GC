@@ -15,8 +15,8 @@ export function PortfolioForm({ company, onSaved }: { company: PortfolioCompany 
   }, [state, onSaved]);
   return (
     <Card>
-      <div className="eyebrow mb-1 text-gold-600">{company ? "Edit record" : "Add to record"}</div>
-      <h3 className="mb-5 font-serif text-[20px] text-navy-900">{company ? company.name : "Portfolio company"}</h3>
+      <div className="eyebrow mb-1 text-brand-600">{company ? "Edit record" : "Add to record"}</div>
+      <h3 className="mb-5 font-display font-semibold text-[20px] text-navy-900">{company ? company.name : "Portfolio company"}</h3>
       <form action={action} className="space-y-4">
         <Field label="Company"><input name="name" required defaultValue={company?.name} className={inputCls} /></Field>
         <div className="grid grid-cols-2 gap-3">

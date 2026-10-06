@@ -1,47 +1,65 @@
 @import "tailwindcss";
 
 /*
- * Genesys Capital — Analyst Platform design tokens.
- * Institutional navy, warm ivory and a restrained champagne accent.
- * To apply official brand guidelines, change the values below; every
- * component reads from these tokens.
+ * Genesys Capital brand tokens, matched to genesyscapital.com:
+ * navy #15354F, deep navy #041D2A, logo gradient #1A576F → #29A2B5 → #17B1A7,
+ * pale cyan sections, Figtree headings and Poppins text.
+ * Every component reads from these tokens.
  */
 @theme {
-  --color-navy-950: #061428;
-  --color-navy-900: #0b2545;
-  --color-navy-800: #13315c;
-  --color-navy-700: #1e4174;
-  --color-navy-100: #e6ebf3;
-  --color-navy-50: #f2f5fa;
+  --color-navy-950: #041d2a; /* hero / deepest */
+  --color-navy-900: #15354f; /* brand navy */
+  --color-navy-800: #1c4561;
+  --color-navy-700: #245470;
+  --color-navy-100: #dfecf1;
+  --color-navy-50: #f0f7f9;
 
-  --color-gold-600: #9a7642;
-  --color-gold-500: #b08d57;
-  --color-gold-300: #d8c39b;
-  --color-gold-100: #f3ecdd;
+  --color-brand-700: #1a576f; /* logo gradient start */
+  --color-brand-600: #1f8a9c;
+  --color-brand-500: #29a2b5; /* logo teal */
+  --color-brand-400: #17b1a7; /* logo green */
+  --color-brand-300: #9ed8de;
+  --color-brand-100: #e1f3f5;
 
-  --color-ivory: #f6f4ef;
+  --color-mist: #f3f8fa; /* page background */
+  --color-cyan: #bee3e9; /* portfolio-section cyan */
   --color-paper: #ffffff;
-  --color-line: #e4dfd5;
-  --color-line-strong: #cfc8ba;
-  --color-ink: #141a24;
-  --color-ink-soft: #3d4655;
-  --color-muted: #6b7280;
+  --color-line: #dbe5e9;
+  --color-line-strong: #c4d2d8;
+  --color-ink: #17374d; /* heading navy */
+  --color-ink-soft: #3e5a6e;
+  --color-muted: #668296;
 
-  --color-pos: #1f6f5c;
-  --color-pos-bg: #e7f2ee;
-  --color-warn: #96620b;
-  --color-warn-bg: #fbf1dc;
-  --color-neg: #8f2d2d;
-  --color-neg-bg: #f8e9e7;
-  --color-info: #3a4f9c;
-  --color-info-bg: #eaedf8;
+  --color-pos: #0f8f7a;
+  --color-pos-bg: #e1f5f1;
+  --color-warn: #a2650c;
+  --color-warn-bg: #fcf1dd;
+  --color-neg: #b23a3a;
+  --color-neg-bg: #fbeaea;
+  --color-info: #1f7f97;
+  --color-info-bg: #e2f2f6;
 
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-serif: var(--font-newsreader), "Iowan Old Style", Georgia, serif;
+  --font-sans: var(--font-poppins), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: var(--font-figtree), var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
 
-  --shadow-card: 0 1px 2px rgba(11, 37, 69, 0.04), 0 1px 1px rgba(11, 37, 69, 0.03);
-  --shadow-lift: 0 10px 30px -12px rgba(11, 37, 69, 0.25);
+  --shadow-card: 0 1px 2px rgba(21, 53, 79, 0.05), 0 1px 3px rgba(21, 53, 79, 0.04);
+  --shadow-lift: 0 14px 34px -14px rgba(21, 53, 79, 0.3);
+}
+
+/* Brand gradient used on feature cards (as on the website's story cards). */
+.bg-brand-gradient {
+  background: linear-gradient(115deg, #184660 0%, #22859b 55%, #0db79d 100%);
+}
+.text-brand-gradient {
+  background: linear-gradient(100deg, #1a576f, #29a2b5 55%, #17b1a7);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+/* Hexagon crop, as used for team photos on the website. */
+.hex {
+  clip-path: polygon(25% 3%, 75% 3%, 100% 50%, 75% 97%, 25% 97%, 0% 50%);
 }
 
 html {
@@ -51,7 +69,7 @@ html {
 }
 
 body {
-  background: var(--color-ivory);
+  background: var(--color-mist);
   color: var(--color-ink);
   font-family: var(--font-sans);
 }
@@ -68,17 +86,21 @@ body {
   color: var(--color-muted);
 }
 
+h1, h2, h3, h4 {
+  letter-spacing: -0.01em;
+}
+
 .prose-memo p + p {
   margin-top: 0.85em;
 }
 
 ::selection {
-  background: var(--color-gold-300);
+  background: var(--color-brand-300);
   color: var(--color-navy-950);
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-gold-500);
+  outline: 2px solid var(--color-brand-500);
   outline-offset: 2px;
 }
 
@@ -87,7 +109,7 @@ body {
   100% { background-position: 400px 0; }
 }
 .shimmer {
-  background: linear-gradient(90deg, var(--color-navy-50) 0%, var(--color-gold-100) 50%, var(--color-navy-50) 100%);
+  background: linear-gradient(90deg, var(--color-navy-50) 0%, var(--color-brand-100) 50%, var(--color-navy-50) 100%);
   background-size: 800px 100%;
   animation: shimmer 2.2s linear infinite;
 }

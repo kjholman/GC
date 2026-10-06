@@ -42,7 +42,7 @@ export default async function ArchivePage() {
                         </div>
                         <div className="truncate text-[12.5px] text-muted">{[d.sector, d.modality, d.indication].filter(Boolean).join(" · ") || "—"}</div>
                       </div>
-                      <span className={cx("rounded-[2px] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]", DECISION[d.decision].cls)}>{DECISION[d.decision].label}</span>
+                      <span className={cx("rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]", DECISION[d.decision].cls)}>{DECISION[d.decision].label}</span>
                       <span className="w-24 text-right text-[11.5px] text-muted">{d.outcome.replaceAll("_", " ").toLowerCase()}</span>
                       <span className={cx("w-24 text-right text-[11.5px]", d.ingestStatus === "READY" ? "text-pos" : d.ingestStatus === "FAILED" ? "text-neg" : "text-warn")}>
                         {d.ingestStatus === "READY" ? (d.deckFilename ? "● deck read" : "● ready") : d.ingestStatus.toLowerCase()}

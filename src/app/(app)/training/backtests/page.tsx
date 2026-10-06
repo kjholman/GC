@@ -39,13 +39,13 @@ export default async function BacktestsPage() {
                   const m = r.metrics as BacktestMetrics | null;
                   const c = r.config as { principles: number; exemplars: number; archive: number; feedback: number };
                   return (
-                    <tr key={r.id} className="hover:bg-ivory/70">
+                    <tr key={r.id} className="hover:bg-mist/70">
                       <td className="py-3.5 pr-4 pl-6">
                         <Link href={`/training/backtests/${r.id}`} className="font-medium text-navy-900 hover:underline">{r.label}</Link>
                         <div className="text-[12px] text-muted">{r.status === "COMPLETE" ? `${r.total} deals` : `${r.status.toLowerCase()} · ${r.completed}/${r.total}`}</div>
                       </td>
                       <td className="px-4 py-3.5 text-[12px] text-muted">{c.principles} principles · {c.exemplars} exemplars · {c.archive} archived · {c.feedback} reviews</td>
-                      <td className="px-4 py-3.5 text-right font-serif text-[20px] tabular text-navy-900">{m ? `${Math.round(m.agreement * 100)}%` : "—"}</td>
+                      <td className="px-4 py-3.5 text-right font-display font-semibold text-[20px] tabular text-navy-900">{m ? `${Math.round(m.agreement * 100)}%` : "—"}</td>
                       <td className={cx("px-4 py-3.5 text-[12.5px]", m?.bias === "balanced" ? "text-pos" : "text-warn")}>{m?.bias ?? ""}</td>
                       <td className="py-3.5 pr-6 pl-4 text-right text-[12px] text-muted">{fmtDate(r.createdAt, true)}</td>
                     </tr>

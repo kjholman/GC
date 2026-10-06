@@ -29,12 +29,12 @@ export default async function BacktestRunPage({ params }: PageProps<"/training/b
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <Link href="/training/backtests" className="text-[13px] text-muted hover:text-navy-800">← All backtests</Link>
-          <h2 className="mt-2 font-serif text-[28px] text-navy-900">{run.label}</h2>
+          <h2 className="mt-2 font-display font-semibold text-[28px] text-navy-900">{run.label}</h2>
         </div>
         {running && (
           <div className="w-72">
             <div className="mb-1 flex justify-between text-[12px] text-muted"><span>Replaying deals…</span><span className="tabular">{run.completed}/{run.total}</span></div>
-            <div className="h-1.5 rounded-full bg-line"><div className="h-1.5 rounded-full bg-gold-500" style={{ width: `${(run.completed / Math.max(1, run.total)) * 100}%` }} /></div>
+            <div className="h-1.5 rounded-full bg-line"><div className="h-1.5 rounded-full bg-brand-500" style={{ width: `${(run.completed / Math.max(1, run.total)) * 100}%` }} /></div>
           </div>
         )}
         {run.error && <p className="text-[13px] text-neg">{run.error}</p>}
@@ -42,7 +42,7 @@ export default async function BacktestRunPage({ params }: PageProps<"/training/b
 
       {m && (
         <>
-          <div className="grid grid-cols-2 gap-px overflow-hidden rounded-[3px] border border-line bg-line md:grid-cols-4">
+          <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-line bg-line md:grid-cols-4">
             {[
               ["Agreement with partners", `${Math.round(m.agreement * 100)}%`, `${m.scored} deals scored`],
               ["Missed winners", m.missedWinners.length, "Exited investments the AI would have declined"],
@@ -51,7 +51,7 @@ export default async function BacktestRunPage({ params }: PageProps<"/training/b
             ].map(([k, v, n]) => (
               <div key={k as string} className="bg-paper px-6 py-5">
                 <div className="eyebrow">{k}</div>
-                <div className="mt-2 font-serif text-[34px] leading-none tabular capitalize text-navy-900">{v}</div>
+                <div className="mt-2 font-display font-semibold text-[34px] leading-none tabular capitalize text-navy-900">{v}</div>
                 <div className="mt-2 text-[12px] text-muted">{n}</div>
               </div>
             ))}
@@ -75,7 +75,7 @@ export default async function BacktestRunPage({ params }: PageProps<"/training/b
                       <td className="py-2.5 text-ink">{DEC_LABEL[dec]}</td>
                       {(["REJECT", "PENDING_INFO", "ADVANCE_TO_DILIGENCE"] as const).map((r) => {
                         const good = dec === "PASSED_AT_SCREENING" ? r === "REJECT" : r !== "REJECT";
-                        return <td key={r} className={cx("py-2.5 text-right font-serif text-[18px] tabular", row[r] ? (good ? "text-pos" : "text-neg") : "text-line-strong")}>{row[r]}</td>;
+                        return <td key={r} className={cx("py-2.5 text-right font-display font-semibold text-[18px] tabular", row[r] ? (good ? "text-pos" : "text-neg") : "text-line-strong")}>{row[r]}</td>;
                       })}
                     </tr>
                   ))}

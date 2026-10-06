@@ -22,7 +22,7 @@ export function EvidenceTag({ id }: { id: string }) {
   if (!e) return <sup className="ml-0.5 text-[9px] text-neg" title="Citation not found in the evidence ledger">[{id}?]</sup>;
   return (
     <sup
-      className={`ml-0.5 cursor-help rounded-[2px] border px-1 py-px font-sans text-[9px] font-semibold tracking-wide ${e.flagged ? "border-neg bg-neg-bg text-neg" : STATUS_CLS[e.status]}`}
+      className={`ml-0.5 cursor-help rounded-md border px-1 py-px font-sans text-[9px] font-semibold tracking-wide ${e.flagged ? "border-neg bg-neg-bg text-neg" : STATUS_CLS[e.status]}`}
       title={`${e.claim}\n\nSource: ${e.sourceType.replaceAll("_", " ").toLowerCase()} · ${e.sourceRef}\nStatus: ${e.status.replaceAll("_", " ").toLowerCase()}${e.flagged ? "\n⚠ Flagged by fact-check" : ""}`}
     >
       {id}

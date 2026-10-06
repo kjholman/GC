@@ -34,7 +34,7 @@ export function Paras({ text, className }: { text: string; className?: string })
 }
 
 function Pill({ children, cls }: { children: ReactNode; cls: string }) {
-  return <span className={cx("inline-block rounded-[2px] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]", cls)}>{children}</span>;
+  return <span className={cx("inline-block rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]", cls)}>{children}</span>;
 }
 
 function KV({ label, children }: { label: string; children: ReactNode }) {
@@ -52,7 +52,7 @@ function Bullets({ items, marker = "—" }: { items: string[]; marker?: string }
     <ul className="space-y-2">
       {items.map((t, i) => (
         <li key={i} className="flex gap-3 text-[14px] leading-relaxed text-ink-soft">
-          <span className="shrink-0 text-gold-500">{marker}</span>
+          <span className="shrink-0 text-brand-500">{marker}</span>
           <span><Tagged text={t} /></span>
         </li>
       ))}
@@ -66,17 +66,17 @@ export function MemoView({ memo }: { memo: Memo }) {
       <Card className={cx("border-l-4", memo.worthOurTime.verdict ? "border-l-pos" : "border-l-neg")}>
         <div className="eyebrow mb-2">Is this worth our time?</div>
         <div className="flex items-start gap-4">
-          <span className={cx("mt-1 font-serif text-[26px] leading-none", memo.worthOurTime.verdict ? "text-pos" : "text-neg")}>
+          <span className={cx("mt-1 font-display font-semibold text-[26px] leading-none", memo.worthOurTime.verdict ? "text-pos" : "text-neg")}>
             {memo.worthOurTime.verdict ? "Yes." : "No."}
           </span>
-          <h3 className="font-serif text-[24px] leading-snug text-navy-900">{memo.worthOurTime.headline}</h3>
+          <h3 className="font-display font-semibold text-[24px] leading-snug text-navy-900">{memo.worthOurTime.headline}</h3>
         </div>
         <Paras text={memo.worthOurTime.rationale} className="mt-4" />
       </Card>
 
       {memo.versionDelta && (
-        <Card className="!bg-gold-100/50 !border-gold-300">
-          <div className="eyebrow mb-2 text-gold-600">What changed in this version</div>
+        <Card className="!bg-brand-100/50 !border-brand-300">
+          <div className="eyebrow mb-2 text-brand-600">What changed in this version</div>
           <Paras text={memo.versionDelta} />
         </Card>
       )}
@@ -108,7 +108,7 @@ export function MemoView({ memo }: { memo: Memo }) {
                     <div key={i} className="flex-1 rounded-[1px]" style={{ background: i < s.score ? scoreColor(s.score * 10) : "var(--color-line)" }} />
                   ))}
                 </div>
-                <div className="w-10 text-right font-serif text-[20px] tabular text-navy-900">{s.score}</div>
+                <div className="w-10 text-right font-display font-semibold text-[20px] tabular text-navy-900">{s.score}</div>
                 <span className="text-muted transition-transform group-open:rotate-90">›</span>
               </summary>
               <div className="mt-3 grid gap-4 pl-0 md:grid-cols-2 md:pl-[228px]">
@@ -155,7 +155,7 @@ export function MemoView({ memo }: { memo: Memo }) {
                   <td className="py-3 pr-4 text-ink"><Tagged text={m.milestone} /></td>
                   <td className="px-4 py-3 text-ink-soft">{m.expectedTiming}</td>
                   <td className="px-4 py-3 text-ink-soft">{m.capitalRequired ?? "—"}</td>
-                  <td className="py-3 pl-4 text-right">{m.valueInflection ? <span className="text-gold-600">◆</span> : ""}</td>
+                  <td className="py-3 pl-4 text-right">{m.valueInflection ? <span className="text-brand-600">◆</span> : ""}</td>
                 </tr>
               ))}
             </tbody>
@@ -209,25 +209,25 @@ export function FinancialsView({ memo }: { memo: Memo }) {
   const probSum = scen.reduce((s, x) => s + (x.probability ?? 0), 0);
   const expMoic = scen.reduce((s, x) => s + (x.grossMoic ?? 0) * (x.probability ?? 0), 0);
   const maxMoic = Math.max(1, ...scen.map((s) => s.grossMoic ?? 0));
-  const tone: Record<string, string> = { BEAR: "var(--color-neg)", BASE: "var(--color-gold-500)", BULL: "var(--color-pos)" };
+  const tone: Record<string, string> = { BEAR: "var(--color-neg)", BASE: "var(--color-brand-500)", BULL: "var(--color-pos)" };
 
   return (
     <div className="space-y-8">
-      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-[3px] border border-line bg-line md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-line bg-line md:grid-cols-4">
         <div className="bg-paper px-6 py-5">
           <div className="eyebrow">Probability-weighted MOIC</div>
-          <div className="mt-2 font-serif text-[36px] leading-none tabular text-navy-900">{expMoic.toFixed(1)}×</div>
+          <div className="mt-2 font-display font-semibold text-[36px] leading-none tabular text-navy-900">{expMoic.toFixed(1)}×</div>
           <div className="mt-2 text-[12px] text-muted">Gross, on Genesys capital</div>
         </div>
         <div className="bg-paper px-6 py-5">
           <div className="eyebrow">Loss probability</div>
-          <div className="mt-2 font-serif text-[36px] leading-none tabular text-navy-900">{Math.round(Math.max(0, 1 - probSum) * 100)}%</div>
+          <div className="mt-2 font-display font-semibold text-[36px] leading-none tabular text-navy-900">{Math.round(Math.max(0, 1 - probSum) * 100)}%</div>
           <div className="mt-2 text-[12px] text-muted">Residual to scenarios</div>
         </div>
         {scen.filter((s) => s.scenario !== "BEAR").map((s) => (
           <div key={s.scenario} className="bg-paper px-6 py-5">
             <div className="eyebrow">{s.scenario === "BASE" ? "Base case" : "Bull case"} exit</div>
-            <div className="mt-2 font-serif text-[36px] leading-none tabular text-navy-900">
+            <div className="mt-2 font-display font-semibold text-[36px] leading-none tabular text-navy-900">
               {s.exitValueUsdM != null ? `$${s.exitValueUsdM >= 1000 ? `${(s.exitValueUsdM / 1000).toFixed(1)}B` : `${Math.round(s.exitValueUsdM)}M`}` : "—"}
             </div>
             <div className="mt-2 text-[12px] text-muted">{s.yearsToExit != null ? `~${s.yearsToExit} years · ` : ""}{s.exitRoute}</div>
@@ -249,7 +249,7 @@ export function FinancialsView({ memo }: { memo: Memo }) {
                   <div className="h-2.5 flex-1 rounded-full bg-line">
                     <div className="h-2.5 rounded-full" style={{ width: `${((s.grossMoic ?? 0) / maxMoic) * 100}%`, background: tone[s.scenario] }} />
                   </div>
-                  <div className="w-16 text-right font-serif text-[22px] tabular text-navy-900">{s.grossMoic != null ? `${s.grossMoic.toFixed(1)}×` : "—"}</div>
+                  <div className="w-16 text-right font-display font-semibold text-[22px] tabular text-navy-900">{s.grossMoic != null ? `${s.grossMoic.toFixed(1)}×` : "—"}</div>
                 </div>
                 <div className="mt-2 text-[13px] text-ink-soft">
                   <span className="font-medium text-ink">{s.exitRoute}</span>
@@ -293,7 +293,7 @@ export function FitView({ memo }: { memo: Memo }) {
             {p.historicalPrecedents.map((h, i) => (
               <div key={i} className="grid gap-2 py-4 first:pt-0 md:grid-cols-[220px_1fr]">
                 <div>
-                  <div className="font-serif text-[17px] text-navy-900">{h.company}</div>
+                  <div className="font-display font-semibold text-[17px] text-navy-900">{h.company}</div>
                   <div className="text-[12px] text-muted">{h.genesysDecision}</div>
                 </div>
                 <p className="text-[13.5px] leading-relaxed text-ink-soft"><Tagged text={h.relevance} /></p>
@@ -309,8 +309,8 @@ export function FitView({ memo }: { memo: Memo }) {
         ) : (
           <div className="grid gap-5 md:grid-cols-2">
             {p.comparableGenesysInvestments.map((c, i) => (
-              <div key={i} className="border-l-2 border-gold-500 pl-5">
-                <div className="font-serif text-[19px] text-navy-900">{c.company}</div>
+              <div key={i} className="border-l-2 border-brand-500 pl-5">
+                <div className="font-display font-semibold text-[19px] text-navy-900">{c.company}</div>
                 <p className="mt-1 text-[13.5px] text-ink-soft"><span className="text-muted">Similarity: </span>{c.similarity}</p>
                 <p className="mt-2 text-[13.5px] leading-relaxed text-ink"><span className="text-muted">Lesson: </span><Tagged text={c.lesson} /></p>
               </div>
@@ -369,11 +369,11 @@ export function DiligenceView({ memo }: { memo: Memo }) {
       <Card className="text-center">
         <div className="mx-auto max-w-lg py-8">
           <div className="eyebrow mb-3">Not issued</div>
-          <h3 className="font-serif text-[22px] text-navy-900">Diligence requirements are issued only when a deal passes screening.</h3>
+          <h3 className="font-display font-semibold text-[22px] text-navy-900">Diligence requirements are issued only when a deal passes screening.</h3>
           <p className="mt-3 text-[14px] text-ink-soft">
             {memo.recommendation === "PENDING_INFO"
               ? "This deal is awaiting further information from the founders. Once received, reopen it to re-run the analysis."
-              : "The analyst recommended declining this opportunity."}
+              : "The Sharminator recommended declining this opportunity."}
           </p>
         </div>
       </Card>
@@ -381,19 +381,19 @@ export function DiligenceView({ memo }: { memo: Memo }) {
   }
   return (
     <div className="space-y-8">
-      <Card className="!bg-navy-950 !border-navy-950 text-white">
+      <Card className="bg-brand-gradient !border-transparent text-white">
         <div className="flex flex-wrap items-end justify-between gap-6">
           <div>
-            <div className="eyebrow !text-gold-300">Due-diligence programme</div>
-            <div className="mt-2 font-serif text-[28px]">{plan.workstreams.length} workstreams · ~{plan.estimatedTotalWeeks} weeks</div>
+            <div className="eyebrow !text-white/80">Due-diligence programme</div>
+            <div className="mt-2 font-display font-semibold text-[28px]">{plan.workstreams.length} workstreams · ~{plan.estimatedTotalWeeks} weeks</div>
           </div>
         </div>
         <div className="mt-6">
-          <div className="eyebrow mb-3 !text-white/50">Critical questions for Investment Committee</div>
+          <div className="eyebrow mb-3 !text-white/70">Critical questions for Investment Committee</div>
           <ol className="space-y-2.5">
             {plan.criticalQuestionsForIC.map((q, i) => (
               <li key={i} className="flex gap-4 text-[14px] leading-relaxed text-white/85">
-                <span className="font-serif text-gold-300 tabular">{String(i + 1).padStart(2, "0")}</span>
+                <span className="font-display font-semibold text-white tabular">{String(i + 1).padStart(2, "0")}</span>
                 {q}
               </li>
             ))}
@@ -405,14 +405,14 @@ export function DiligenceView({ memo }: { memo: Memo }) {
         {plan.workstreams.map((w, i) => (
           <Card key={i}>
             <div className="flex items-start justify-between gap-4">
-              <h4 className="font-serif text-[19px] text-navy-900">{w.name}</h4>
+              <h4 className="font-display font-semibold text-[19px] text-navy-900">{w.name}</h4>
               <span className="shrink-0 rounded-full bg-navy-50 px-2.5 py-0.5 text-[11.5px] tabular text-navy-700">{w.durationWeeks} wks</span>
             </div>
             <p className="mt-1.5 text-[13.5px] text-ink-soft">{w.objective}</p>
             <ul className="mt-4 space-y-1.5">
               {w.tasks.map((t, k) => (
                 <li key={k} className="flex gap-2.5 text-[13.5px] text-ink">
-                  <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-gold-500" />
+                  <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-brand-500" />
                   {t}
                 </li>
               ))}
@@ -449,7 +449,7 @@ export function MarketView({ memo }: { memo: Memo }) {
   return (
     <div className="space-y-8">
       {ms && (
-        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-[3px] border border-line bg-line md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-line bg-line md:grid-cols-4">
           {[
             ["Total market (TAM)", money(ms.tamUsdM), "Bottom-up"],
             ["Serviceable (SAM)", money(ms.samUsdM), "Reachable with this product"],
@@ -458,7 +458,7 @@ export function MarketView({ memo }: { memo: Memo }) {
           ].map(([k, v, n]) => (
             <div key={k as string} className="bg-paper px-6 py-5">
               <div className="eyebrow">{k}</div>
-              <div className="mt-2 font-serif text-[30px] leading-none tabular text-navy-900">{v}</div>
+              <div className="mt-2 font-display font-semibold text-[30px] leading-none tabular text-navy-900">{v}</div>
               <div className="mt-2 text-[12px] text-muted">{n}</div>
             </div>
           ))}
@@ -488,7 +488,7 @@ export function MarketView({ memo }: { memo: Memo }) {
                 <tr key={i}>
                   <td className="py-3 pr-4 text-ink">{p.segment}</td>
                   <td className="px-4 py-3 text-ink-soft">{p.geography}</td>
-                  <td className="px-4 py-3 font-serif text-[16px] tabular text-navy-900">{p.value}</td>
+                  <td className="px-4 py-3 font-display font-semibold text-[16px] tabular text-navy-900">{p.value}</td>
                   <td className="py-3 pl-4 text-[12.5px] text-ink-soft"><Tagged text={p.basis} /></td>
                 </tr>
               ))}
@@ -553,7 +553,7 @@ export function IPView({ memo }: { memo: Memo }) {
         <SectionTitle
           eyebrow="Intellectual property"
           title="IP position"
-          action={ip.strength ? <span className={cx("rounded-[2px] px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.1em]", ip.strength === "STRONG" ? "bg-pos-bg text-pos" : ip.strength === "ADEQUATE" ? "bg-navy-50 text-navy-700" : ip.strength === "WEAK" ? "bg-neg-bg text-neg" : "bg-warn-bg text-warn")}>{ip.strength.toLowerCase()}</span> : undefined}
+          action={ip.strength ? <span className={cx("rounded-md px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.1em]", ip.strength === "STRONG" ? "bg-pos-bg text-pos" : ip.strength === "ADEQUATE" ? "bg-navy-50 text-navy-700" : ip.strength === "WEAK" ? "bg-neg-bg text-neg" : "bg-warn-bg text-warn")}>{ip.strength.toLowerCase()}</span> : undefined}
         />
         <Paras text={ip.position} />
       </Card>
@@ -581,7 +581,7 @@ export function IPView({ memo }: { memo: Memo }) {
                       <div className="text-ink">{a.title}</div>
                       <div className="text-[11.5px] text-muted">{a.type.replaceAll("_", " ").toLowerCase()}{a.jurisdictions ? ` · ${a.jurisdictions}` : ""}</div>
                     </td>
-                    <td className="px-3 py-3 align-top"><span className={cx("rounded-[2px] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]", IP_STATUS[a.status])}>{a.status.toLowerCase()}</span></td>
+                    <td className="px-3 py-3 align-top"><span className={cx("rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]", IP_STATUS[a.status])}>{a.status.toLowerCase()}</span></td>
                     <td className="px-3 py-3 align-top text-ink-soft">{a.ownerOrAssignee ?? "Unknown"}</td>
                     <td className="py-3 pr-6 pl-3 align-top text-ink-soft">{a.estimatedExpiry ?? "Unknown"}</td>
                   </tr>
@@ -625,10 +625,10 @@ export function TeamView({ memo }: { memo: Memo }) {
             <Card key={i}>
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h4 className="font-serif text-[20px] text-navy-900">{p.name}</h4>
+                  <h4 className="font-display font-semibold text-[20px] text-navy-900">{p.name}</h4>
                   <div className="text-[12.5px] text-muted">{p.role}</div>
                 </div>
-                <span className={cx("shrink-0 rounded-[2px] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]", VERIF[p.verification].cls)}>{VERIF[p.verification].label}</span>
+                <span className={cx("shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]", VERIF[p.verification].cls)}>{VERIF[p.verification].label}</span>
               </div>
               <dl className="mt-4 space-y-3 text-[13px]">
                 {[
@@ -643,7 +643,7 @@ export function TeamView({ memo }: { memo: Memo }) {
                   </div>
                 ))}
                 {p.concerns && (
-                  <div className="rounded-[3px] bg-neg-bg/60 px-3 py-2">
+                  <div className="rounded-lg bg-neg-bg/60 px-3 py-2">
                     <dt className="eyebrow mb-0.5 text-neg">Concerns</dt>
                     <dd className="leading-relaxed text-ink"><Tagged text={p.concerns} /></dd>
                   </div>

@@ -18,9 +18,9 @@ export function FollowUpPanel({ dealId, disabled, openRequests }: { dealId: stri
   const [state, action, pending] = useActionState<ActionState, FormData>(submitFollowUpAction.bind(null, dealId), { ok: false });
   const [key, setKey] = useState(0);
   return (
-    <Card className="!border-gold-300">
-      <div className="eyebrow mb-1 text-gold-600">Reopen with new information</div>
-      <h3 className="font-serif text-[20px] text-navy-900">Founders replied?</h3>
+    <Card className="!border-brand-300">
+      <div className="eyebrow mb-1 text-brand-600">Reopen with new information</div>
+      <h3 className="font-display font-semibold text-[20px] text-navy-900">Founders replied?</h3>
       <p className="mt-1.5 mb-5 text-[13px] leading-relaxed text-ink-soft">
         Upload what they sent{openRequests ? ` against the ${openRequests} outstanding request${openRequests === 1 ? "" : "s"}` : ""}. The analyst
         re-underwrites the deal using every document received so far and records what changed.
@@ -139,14 +139,14 @@ export function FeedbackPanel({ analysisId, version, reviews }: { analysisId: st
   return (
     <Card>
       <div className="eyebrow mb-1">Calibrate the analyst</div>
-      <h3 className="font-serif text-[19px] text-navy-900">Review memo v{version}</h3>
+      <h3 className="font-display font-semibold text-[19px] text-navy-900">Review memo v{version}</h3>
       <p className="mt-1.5 mb-4 text-[12.5px] leading-relaxed text-ink-soft">
         Your critique is added to the analyst&apos;s calibration set and shapes every future analysis.
       </p>
       {reviews.length > 0 && (
         <ul className="mb-4 space-y-2">
           {reviews.map((r, i) => (
-            <li key={i} className="rounded-[3px] bg-ivory px-3 py-2 text-[12.5px]">
+            <li key={i} className="rounded-lg bg-mist px-3 py-2 text-[12.5px]">
               <span className="font-medium text-navy-900">{r.who}</span>{" "}
               <span className="text-muted">· {r.verdict.replaceAll("_", " ").toLowerCase()}</span>
               <p className="mt-0.5 text-ink-soft">{r.comment}</p>
@@ -195,9 +195,9 @@ export function SignOffPanel({ analysisId, version, status, signedOff }: { analy
     );
   }
   return (
-    <Card className="!border-gold-300">
-      <div className="eyebrow mb-1 text-gold-600">Required before use</div>
-      <h3 className="font-serif text-[19px] text-navy-900">Analyst sign-off</h3>
+    <Card className="!border-brand-300">
+      <div className="eyebrow mb-1 text-brand-600">Required before use</div>
+      <h3 className="font-display font-semibold text-[19px] text-navy-900">Analyst sign-off</h3>
       <p className="mt-1.5 mb-4 text-[12.5px] leading-relaxed text-ink-soft">
         Review the memo and the fact-check against the source materials. The founder response is unlocked once you sign off.
       </p>

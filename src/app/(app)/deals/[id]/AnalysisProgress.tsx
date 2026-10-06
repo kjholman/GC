@@ -33,17 +33,17 @@ export function AnalysisProgress({ analysisId, version, initialProgress, started
   const stageIdx = Math.max(0, STAGES.findIndex((s) => progress?.startsWith(s.split(" ")[0])));
 
   return (
-    <div className="overflow-hidden rounded-[3px] border border-line bg-paper">
+    <div className="overflow-hidden rounded-lg border border-line bg-paper">
       <div className="shimmer h-1" />
       <div className="flex flex-wrap items-center gap-8 px-6 py-5">
         <div>
-          <div className="eyebrow text-gold-600">AI analyst · version {version}</div>
-          <div className="mt-1 font-serif text-[20px] text-navy-900">{progress ?? "Queued"}…</div>
+          <div className="eyebrow !text-brand-600">The Sharminator · version {version}</div>
+          <div className="mt-1 font-display font-semibold text-[20px] text-ink">{progress ?? "Queued"}…</div>
         </div>
         <ol className="flex flex-1 items-center gap-3 text-[12px]">
           {STAGES.map((s, i) => (
             <li key={s} className="flex items-center gap-2">
-              <span className={`h-2 w-2 rounded-full ${i < stageIdx ? "bg-pos" : i === stageIdx ? "pulse-dot bg-gold-500" : "bg-line-strong"}`} />
+              <span className={`h-2 w-2 rounded-full ${i < stageIdx ? "bg-pos" : i === stageIdx ? "pulse-dot bg-brand-500" : "bg-line-strong"}`} />
               <span className={i <= stageIdx ? "text-ink" : "text-muted"}>{s.split(",")[0].replace("Reading submitted materials", "Reading")}</span>
               {i < STAGES.length - 1 && <span className="mx-1 h-px w-6 bg-line-strong" />}
             </li>
@@ -52,6 +52,9 @@ export function AnalysisProgress({ analysisId, version, initialProgress, started
         <div className="tabular text-[12px] text-muted">
           {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, "0")} elapsed
         </div>
+      </div>
+      <div className="border-t border-line bg-mist/70 px-6 py-3 text-[12.5px] text-ink-soft">
+        This runs on the server. You can leave this page, reload it or close the browser; the analysis keeps going and the memo will be here when it finishes.
       </div>
     </div>
   );

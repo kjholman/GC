@@ -30,7 +30,7 @@ export default async function PromptPage() {
         </p>
         <div className="space-y-3">
           {sections.map((s) => (
-            <details key={s.title} className="group rounded-[3px] border border-line">
+            <details key={s.title} className="group rounded-lg border border-line">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4">
                 <div>
                   <div className="text-[14px] font-medium text-navy-900">{s.title}</div>

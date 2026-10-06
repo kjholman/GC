@@ -1,7 +1,7 @@
 import { requireUser, hasRole } from "@/lib/auth/session";
 import { env } from "@/lib/env";
 import { signOutAction } from "@/lib/auth/actions";
-import { Logo } from "@/components/Logo";
+import { GenesysMark, Logo } from "@/components/Logo";
 import { Nav } from "@/components/Nav";
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
@@ -22,15 +22,17 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
 
   return (
     <div className="flex min-h-screen">
-      <aside className="sticky top-0 flex h-screen w-[248px] shrink-0 flex-col bg-navy-950 text-white">
-        <div className="px-6 pt-7 pb-8">
-          <Logo />
-          <div className="mt-4 text-[10px] font-semibold uppercase tracking-[0.24em] text-white/35">Analyst Platform</div>
+      <aside className="sticky top-0 flex h-screen w-[252px] shrink-0 flex-col overflow-hidden bg-navy-900 text-white">
+        {/* Oversized faded mark, as on the website's navy sections. */}
+        <GenesysMark size={420} className="pointer-events-none absolute -right-28 bottom-16 opacity-[0.09]" />
+        <div className="relative px-6 pt-7 pb-8">
+          <Logo on="dark" />
+          <div className="mt-4 text-[10.5px] font-medium uppercase tracking-[0.22em] text-brand-300/80">Analyst Platform</div>
         </div>
-        <Nav items={items} />
-        <div className="mt-auto border-t border-white/10 px-5 py-5">
+        <div className="relative"><Nav items={items} /></div>
+        <div className="relative mt-auto border-t border-white/10 px-5 py-5">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full border border-gold-500/50 font-serif text-[13px] text-gold-300">
+            <div className="hex bg-brand-gradient flex h-10 w-10 items-center justify-center font-display font-semibold text-[13px] font-semibold text-white">
               {initials}
             </div>
             <div className="min-w-0 flex-1">
@@ -45,7 +47,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
       </aside>
       <main className="min-w-0 flex-1 px-10 py-10 xl:px-14">
         {env.adminBypassEnabled && (
-          <div className="no-print mx-auto mb-6 max-w-[1280px] rounded-[3px] border border-[#e3c3be] bg-neg-bg px-4 py-2 text-[12.5px] text-neg">
+          <div className="no-print mx-auto mb-6 max-w-[1280px] rounded-lg border border-[#e3c3be] bg-neg-bg px-4 py-2 text-[12.5px] text-neg">
             Testing mode: the sign-in bypass is on. Anyone with this link can enter as an administrator. Set ENABLE_ADMIN_BYPASS=false before real use.
           </div>
         )}

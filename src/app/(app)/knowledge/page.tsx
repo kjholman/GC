@@ -10,7 +10,7 @@ const OUTCOME: Record<string, { label: string; cls: string }> = {
   ACQUIRED: { label: "Acquired", cls: "bg-pos-bg text-pos" },
   IPO: { label: "IPO", cls: "bg-info-bg text-info" },
   MERGED: { label: "Merged", cls: "bg-info-bg text-info" },
-  ACTIVE: { label: "Active", cls: "bg-gold-100 text-gold-600" },
+  ACTIVE: { label: "Active", cls: "bg-brand-100 text-brand-600" },
   WOUND_DOWN: { label: "Wound down", cls: "bg-neg-bg text-neg" },
   UNKNOWN: { label: "Outcome n/a", cls: "bg-[#f1efea] text-muted" },
 };
@@ -32,7 +32,7 @@ export default async function KnowledgePage() {
         title="Knowledge base"
         subtitle="Genesys Capital's investment history. Every analysis benchmarks new opportunities against these companies and their outcomes. The more complete and candid this record, the sharper the analyst's judgement."
       />
-      <div className="mb-8 grid grid-cols-2 gap-px md:grid-cols-4 overflow-hidden rounded-[3px] border border-line bg-line">
+      <div className="mb-8 grid grid-cols-2 gap-px md:grid-cols-4 overflow-hidden rounded-lg border border-line bg-line">
         {[
           ["Companies on record", companies.length],
           ["Realised exits", exits],
@@ -41,7 +41,7 @@ export default async function KnowledgePage() {
         ].map(([k, v]) => (
           <div key={k} className="bg-paper px-6 py-5">
             <div className="eyebrow">{k}</div>
-            <div className="mt-2 font-serif text-[34px] leading-none tabular text-navy-900">{v}</div>
+            <div className="mt-2 font-display font-semibold text-[34px] leading-none tabular text-navy-900">{v}</div>
           </div>
         ))}
       </div>
@@ -56,18 +56,18 @@ export default async function KnowledgePage() {
             <Card key={c.id} className="flex flex-col">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h3 className="font-serif text-[20px] leading-tight text-navy-900">{c.name}</h3>
+                  <h3 className="font-display font-semibold text-[20px] leading-tight text-navy-900">{c.name}</h3>
                   <div className="mt-1 text-[12.5px] text-muted">
                     {[c.sector, c.modality].filter(Boolean).join(" · ")}
                   </div>
                 </div>
-                <span className={cx("shrink-0 rounded-[2px] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]", OUTCOME[c.outcome].cls)}>
+                <span className={cx("shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]", OUTCOME[c.outcome].cls)}>
                   {OUTCOME[c.outcome].label}
                 </span>
               </div>
               <p className="mt-3 text-[13.5px] leading-relaxed text-ink-soft">{c.description}</p>
               {c.outcomeNotes && <p className="mt-2 text-[13px] leading-relaxed text-ink"><span className="text-muted">Outcome: </span>{c.outcomeNotes}</p>}
-              {c.lessons && <p className="mt-2 border-l-2 border-gold-500 pl-3 text-[13px] italic leading-relaxed text-ink">{c.lessons}</p>}
+              {c.lessons && <p className="mt-2 border-l-2 border-brand-500 pl-3 text-[13px] italic leading-relaxed text-ink">{c.lessons}</p>}
               <div className="mt-auto flex items-center justify-between pt-4 text-[11.5px] text-muted">
                 <span>
                   {[c.stageAtEntry, c.yearInvested].filter(Boolean).join(" · ")}

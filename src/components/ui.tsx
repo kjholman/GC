@@ -7,7 +7,7 @@ export function cx(...c: (string | false | null | undefined)[]) {
 
 export function Card({ children, className, pad = true }: { children: ReactNode; className?: string; pad?: boolean }) {
   return (
-    <section className={cx("rounded-[3px] border border-line bg-paper shadow-[var(--shadow-card)]", pad && "p-6", className)}>
+    <section className={cx("rounded-xl border border-line bg-paper shadow-[var(--shadow-card)]", pad && "p-6", className)}>
       {children}
     </section>
   );
@@ -18,7 +18,7 @@ export function SectionTitle({ eyebrow, title, action }: { eyebrow?: string; tit
     <div className="mb-5 flex items-end justify-between gap-4">
       <div>
         {eyebrow && <div className="eyebrow mb-1.5">{eyebrow}</div>}
-        <h2 className="font-serif text-[22px] leading-tight text-navy-900">{title}</h2>
+        <h2 className="font-display font-semibold text-[22px] font-semibold leading-tight text-ink">{title}</h2>
       </div>
       {action}
     </div>
@@ -29,8 +29,8 @@ export function PageHeader({ eyebrow, title, subtitle, actions }: { eyebrow?: st
   return (
     <header className="mb-8 flex flex-wrap items-end justify-between gap-6 border-b border-line pb-6">
       <div className="min-w-0">
-        {eyebrow && <div className="eyebrow mb-2 text-gold-600">{eyebrow}</div>}
-        <h1 className="font-serif text-[34px] leading-[1.1] tracking-[-0.01em] text-navy-900">{title}</h1>
+        {eyebrow && <div className="eyebrow mb-2 !text-brand-600">{eyebrow}</div>}
+        <h1 className="font-display font-semibold text-[38px] font-semibold leading-[1.1] tracking-[-0.015em] text-ink">{title}</h1>
         {subtitle && <div className="mt-2 max-w-3xl text-[15px] text-ink-soft">{subtitle}</div>}
       </div>
       {actions && <div className="flex shrink-0 items-center gap-3">{actions}</div>}
@@ -40,12 +40,12 @@ export function PageHeader({ eyebrow, title, subtitle, actions }: { eyebrow?: st
 
 export const STATUS_META: Record<DealStatus, { label: string; cls: string; dot: string }> = {
   SCREENING: { label: "Screening", cls: "bg-navy-50 text-navy-800 border-navy-100", dot: "bg-navy-700" },
-  PENDING_INFO: { label: "Pending information", cls: "bg-warn-bg text-warn border-[#efdcb4]", dot: "bg-warn" },
-  DILIGENCE: { label: "Due diligence", cls: "bg-pos-bg text-pos border-[#c9e2d9]", dot: "bg-pos" },
-  IC_REVIEW: { label: "IC review", cls: "bg-info-bg text-info border-[#d3d9f1]", dot: "bg-info" },
-  INVESTED: { label: "Invested", cls: "bg-navy-900 text-gold-300 border-navy-900", dot: "bg-gold-500" },
-  REJECTED: { label: "Declined", cls: "bg-neg-bg text-neg border-[#efd2ce]", dot: "bg-neg" },
-  ARCHIVED: { label: "Archived", cls: "bg-[#f1efea] text-muted border-line", dot: "bg-muted" },
+  PENDING_INFO: { label: "Pending information", cls: "bg-warn-bg text-warn border-[#f1dcb2]", dot: "bg-warn" },
+  DILIGENCE: { label: "Due diligence", cls: "bg-brand-100 text-brand-700 border-brand-300", dot: "bg-brand-500" },
+  IC_REVIEW: { label: "IC review", cls: "bg-navy-100 text-navy-900 border-[#c3d8e2]", dot: "bg-navy-900" },
+  INVESTED: { label: "Invested", cls: "bg-brand-gradient text-white border-transparent", dot: "bg-white" },
+  REJECTED: { label: "Declined", cls: "bg-neg-bg text-neg border-[#f1cfcf]", dot: "bg-neg" },
+  ARCHIVED: { label: "Archived", cls: "bg-[#eef2f4] text-muted border-line", dot: "bg-muted" },
 };
 
 export function StatusBadge({ status }: { status: DealStatus }) {
@@ -65,8 +65,8 @@ export const REC_META: Record<string, { label: string; cls: string }> = {
 };
 
 export function scoreColor(score: number) {
-  if (score >= 70) return "var(--color-pos)";
-  if (score >= 50) return "var(--color-gold-500)";
+  if (score >= 70) return "var(--color-brand-400)";
+  if (score >= 50) return "var(--color-brand-500)";
   if (score >= 35) return "var(--color-warn)";
   return "var(--color-neg)";
 }
@@ -78,7 +78,7 @@ export function ScoreRing({ score, size = 88, label = "Score" }: { score: number
   return (
     <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--color-line)" strokeWidth="4" />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--color-navy-100)" strokeWidth="4" />
         {score != null && (
           <circle
             cx={size / 2}
@@ -88,12 +88,12 @@ export function ScoreRing({ score, size = 88, label = "Score" }: { score: number
             stroke={scoreColor(score)}
             strokeWidth="4"
             strokeDasharray={`${c * pct} ${c}`}
-            strokeLinecap="butt"
+            strokeLinecap="round"
           />
         )}
       </svg>
       <div className="absolute text-center leading-none">
-        <div className="font-serif tabular text-navy-900" style={{ fontSize: size * 0.32 }}>
+        <div className="font-display font-semibold tabular text-ink" style={{ fontSize: size * 0.32 }}>
           {score ?? "—"}
         </div>
         {size >= 72 && <div className="mt-1 text-[9px] font-semibold uppercase tracking-[0.16em] text-muted">{label}</div>}
@@ -112,9 +112,9 @@ export function Button({
     <button
       {...props}
       className={cx(
-        "inline-flex items-center justify-center gap-2 rounded-[3px] px-4 py-2.5 text-[13.5px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
-        variant === "primary" && "bg-navy-900 text-white hover:bg-navy-800",
-        variant === "secondary" && "border border-line-strong bg-paper text-navy-900 hover:border-navy-700 hover:bg-navy-50",
+        "inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-[13.5px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+        variant === "primary" && "bg-navy-900 text-white hover:bg-brand-700",
+        variant === "secondary" && "border border-[#dcd9d7] bg-[#f0eeed] text-ink hover:border-line-strong hover:bg-[#e8e6e4]",
         variant === "ghost" && "text-navy-800 hover:bg-navy-50",
         variant === "danger" && "border border-[#e3c3be] bg-paper text-neg hover:bg-neg-bg",
         className,
@@ -126,7 +126,7 @@ export function Button({
 }
 
 export const inputCls =
-  "w-full rounded-[3px] border border-line-strong bg-paper px-3.5 py-2.5 text-[14px] text-ink placeholder:text-[#9aa1ab] focus:border-navy-700 focus:outline-none focus:ring-2 focus:ring-navy-100";
+  "w-full rounded-lg border border-line-strong bg-paper px-3.5 py-2.5 text-[14px] text-ink placeholder:text-[#9aaab5] focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100";
 
 export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
@@ -140,8 +140,8 @@ export function Field({ label, hint, children }: { label: string; hint?: string;
 
 export function Empty({ title, children }: { title: string; children?: ReactNode }) {
   return (
-    <div className="rounded-[3px] border border-dashed border-line-strong bg-paper/60 px-6 py-12 text-center">
-      <div className="font-serif text-lg text-navy-900">{title}</div>
+    <div className="rounded-xl border border-dashed border-line-strong bg-paper/60 px-6 py-12 text-center">
+      <div className="font-display font-semibold text-lg font-semibold text-ink">{title}</div>
       {children && <div className="mx-auto mt-2 max-w-md text-sm text-muted">{children}</div>}
     </div>
   );

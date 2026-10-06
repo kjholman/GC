@@ -43,7 +43,7 @@ export function CompetitorsView({ sweep, memo }: { sweep: CompetitorSweep | null
 
   return (
     <div className="space-y-8">
-      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-[3px] border border-line bg-line md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-line bg-line md:grid-cols-4">
         {[
           ["Companies tracked", cs.length, `${cs.filter((c) => c.relationship === "DIRECT").length} direct · ${cs.filter((c) => c.relationship === "ADJACENT").length} adjacent · ${cs.filter((c) => c.relationship === "PRECEDENT").length} precedent`],
           ["Disclosed funding", disclosed ? money(disclosed) : "n/a", "Across tracked companies"],
@@ -52,15 +52,15 @@ export function CompetitorsView({ sweep, memo }: { sweep: CompetitorSweep | null
         ].map(([k, v, n]) => (
           <div key={k as string} className="bg-paper px-6 py-5">
             <div className="eyebrow">{k}</div>
-            <div className="mt-2 font-serif text-[30px] leading-none tabular text-navy-900">{v}</div>
+            <div className="mt-2 font-display font-semibold text-[30px] leading-none tabular text-navy-900">{v}</div>
             <div className="mt-2 text-[12px] text-muted">{n}</div>
           </div>
         ))}
       </div>
 
       {memo.market.comparableOutcomes && (
-        <Card className="!border-l-4 !border-l-gold-500">
-          <div className="eyebrow mb-2 text-gold-600">What the comparables imply for this deal</div>
+        <Card className="!border-l-4 !border-l-brand-500">
+          <div className="eyebrow mb-2 text-brand-600">What the comparables imply for this deal</div>
           <Paras text={memo.market.comparableOutcomes} />
         </Card>
       )}
@@ -99,12 +99,12 @@ export function CompetitorsView({ sweep, memo }: { sweep: CompetitorSweep | null
                       <div className="truncate font-medium text-navy-900">{c.name}</div>
                       <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[12px] text-muted">
                         <span className="rounded-full border border-line-strong px-2 py-px text-[10.5px]">{REL[c.relationship]}</span>
-                        {c.genesysLikeInvestors && <span className="whitespace-nowrap rounded-full bg-gold-100 px-2 py-px text-[10.5px] text-gold-600">Genesys-like backers</span>}
+                        {c.genesysLikeInvestors && <span className="whitespace-nowrap rounded-full bg-brand-100 px-2 py-px text-[10.5px] text-brand-600">Genesys-like backers</span>}
                         <span className="truncate">{[c.headquarters, c.stage].filter(Boolean).join(" · ")}</span>
                       </div>
                     </div>
-                    <span className={cx("w-fit rounded-[2px] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]", STATUS[c.status].cls)}>{STATUS[c.status].label}</span>
-                    <span className="font-serif text-[16px] tabular text-navy-900">{money(c.totalFundingUsdM)}</span>
+                    <span className={cx("w-fit rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]", STATUS[c.status].cls)}>{STATUS[c.status].label}</span>
+                    <span className="font-display font-semibold text-[16px] tabular text-navy-900">{money(c.totalFundingUsdM)}</span>
                     <span className="truncate text-[12.5px] text-ink-soft">{leads.length ? leads.slice(0, 3).join(", ") : "Investors not found"}</span>
                     <span className="text-muted transition-transform group-open:rotate-90">›</span>
                   </summary>
@@ -113,7 +113,7 @@ export function CompetitorsView({ sweep, memo }: { sweep: CompetitorSweep | null
                       <div><div className="eyebrow mb-1">Approach</div><p className="text-ink-soft">{c.approach}</p></div>
                       <div><div className="eyebrow mb-1">Outcome</div><p className="text-ink-soft">{c.outcome}</p></div>
                       <div><div className="eyebrow mb-1">Investor profile</div><p className="text-ink-soft">{c.investorProfile}</p></div>
-                      <div className="border-l-2 border-gold-500 pl-3"><div className="eyebrow mb-1">Lesson for this deal</div><p className="text-ink">{c.lessonForThisDeal}</p></div>
+                      <div className="border-l-2 border-brand-500 pl-3"><div className="eyebrow mb-1">Lesson for this deal</div><p className="text-ink">{c.lessonForThisDeal}</p></div>
                     </div>
                     <div>
                       <div className="eyebrow mb-2">Funding history</div>
@@ -169,7 +169,7 @@ export function CompetitorsView({ sweep, memo }: { sweep: CompetitorSweep | null
                     <div className="font-medium text-navy-900">{i.name}</div>
                     <div className="mt-0.5 flex gap-1.5">
                       {i.canadian && <span className="rounded-full bg-navy-50 px-1.5 py-px text-[10px] text-navy-700">Canadian</span>}
-                      {i.genesysLike && <span className="rounded-full bg-gold-100 px-1.5 py-px text-[10px] text-gold-600">Genesys-like</span>}
+                      {i.genesysLike && <span className="rounded-full bg-brand-100 px-1.5 py-px text-[10px] text-brand-600">Genesys-like</span>}
                     </div>
                   </td>
                   <td className="px-3 py-3 align-top text-ink-soft">{i.type}</td>

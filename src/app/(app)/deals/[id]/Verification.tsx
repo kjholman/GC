@@ -11,7 +11,7 @@ const STATUS: Record<string, { label: string; cls: string; dot: string; blurb: s
 export function VerificationBanner({ report, signedOff }: { report: VerificationReport | null; signedOff: { by: string; at: string } | null }) {
   if (!report) {
     return (
-      <div className="rounded-[3px] border border-line bg-paper px-6 py-4 text-[13px] text-muted">
+      <div className="rounded-lg border border-line bg-paper px-6 py-4 text-[13px] text-muted">
         This memo predates automated fact-checking. Re-run the analysis to verify it.
       </div>
     );
@@ -19,7 +19,7 @@ export function VerificationBanner({ report, signedOff }: { report: Verification
   const s = STATUS[report.status];
   const open = report.issues.filter((i) => i.severity !== "LOW");
   return (
-    <div className={cx("rounded-[3px] border px-6 py-4", s.cls)}>
+    <div className={cx("rounded-lg border px-6 py-4", s.cls)}>
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
         <div className="flex items-center gap-2.5">
           <span className={cx("h-2.5 w-2.5 rounded-full", s.dot)} />
@@ -41,9 +41,9 @@ export function VerificationBanner({ report, signedOff }: { report: Verification
           </summary>
           <ul className="mt-3 space-y-3">
             {open.map((i, n) => (
-              <li key={n} className="rounded-[3px] bg-paper/80 px-4 py-3 text-[13px]">
+              <li key={n} className="rounded-lg bg-paper/80 px-4 py-3 text-[13px]">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className={cx("rounded-[2px] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]", i.severity === "HIGH" ? "bg-neg text-white" : "bg-warn-bg text-warn")}>{i.severity}</span>
+                  <span className={cx("rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]", i.severity === "HIGH" ? "bg-neg text-white" : "bg-warn-bg text-warn")}>{i.severity}</span>
                   <span className="text-[11.5px] uppercase tracking-[0.08em] text-muted">{i.problem.replaceAll("_", " ").toLowerCase()} · {i.location} · {i.origin}</span>
                 </div>
                 <p className="mt-1.5 text-ink">&ldquo;{i.excerpt}&rdquo;</p>
