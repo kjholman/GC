@@ -423,7 +423,7 @@ export async function runAnalysis(analysisId: string): Promise<void> {
         data: {
           dealId: deal.id,
           type: "analysis.complete",
-          message: `AI analysis v${analysis.version} complete: ${memo.recommendation.replaceAll("_", " ").toLowerCase()} (score ${memo.overallScore}); fact-check ${report.status.toLowerCase()}${report.revisions ? " after one correction round" : ""}. Awaiting analyst sign-off.`,
+          message: `The Sharminator finished analysis v${analysis.version}: ${memo.recommendation.replaceAll("_", " ").toLowerCase()} (score ${memo.overallScore}); fact-check ${report.status.toLowerCase()}${report.revisions ? " after one correction round" : ""}. Awaiting analyst sign-off.`,
         },
       }),
     ]);
@@ -435,7 +435,7 @@ export async function runAnalysis(analysisId: string): Promise<void> {
       data: { status: "FAILED", progress: null, error: message.slice(0, 2000), completedAt: new Date() },
     });
     await db.activity.create({
-      data: { dealId: deal.id, type: "analysis.failed", message: `AI analysis v${analysis.version} failed: ${message.slice(0, 300)}` },
+      data: { dealId: deal.id, type: "analysis.failed", message: `The Sharminator could not finish analysis v${analysis.version}: ${message.slice(0, 300)}` },
     });
   } finally {
     // Remove any large files uploaded to the model provider for this analysis.

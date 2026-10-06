@@ -184,7 +184,7 @@ export async function rerunAnalysisAction(dealId: string): Promise<ActionState> 
   try {
     const analysis = await queueNewVersion(dealId, user.id, "RERUN");
     await db.activity.create({
-      data: { dealId, userId: user.id, type: "analysis.rerun", message: `Re-ran AI analysis (v${analysis.version}).` },
+      data: { dealId, userId: user.id, type: "analysis.rerun", message: `Asked the Sharminator to re-run the analysis (v${analysis.version}).` },
     });
     scheduleAnalysis(analysis.id);
   } catch (err) {
