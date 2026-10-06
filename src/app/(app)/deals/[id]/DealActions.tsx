@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FEEDBACK_AREAS, FEEDBACK_AREA_LABEL } from "@/lib/feedback/options";
-import { useConfirm, useConfirmSubmit } from "@/components/Confirm";
+import { useConfirmSubmit } from "@/components/Confirm";
 import type { DealStatus } from "@prisma/client";
 import {
   addNoteAction,

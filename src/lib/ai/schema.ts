@@ -288,6 +288,21 @@ export const MemoSchema = z.object({
       }),
     )
     .describe("Ledger of every material claim in this memo."),
+
+  meme: z
+    .object({
+      scene: z
+        .enum(["mice", "blot", "pvalue", "slide31", "runway", "petri", "retracted", "deck"])
+        .describe(
+          "Picture: mice (mouse in a cage; for animal-only efficacy), blot (western blot; for cherry-picked or thin data), pvalue (confetti; for borderline statistics or hype), slide31 (a key fact buried in an appendix), runway (cash chart falling to zero; for low runway or a big raise), petri (empty dish; for early or pre-data science), retracted (a stamped page; for weak or unreplicated literature), deck (a pitch-deck slide with a quoted claim; top is the slide text).",
+        ),
+      top: z.string().describe("Top caption, at most 6 words. For the deck scene, a short quote or paraphrase of an actual claim from this company's materials."),
+      bottom: z.string().describe("Bottom caption, at most 7 words: the punchline."),
+    })
+    .optional()
+    .describe(
+      "An internal-only meme for the partners' amusement, specific to THIS deal: a dry life-sciences in-joke about something real in this memo (its indication, data package, valuation, runway, a bold slide claim or the biggest risk). Genuinely funny, deadpan, never cheesy, never mean about the founders as people, no names of people. Never mentioned in the founder email.",
+    ),
 });
 
 export type Memo = z.infer<typeof MemoSchema>;

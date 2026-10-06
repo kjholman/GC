@@ -10,7 +10,7 @@ import { FALLBACK_BETA, anthropic, structuredCall, textOf, type ContentBlock } f
 import { plainPunctuation } from "./style";
 import { isCreditError, recordCreditOk, recordCreditProblem } from "./credit";
 import { meteredUsd, recordUsage, withMeter } from "./usage";
-import { cleanDomain, fetchCompanyLogo } from "../deals/logo";
+import { cleanDomain, fetchCompanyLogo, websiteFromText } from "../deals/logo";
 import { refreshSlug } from "../deals/slug";
 import { sendAnalysisProblem, sendAnalysisReady } from "../mailer";
 import { FEEDBACK_AREA_LABEL } from "../feedback/options";
@@ -95,6 +95,23 @@ async function logStep(id: string, text: string, kind: StepKind = "info") {
     .catch((err) => console.error("[analyst] could not record step", err));
 }
 
+/** "42s", "3m 05s", "1h 02m". */
+export function fmtElapsed(ms: number): string {
+  const sec = Math.max(0, Math.round(ms / 1000));
+  if (sec < 60) return `${sec}s`;
+  const m = Math.floor(sec / 60);
+  if (m < 60) return `${m}m ${String(sec % 60).padStart(2, "0")}s`;
+  return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`;
+}
+
+/** Records how long one stage took, for the per-version time breakdown. */
+async function saveTiming(id: string, stage: string, ms: number) {
+  const entry = JSON.stringify([{ stage, ms: Math.round(ms) }]);
+  await db.$executeRaw`UPDATE "Analysis" SET "timings" = COALESCE("timings", '[]'::jsonb) || ${entry}::jsonb WHERE "id" = ${id}`.catch(
+    (err) => console.error("[analyst] could not record timing", err),
+  );
+}
+
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const listNames = (names: string[], max = 4) =>
   names.length <= max ? names.join(", ") : `${names.slice(0, max).join(", ")} and ${names.length - max} more`;
@@ -172,10 +189,14 @@ export async function findCompanyWebsite(companyName: string, about: string | nu
     { search: 3, fetch: 0 },
   ).catch(() => null);
   if (!text || /\bNONE\b/.test(text)) return null;
-  return cleanDomain(text.split(/\s+/).find((w) => w.includes(".")) ?? null);
+  for (const w of text.split(/\s+/)) {
+    const d = cleanDomain(w);
+    if (d) return d;
+  }
+  return null;
 }
 
-/** For deals opened without a logo: find the website online if needed, then fetch the logo. At most once a week. */
+/** For deals opened without a logo: website from the deck or online, then the logo. At most once an hour. */
 export async function ensureDealLogo(dealId: string): Promise<void> {
   const d = await db.deal.findUnique({ where: { id: dealId }, select: { website: true, logoMime: true, logoCheckedAt: true, companyName: true, oneLiner: true, autoNamed: true } });
   if (!d || d.logoMime || d.autoNamed || d.companyName.startsWith("Untitled")) return;
@@ -183,6 +204,12 @@ export async function ensureDealLogo(dealId: string): Promise<void> {
   if (d.logoCheckedAt && Date.now() - d.logoCheckedAt.getTime() < 3600 * 1000) return;
   await db.deal.update({ where: { id: dealId }, data: { logoCheckedAt: new Date() } });
   if (d.website && (await fetchCompanyLogo(dealId))) return;
+  const docs = await db.document.findMany({ where: { dealId }, select: { extractedText: true } });
+  const fromDeck = websiteFromText(docs.map((x) => x.extractedText ?? "").join("\n"), d.companyName);
+  if (fromDeck && cleanDomain(fromDeck) !== cleanDomain(d.website)) {
+    await db.deal.update({ where: { id: dealId }, data: { website: fromDeck } });
+    if (await fetchCompanyLogo(dealId)) return;
+  }
   // No website yet, or the one we have gave nothing usable: look the company up online.
   const site = await withMeter({ purpose: "logo lookup" }, () => findCompanyWebsite(d.companyName, d.oneLiner));
   if (!site || cleanDomain(site) === cleanDomain(d.website)) return;
@@ -383,7 +410,9 @@ export async function underwrite(args: {
   const { data, usage, model } = await structuredCall({
     schema: MemoSchema,
     step: args.corrections ? "memo correction" : "memo",
-    mode: args.mode,
+    // The memo's format is too large for Anthropic's strict mode ("compiled grammar is too
+    // large"), so it is always requested as JSON and validated and repaired on our side.
+    mode: args.mode ?? "json",
     onSection: args.onSection,
     effort: env.analysisEffort,
     system: systemBlocks(args.firmContext),
@@ -562,13 +591,15 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
     });
     await setProgress(analysisId, "Reading submitted materials");
     const pages = deal.documents.reduce((n, d) => n + (d.pageCount ?? 0), 0);
+    const tRead = Date.now();
     await logStep(analysisId, `Reading ${plural(deal.documents.length, "document")}${pages ? ` (${plural(pages, "page")})` : ""}: ${listNames(deal.documents.map((d) => d.filename))}`, "start");
     prepared = await prepareFiles(dealFiles(deal.documents));
     const blocks = prepared.blocks;
     if (!blocks.length) throw new Error("None of the attached documents could be read. Upload them again as PDF, Word, PowerPoint or Excel files.");
     const coverage = coverageNote(prepared);
     const readIn = deal.documents.length - prepared.omitted.length;
-    await logStep(analysisId, `Read ${plural(readIn, "document")}`, "done");
+    await logStep(analysisId, `Read ${plural(readIn, "document")} (${fmtElapsed(Date.now() - tRead)})`, "done");
+    await saveTiming(analysisId, "Reading the materials", Date.now() - tRead);
     if (prepared.textOnly.length) await logStep(analysisId, `Read as text only, so charts were not seen: ${listNames(prepared.textOnly)}`, "warn");
     if (prepared.partial.length) await logStep(analysisId, `Only part of these fit in one analysis: ${listNames(prepared.partial)}`, "warn");
     if (prepared.omitted.length) await logStep(analysisId, `Too much material to read everything; skipped: ${listNames(prepared.omitted)}`, "warn");
@@ -579,6 +610,7 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
     const failedResearch: string[] = [];
     let dossier: string | null = deal.researchDossier;
     if (!deal.tags.length || analysis.trigger !== "INITIAL_SCREEN" || placeholder || !dossier) {
+      const tId = Date.now();
       await logStep(analysisId, "Identifying the company, its technology and lead indication", "start");
       const fp = await fingerprint(blocks).catch((err) => {
         if (isCreditError(err)) throw err;
@@ -606,26 +638,35 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
         if (rename) await refreshSlug(deal.id);
         await logStep(
           analysisId,
-          `Identified ${rename ? companyName : "the company"}: ${[fp.modality, fp.indication].filter(Boolean).join(" for ").toLowerCase() || fp.sector}${rename ? ". Renamed the deal to match" : ""}`,
+          `Identified ${rename ? companyName : "the company"}: ${[fp.modality, fp.indication].filter(Boolean).join(" for ").toLowerCase() || fp.sector}${rename ? ". Renamed the deal to match" : ""} (${fmtElapsed(Date.now() - tId)})`,
           "done",
         );
+        await saveTiming(analysisId, "Identifying the company", Date.now() - tId);
       } else {
         await logStep(analysisId, "Couldn't classify the company automatically; continuing with the documents alone", "warn");
       }
     }
-    // Company logo: from the website in the deck, or the official site found online.
+    // Company logo, in order: the website already known, the website named in the deck
+    // (email addresses and links), then the official site found by a web search.
     void (async () => {
       const current = await db.deal.findUnique({ where: { id: deal.id }, select: { website: true, logoMime: true, companyName: true, oneLiner: true } });
-      if (current && !current.website && !current.logoMime) {
-        const site = await withMeter({ purpose: "analysis", analysisId }, () => findCompanyWebsite(current.companyName, dossier?.slice(0, 400) ?? current.oneLiner));
-        if (site) {
-          await db.deal.update({ where: { id: deal.id }, data: { website: site } });
-          await logStep(analysisId, `Found the company website online: ${site}`, "info");
-        }
+      if (!current || current.logoMime) return;
+      if (current.website && (await fetchCompanyLogo(deal.id))) return;
+      const fromDeck = websiteFromText(deal.documents.map((d) => d.extractedText ?? "").join("\n"), current.companyName);
+      if (fromDeck && cleanDomain(fromDeck) !== cleanDomain(current.website)) {
+        await db.deal.update({ where: { id: deal.id }, data: { website: fromDeck } });
+        await logStep(analysisId, `Found the company website in the materials: ${fromDeck}`, "info");
+        if (await fetchCompanyLogo(deal.id)) return;
       }
-      await fetchCompanyLogo(deal.id);
+      const site = await withMeter({ purpose: "analysis", analysisId }, () => findCompanyWebsite(current.companyName, dossier?.slice(0, 400) ?? current.oneLiner));
+      if (site && cleanDomain(site) !== cleanDomain(current.website) && cleanDomain(site) !== cleanDomain(fromDeck)) {
+        await db.deal.update({ where: { id: deal.id }, data: { website: site } });
+        await logStep(analysisId, `Found the company website online: ${site}`, "info");
+        await fetchCompanyLogo(deal.id);
+      }
     })().catch((err) => console.error("[analyst] logo lookup failed", err));
     await setProgress(analysisId, "Looking up similar past Genesys deals");
+    const tCtx = Date.now();
     await logStep(analysisId, "Looking for similar deals in Genesys's history", "start");
     const precedents = await findPrecedents(probe);
     await logStep(
@@ -653,9 +694,10 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
     );
     await logStep(
       analysisId,
-      `Checked the Training Studio: ${plural(precedents.historical.length, "similar past deal")}, ${plural(precedents.exemplars.length, "example memo")}, ${plural(Math.min(lessons, 40), "lesson")} from ${plural(reviewsTotal, "partner review")}${dealReviews ? `, and ${plural(dealReviews, "review")} of earlier versions of this deal` : ""}`,
+      `Checked the Training Studio: ${plural(precedents.historical.length, "similar past deal")}, ${plural(precedents.exemplars.length, "example memo")}, ${plural(Math.min(lessons, 40), "lesson")} from ${plural(reviewsTotal, "partner review")}${dealReviews ? `, and ${plural(dealReviews, "review")} of earlier versions of this deal` : ""} (${fmtElapsed(Date.now() - tCtx)})`,
       "done",
     );
+    await saveTiming(analysisId, "Knowledge base and Training Studio", Date.now() - tCtx);
     await db.analysis.update({
       where: { id: analysisId },
       data: {
@@ -720,14 +762,18 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
     if (env.webResearchEnabled && (missing.length || !sweepDone)) {
       await setProgress(analysisId, "Researching science, founders, patents, market and competitors");
       const todo = [...missing.map((k) => PASS_LABEL[k]), ...(!sweepDone ? ["competitors and their funding"] : [])];
+      const tRes = Date.now();
       await logStep(analysisId, `Searching the web in parallel: ${todo.join(", ")}`, "start");
       // Each pass is saved the moment it finishes, so nothing is lost if the run stops later.
       const soft = <T,>(label: string, p: Promise<T | null>, done: (v: T) => string, save: (v: T) => Promise<void>) =>
         p.then(
           async (v) => {
+            const took = Date.now() - tRes;
             if (!v) failedResearch.push(label);
             else await save(v);
-            await logStep(analysisId, v ? done(v) : `Couldn't complete the ${label} research; continuing without it`, v ? "done" : "warn");
+            const doneText = v ? done(v) : "";
+            await logStep(analysisId, v ? (doneText.endsWith(")") ? `${doneText.slice(0, -1)}, ${fmtElapsed(took)})` : `${doneText} (${fmtElapsed(took)})`) : `Couldn't complete the ${label} research; continuing without it (${fmtElapsed(took)})`, v ? "done" : "warn");
+            await saveTiming(analysisId, `Research: ${label === "competitor" ? "competitors" : label}`, took);
             return v;
           },
           async (err) => {
@@ -816,37 +862,53 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
     const savedDraft = [own.draft, ...usable.filter((a) => a.status !== "COMPLETE").map((a) => (a.checkpoint as Checkpoint | null)?.draft)].find((d) => d?.docsKey === docsKey);
     const textDocs = textOnlyDocs(deal.documents);
     // Live progress: each part of the memo is logged as it starts being written.
+    // Each part's time runs until the next part starts; the last part ends with the memo.
     const sectionLogger = (verb: string) => {
       let chain = Promise.resolve();
       const seen = new Set<string>();
-      return (key: string) => {
+      const start = Date.now();
+      let prev: { label: string; at: number } | null = null;
+      const close = (now: number) => {
+        if (!prev) return;
+        const p = prev;
+        chain = chain.then(() => saveTiming(analysisId, `${verb === "Writing the memo" ? "Memo" : "Correction"}: ${p.label}`, now - p.at));
+      };
+      const on = (key: string) => {
         const label = MEMO_SECTION_LABEL[key];
         if (!label || seen.has(key)) return;
         seen.add(key);
+        const now = Date.now();
+        close(now);
+        prev = { label, at: now };
         chain = chain
           .then(() => setProgress(analysisId, `${verb}: ${label}`))
-          .then(() => logStep(analysisId, `${verb}: ${label}`, "info"))
+          .then(() => logStep(analysisId, `${verb}: ${label} (${fmtElapsed(now - start)} in)`, "info"))
           .catch(() => {});
       };
+      return Object.assign(on, { end: () => { close(Date.now()); prev = null; return chain; } });
     };
     const writeMemo = (extra: Partial<Parameters<typeof underwrite>[0]>, what: string) =>
       withFallbacks(analysisId, what, [
         { label: "as usual", run: () => underwrite({ ...underwriteArgs, ...extra }) },
         { label: "with the documents as plain text", run: () => underwrite({ ...underwriteArgs, ...extra, docs: textDocs }) },
-        { label: "in a simpler format", run: () => underwrite({ ...underwriteArgs, ...extra, docs: textDocs, mode: "json" }) },
       ]);
+    const tMemo = Date.now();
+    const draftSections = sectionLogger("Writing the memo");
     const draft = savedDraft
       ? { memo: savedDraft.memo, model: savedDraft.model, usage: { input_tokens: 0, output_tokens: 0 } as Anthropic.Beta.BetaUsage }
-      : await writeMemo({ onSection: sectionLogger("Writing the memo") }, "memo-writing");
+      : await writeMemo({ onSection: draftSections }, "memo-writing");
+    await draftSections.end();
+    if (!savedDraft) await saveTiming(analysisId, "Writing the memo", Date.now() - tMemo);
     if (savedDraft) await logStep(analysisId, "Re-using the draft memo written before the interruption", "info");
     else await saveCheckpoint(analysisId, { draft: { memo: draft.memo, model: draft.model, docsKey } });
-    await logStep(analysisId, `Draft memo written: ${RECOMMENDATION_TEXT[draft.memo.recommendation]}, score ${draft.memo.overallScore}/100`, "done");
+    await logStep(analysisId, `Draft memo written: ${RECOMMENDATION_TEXT[draft.memo.recommendation]}, score ${draft.memo.overallScore}/100${savedDraft ? "" : ` (${fmtElapsed(Date.now() - tMemo)})`}`, "done");
     let memo = draft.memo;
     const usage = { ...draft.usage };
     const model = draft.model;
 
     // ── Verification: deterministic checks + independent fact-check, one revision if needed.
     await setProgress(analysisId, "Fact-checking every claim against the sources");
+    const tFc = Date.now();
     await logStep(analysisId, `Fact-checking ${plural(memo.evidence?.length ?? 0, "claim")} against the documents and research`, "start");
     const portfolioNames = (await db.portfolioCompany.findMany({ select: { name: true } })).map((p) => p.name);
     const verifyCtx = {
@@ -870,26 +932,31 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
     const removed = checked.report.issues.filter((i) => i.correction === "remove").length;
     await logStep(
       analysisId,
-      checked.report.issues.length
+      `${checked.report.issues.length
         ? `Fact-check found ${plural(checked.report.issues.length, "point")} to fix${serious.length ? ` (${serious.length} serious)` : ""}${removed ? `; removed ${plural(removed, "unsourced item")}` : ""}`
-        : "Fact-check passed: every claim traced to a source",
+        : "Fact-check passed: every claim traced to a source"} (${fmtElapsed(Date.now() - tFc)})`,
       checked.report.issues.length ? "warn" : "done",
     );
+    await saveTiming(analysisId, "Fact-checking", Date.now() - tFc);
     if (checked.report.status === "FAILED" && serious.length) {
       await setProgress(analysisId, "Fixing the points the fact-check found");
+      const tFix = Date.now();
       await logStep(analysisId, "Rewriting the memo to fix the serious points", "start");
-      const revised = await writeMemo({ corrections: correctionsBlock(serious), onSection: sectionLogger("Correcting the memo") }, "memo-correction");
+      const fixSections = sectionLogger("Correcting the memo");
+      const revised = await writeMemo({ corrections: correctionsBlock(serious), onSection: fixSections }, "memo-correction");
+      await fixSections.end();
       usage.input_tokens += revised.usage.input_tokens;
       usage.output_tokens += revised.usage.output_tokens;
       await setProgress(analysisId, "Re-checking the corrected memo");
       checked = await check(revised.memo, 1);
       await logStep(
         analysisId,
-        checked.report.status === "FAILED" ? "Some serious points remain after the correction; they are listed on the memo for review" : "Corrections made and re-checked",
+        `${checked.report.status === "FAILED" ? "Some serious points remain after the correction; they are listed on the memo for review" : "Corrections made and re-checked"} (${fmtElapsed(Date.now() - tFix)})`,
         checked.report.status === "FAILED" ? "warn" : "done",
       );
+      await saveTiming(analysisId, "Correcting and re-checking", Date.now() - tFix);
     }
-    memo = checked.memo;
+    memo = { ...checked.memo, meme: checked.memo.meme ?? draft.memo.meme };
     const report = checked.report;
 
     // Gaps the app knows about for certain, added to the ones the memo identified.

@@ -65,7 +65,49 @@ export type VersionRow = {
   errorDetail: string | null;
   context: { portfolioCompanies?: number; principles?: string[]; firmDocuments?: string[]; pastDeals?: string[]; exampleMemos?: string[]; lessons?: number; dealReviews?: number } | null;
   steps: { at: string; text: string; kind: "start" | "info" | "done" | "warn" }[];
+  instructions: string | null;
+  timings: { stage: string; ms: number }[];
 };
+
+function elapsed(ms: number) {
+  const s = Math.max(0, Math.round(ms / 1000));
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  return m < 60 ? `${m}m ${String(s % 60).padStart(2, "0")}s` : `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`;
+}
+
+/** Time per stage; the memo's parts are listed under the memo. */
+function TimeBreakdown({ timings }: { timings: { stage: string; ms: number }[] }) {
+  const main = timings.filter((t) => !/^(Memo|Correction): /.test(t.stage));
+  const parts = (prefix: string) => timings.filter((t) => t.stage.startsWith(`${prefix}: `));
+  const max = Math.max(1, ...main.map((t) => t.ms));
+  return (
+    <div>
+      <div className="mb-1 text-muted">Time by stage</div>
+      <ul className="space-y-1">
+        {main.map((t, i) => {
+          const sub = t.stage === "Writing the memo" ? parts("Memo") : t.stage === "Correcting and re-checking" ? parts("Correction") : [];
+          return (
+            <li key={i}>
+              <div className="flex items-center gap-2">
+                <span className="w-44 shrink-0 truncate text-ink-soft sm:w-56">{t.stage}</span>
+                <span className="hidden h-1.5 flex-1 overflow-hidden rounded-full bg-line sm:block"><span className="block h-full bg-brand-500" style={{ width: `${(t.ms / max) * 100}%` }} /></span>
+                <span className="w-16 shrink-0 text-right tabular text-ink">{elapsed(t.ms)}</span>
+              </div>
+              {sub.length > 0 && (
+                <ul className="mt-0.5 mb-1 ml-3 space-y-0.5 border-l border-line pl-3 text-[11.5px]">
+                  {sub.map((p, j) => (
+                    <li key={j} className="flex justify-between gap-3 text-muted"><span className="truncate first-letter:uppercase">{p.stage.replace(/^(Memo|Correction): /, "")}</span><span className="tabular">{elapsed(p.ms)}</span></li>
+                  ))}
+                </ul>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
 
 function duration(a: Date | null, b: Date | null) {
   if (!a || !b) return null;
@@ -125,8 +167,9 @@ export function VersionHistory({ dealPath, rows, shownId }: { dealPath: string; 
                 <p className="mt-1.5 text-[12.5px] text-ink-soft"><span className="text-muted">New materials: </span>{r.newFiles.join(", ")}</p>
               )}
               <details className="mt-1.5">
-                <summary className="cursor-pointer text-[12.5px] font-medium text-navy-700">Materials, knowledge used and step-by-step log</summary>
+                <summary className="cursor-pointer text-[12.5px] font-medium text-navy-700">Materials, knowledge used, time by stage and step-by-step log</summary>
                 <div className="mt-2 space-y-2 rounded-lg border border-line px-3.5 py-3 text-[12.5px]">
+                  {r.instructions && <p><span className="text-muted">Instructions given: </span>{r.instructions}</p>}
                   <p><span className="text-muted">Materials used ({r.files.length}): </span>{r.files.join(", ") || "none"}</p>
                   {r.context && (
                     <>
@@ -140,6 +183,7 @@ export function VersionHistory({ dealPath, rows, shownId }: { dealPath: string; 
                       </p>
                     </>
                   )}
+                  {r.timings.length > 0 && <div className="border-t border-line pt-2"><TimeBreakdown timings={r.timings} /></div>}
                   {r.steps.length > 0 && (
                     <ol className="max-h-72 space-y-1 overflow-y-auto border-t border-line pt-2 font-mono text-[11.5px]">
                       {r.steps.map((s, i) => (

@@ -298,7 +298,7 @@ export async function modelFactCheck(args: { memo: Memo; docs: ContentBlock[]; r
           args.research ? `\n## Web research (research brief and competitive sweep notes)\n${args.research}` : "\n## Web research\n(none)",
           args.precedentsText ? `\n${args.precedentsText}` : "",
           "\n## Memo to verify\n```json",
-          JSON.stringify(args.memo),
+          JSON.stringify({ ...args.memo, meme: undefined }),
           "```",
         ].join("\n"),
       },

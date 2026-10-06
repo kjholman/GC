@@ -103,6 +103,8 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
       errorDetail: a.errorDetail,
       context: (a.contextUsed as VersionRow["context"]) ?? null,
       steps: asSteps(a.steps),
+      instructions: a.instructions,
+      timings: Array.isArray(a.timings) ? (a.timings as { stage: string; ms: number }[]) : [],
     };
   });
   const webSources = shown
@@ -415,7 +417,11 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
           {memo && shown && (
             <Card>
               <div className="eyebrow mb-3">The Sharminator says</div>
-              <MemeScene scene={({ REJECT: "mice", PENDING_INFO: "blot", ADVANCE_TO_DILIGENCE: "pvalue" } as const)[memo.recommendation]} size={272} className="mx-auto" />
+              {memo.meme?.top || memo.meme?.bottom ? (
+                <MemeScene scene={memo.meme.scene} top={memo.meme.top} bottom={memo.meme.bottom} size={272} className="mx-auto" />
+              ) : (
+                <MemeScene scene={({ REJECT: "mice", PENDING_INFO: "blot", ADVANCE_TO_DILIGENCE: "pvalue" } as const)[memo.recommendation]} size={272} className="mx-auto" />
+              )}
             </Card>
           )}
           <Card>

@@ -219,6 +219,8 @@ model Analysis {
   priorDealStatus DealStatus?
   /// Live step-by-step log shown while the analysis runs: [{ at, text, kind }].
   steps          Json            @default("[]")
+  /// How long each stage took: [{ stage, ms }], for the time breakdown in the history.
+  timings        Json            @default("[]")
   /// Context the analyst typed when submitting (e.g. "Founders replied with CMC data").
   analystContext String?
   /// The team's instructions for this run: what to focus on or do differently from earlier versions.

@@ -44,9 +44,9 @@ export function PipelineFilters({ sectors, stages }: { sectors: string[]; stages
       {pick("minScore", "Score", [80, 70, 60, 50].map((n) => [String(n), `${n}+`]))}
       <span className="flex items-center gap-1.5 text-[12px] text-muted">
         Submitted
-        <input type="date" aria-label="Submitted from" value={sp.get("from") ?? ""} onChange={(e) => set("from", e.target.value)} className={cx(ctl, "w-[138px] px-2")} />
+        <input type="date" aria-label="Submitted from" value={sp.get("from") ?? ""} onChange={(e) => set("from", e.target.value)} className={cx(ctl, "w-[124px] px-2 sm:w-[138px]")} />
         to
-        <input type="date" aria-label="Submitted to" value={sp.get("to") ?? ""} onChange={(e) => set("to", e.target.value)} className={cx(ctl, "w-[138px] px-2")} />
+        <input type="date" aria-label="Submitted to" value={sp.get("to") ?? ""} onChange={(e) => set("to", e.target.value)} className={cx(ctl, "w-[124px] px-2 sm:w-[138px]")} />
       </span>
       <span className="ml-auto flex items-center gap-2 text-[12px] text-muted">
         {active && (

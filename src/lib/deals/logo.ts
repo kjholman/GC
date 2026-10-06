@@ -106,7 +106,8 @@ export function cleanDomain(raw: string | null | undefined): string | null {
   try {
     const u = new URL(t.startsWith("http") ? t : `https://${t}`);
     const host = u.hostname.toLowerCase().replace(/^www\./, "");
-    return /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(host) ? host : null;
+    // A real domain: dotted labels ending in a letters-only TLD (no IP addresses).
+    return /^[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$/.test(host) ? host : null;
   } catch {
     return null;
   }
@@ -123,7 +124,7 @@ export function websiteFromText(text: string | null | undefined, companyName: st
   const counts = new Map<string, number>();
   const add = (raw: string, weight: number) => {
     const d = cleanDomain(raw);
-    if (!d || NOT_COMPANY.test(d) || /\.(pdf|png|jpe?g|pptx?|docx?|xlsx?)$/i.test(d)) return;
+    if (!d || NOT_COMPANY.test(d) || /\.(gov|edu)(\.[a-z]+)?$/i.test(d) || /\.(pdf|png|jpe?g|pptx?|docx?|xlsx?)$/i.test(d)) return;
     counts.set(d, (counts.get(d) ?? 0) + weight);
   };
   for (const m of text.matchAll(/[a-z0-9._%+-]+@([a-z0-9-]+(?:\.[a-z0-9-]+)+)/gi)) add(m[1], 3);
