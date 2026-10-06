@@ -19,7 +19,6 @@ export function LoginForm({ people }: { people: LoginPerson[] }) {
     return (
       <form action={(fd) => { setRestart(0); request(fd); }} className="space-y-6">
         <div>
-          <div className="eyebrow mb-2 text-brand-600">Secure sign-in</div>
           <h2 className="font-display font-semibold text-[30px] leading-tight text-navy-900">Welcome back</h2>
           <p className="mt-2 text-[14px] text-ink-soft">
             {byEmail ? "Enter your Genesys Capital email. We'll send you a one-time code." : "Who's signing in? We'll email you a one-time code."}

@@ -15,7 +15,7 @@ export function Pagination({ page, pageSize, total, href, className }: {
   return (
     <nav className={cx("flex flex-wrap items-center justify-between gap-3 px-1 py-3", className)} aria-label="Pages">
       <span className="text-[12.5px] text-muted">
-        {from}–{to} of {total}
+        {from} to {to} of {total}
       </span>
       <div className="flex flex-wrap items-center gap-1">
         {page > 1 ? <Link href={href(page - 1)} className={cx(btn, "text-ink-soft hover:bg-paper")}>← Previous</Link> : <span className={cx(btn, "text-line-strong")}>← Previous</span>}

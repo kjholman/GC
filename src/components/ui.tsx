@@ -94,7 +94,7 @@ export function ScoreRing({ score, size = 88, label = "Score" }: { score: number
       </svg>
       <div className="absolute text-center leading-none">
         <div className="font-display font-semibold tabular text-ink" style={{ fontSize: size * 0.32 }}>
-          {score ?? "—"}
+          {score ?? ""}
         </div>
         {size >= 72 && <div className="mt-1 text-[9px] font-semibold uppercase tracking-[0.16em] text-muted">{label}</div>}
       </div>
@@ -148,7 +148,7 @@ export function Empty({ title, children }: { title: string; children?: ReactNode
 }
 
 export function fmtDate(d: Date | string | null | undefined, withTime = false) {
-  if (!d) return "—";
+  if (!d) return "";
   return new Date(d).toLocaleString("en-CA", {
     year: "numeric",
     month: "short",

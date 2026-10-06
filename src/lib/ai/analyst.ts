@@ -10,7 +10,7 @@ import { FALLBACK_BETA, anthropic, structuredCall, textOf, type ContentBlock } f
 import { plainPunctuation } from "./style";
 import { isCreditError, recordCreditOk, recordCreditProblem } from "./credit";
 import { meteredUsd, recordUsage, withMeter } from "./usage";
-import { fetchCompanyLogo } from "../deals/logo";
+import { cleanDomain, fetchCompanyLogo } from "../deals/logo";
 import { refreshSlug } from "../deals/slug";
 import { sendAnalysisProblem, sendAnalysisReady } from "../mailer";
 import { FEEDBACK_AREA_LABEL } from "../feedback/options";
@@ -53,6 +53,8 @@ async function notifyStarter(userId: string | null, send: (to: string, firstName
     console.error("[analyst] could not send notification email", err);
   }
 }
+
+const PASS_LABEL: Record<Pass, string> = { science: "science and regulatory", founders: "founder and management", ip: "patent and IP", market: "market" };
 
 const RECOMMENDATION_TEXT: Record<Memo["recommendation"], string> = {
   REJECT: "recommends declining",
@@ -140,7 +142,7 @@ async function webResearch(step: string, prompt: string, input: ContentBlock[], 
       tools: [
         { type: "web_search_20260209", name: "web_search", max_uses: limits.search },
         // Cap each fetched page: long pages are the biggest hidden cost in research.
-        { type: "web_fetch_20260209", name: "web_fetch", max_uses: limits.fetch, max_content_tokens: 8000 },
+        ...(limits.fetch > 0 ? [{ type: "web_fetch_20260209" as const, name: "web_fetch" as const, max_uses: limits.fetch, max_content_tokens: 8000 }] : []),
       ],
       messages,
     });
@@ -156,6 +158,35 @@ async function webResearch(step: string, prompt: string, input: ContentBlock[], 
     return plainPunctuation(textOf(response.content).trim()) || null;
   }
   return null;
+}
+
+/**
+ * Finds the company's official website with a short web search (a few cents),
+ * for decks that don't give one. Returns a bare domain or null.
+ */
+export async function findCompanyWebsite(companyName: string, about: string | null): Promise<string | null> {
+  const text = await webResearch(
+    "finding the website",
+    `What is the official website of the company "${companyName}"${about ? ` (${about.slice(0, 300)})` : ""}? Search once or twice, then reply with only its domain, such as example.com, and nothing else. If you can't find it with confidence, reply with NONE.`,
+    [],
+    { search: 3, fetch: 0 },
+  ).catch(() => null);
+  if (!text || /\bNONE\b/.test(text)) return null;
+  return cleanDomain(text.split(/\s+/).find((w) => w.includes(".")) ?? null);
+}
+
+/** For deals opened without a logo: find the website online if needed, then fetch the logo. At most once a week. */
+export async function ensureDealLogo(dealId: string): Promise<void> {
+  const d = await db.deal.findUnique({ where: { id: dealId }, select: { website: true, logoMime: true, logoCheckedAt: true, companyName: true, oneLiner: true, autoNamed: true } });
+  if (!d || d.logoMime || d.autoNamed || d.companyName.startsWith("Untitled")) return;
+  if (d.logoCheckedAt && Date.now() - d.logoCheckedAt.getTime() < 7 * 24 * 3600 * 1000) return;
+  await db.deal.update({ where: { id: dealId }, data: { logoCheckedAt: new Date() } });
+  if (!d.website) {
+    const site = await withMeter({ purpose: "logo lookup" }, () => findCompanyWebsite(d.companyName, d.oneLiner));
+    if (!site) return;
+    await db.deal.update({ where: { id: dealId }, data: { website: site } });
+  }
+  await fetchCompanyLogo(dealId);
 }
 
 /** Science, regulatory precedent, licensing comps and contradictions. */
@@ -323,6 +354,7 @@ export async function underwrite(args: {
   analystContext?: string | null;
   backtest?: { year: number | null };
   corrections?: string;
+  mode?: "structured" | "json";
 }) {
   const priorBlock = args.prior ? priorAnalysesBlock(args.prior) : null;
   const precedents = precedentsBlock(args.precedents);
@@ -345,6 +377,7 @@ export async function underwrite(args: {
   const { data, usage, model } = await structuredCall({
     schema: MemoSchema,
     step: args.corrections ? "memo correction" : "memo",
+    mode: args.mode,
     effort: env.analysisEffort,
     system: systemBlocks(args.firmContext),
     content: [...args.docs, { type: "text", text: task }],
@@ -357,6 +390,76 @@ function precedentsSummary(p: Precedents) {
     historical: p.historical.map((h) => ({ id: h.id, companyName: h.companyName, decision: h.decision, outcome: h.outcome, why: h.why })),
     exemplars: p.exemplars.map((e) => ({ id: e.id, title: e.title, why: e.why })),
   };
+}
+
+
+// ─── Resilience: exact errors, automatic fallbacks, saved progress ──────────
+
+/** Anthropic's exact words, kept for troubleshooting. */
+export function errorDetail(err: unknown): string {
+  if (err instanceof Anthropic.APIError) {
+    const body = err.error as { error?: { type?: string; message?: string } } | undefined;
+    const rid = (err as { requestID?: string | null }).requestID;
+    return `${err.status ?? "network"} ${body?.error?.type ?? "error"}: ${body?.error?.message ?? err.message}${rid ? ` (request ${rid})` : ""}`;
+  }
+  return err instanceof Error ? err.message : String(err);
+}
+
+/** A request the API refused as malformed or too large, or an answer that didn't parse: worth retrying differently. */
+function isRetryableRejection(err: unknown) {
+  if (isCreditError(err)) return false;
+  if (err instanceof Anthropic.APIError) return err.status === 400 || err.status === 413 || err.status === 422;
+  return err instanceof SyntaxError || (err instanceof Error && /parse|ZodError|invalid_type|exceeded the maximum output/i.test(`${err.name} ${err.message}`));
+}
+
+/**
+ * Tries each way of making a request in turn, moving on only when the API rejects
+ * the request itself. Every fallback is written to the live log with Anthropic's reason.
+ */
+async function withFallbacks<T>(analysisId: string, what: string, attempts: { label: string; run: () => Promise<T> }[]): Promise<T> {
+  let last: unknown;
+  for (const [i, a] of attempts.entries()) {
+    try {
+      return await a.run();
+    } catch (err) {
+      last = err;
+      if (!isRetryableRejection(err) || i === attempts.length - 1) break;
+      console.error(`[analyst] ${what} rejected; falling back`, err);
+      await logStep(analysisId, `Anthropic didn't accept the ${what} request (${errorDetail(err).slice(0, 220)}). Trying again ${attempts[i + 1].label}`, "warn");
+    }
+  }
+  throw last;
+}
+
+type Pass = "science" | "founders" | "ip" | "market";
+export type Checkpoint = {
+  research?: Partial<Record<Pass, string>>;
+  sweep?: { notes: string; sweep: CompetitorSweep };
+  draft?: { memo: Memo; model: string; docsKey: string };
+};
+
+/** Merges one piece of finished work into the analysis's saved progress (atomic, safe in parallel). */
+async function saveCheckpoint(id: string, patch: Omit<Checkpoint, "research">, research?: Partial<Record<Pass, string>>) {
+  const p = JSON.stringify(patch);
+  const r = JSON.stringify(research ?? {});
+  await db.$executeRaw`UPDATE "Analysis" SET "checkpoint" = COALESCE("checkpoint", '{}'::jsonb) || ${p}::jsonb || jsonb_build_object('research', COALESCE("checkpoint"->'research', '{}'::jsonb) || ${r}::jsonb) WHERE "id" = ${id}`.catch(
+    (err) => console.error("[analyst] could not save progress", err),
+  );
+}
+
+/** Same documents and same team note: a saved draft memo still applies. */
+function docsKeyFor(docIds: string[], note: string | null | undefined) {
+  return `${[...docIds].sort().join(",")}|${note ?? ""}`;
+}
+
+/** The deal's documents as plain text, for when the API won't take the original files. */
+function textOnlyDocs(docs: Document[]): ContentBlock[] {
+  let budget = 1_600_000;
+  return docs.map((d) => {
+    const text = (d.extractedText ?? d.plainText ?? "(no text could be extracted from this file)").slice(0, Math.max(2000, budget));
+    budget -= text.length;
+    return { type: "document", source: { type: "text", media_type: "text/plain", data: text }, title: d.filename, context: `Round ${d.round}; text only.` } as ContentBlock;
+  });
 }
 
 /** Runs one live analysis end-to-end, metering every AI call. Safe to call from a background task. */
@@ -461,8 +564,18 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
         await logStep(analysisId, "Couldn't classify the company automatically; continuing with the documents alone", "warn");
       }
     }
-    // Fetch the company's logo from its website in the background (no AI cost).
-    void fetchCompanyLogo(deal.id);
+    // Company logo: from the website in the deck, or the official site found online.
+    void (async () => {
+      const current = await db.deal.findUnique({ where: { id: deal.id }, select: { website: true, logoMime: true, companyName: true, oneLiner: true } });
+      if (current && !current.website && !current.logoMime) {
+        const site = await withMeter({ purpose: "analysis", analysisId }, () => findCompanyWebsite(current.companyName, dossier?.slice(0, 400) ?? current.oneLiner));
+        if (site) {
+          await db.deal.update({ where: { id: deal.id }, data: { website: site } });
+          await logStep(analysisId, `Found the company website online: ${site}`, "info");
+        }
+      }
+      await fetchCompanyLogo(deal.id);
+    })().catch((err) => console.error("[analyst] logo lookup failed", err));
     await setProgress(analysisId, "Looking up similar past Genesys deals");
     await logStep(analysisId, "Looking for similar deals in Genesys's history", "start");
     const precedents = await findPrecedents(probe);
@@ -479,32 +592,42 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
     if (dealReviews) await logStep(analysisId, `Addressing ${plural(dealReviews, "review")} of earlier versions of this memo`, "info");
     if (precedents.exemplars.length) await logStep(analysisId, `Using ${plural(precedents.exemplars.length, "example memo")} the partners approved`, "info");
 
-    // Web research: five passes in parallel. Re-used on follow-ups unless a re-run is requested.
-    const priorResearch = [...prior].reverse().find((a) => a.research);
-    const priorSweep = [...prior].reverse().find((a) => a.competitors);
-    let research = priorResearch?.research ?? null;
-    let competitors = (priorSweep?.competitors as CompetitorSweep | undefined) ?? null;
-    let competitorNotes = priorSweep?.competitorNotes ?? null;
+    // Web research: five passes in parallel. Anything already done (by this run before an
+    // interruption, or by an earlier version) is reused; only missing passes run.
+    const own = (analysis.checkpoint ?? {}) as Checkpoint;
+    const usable = [...prior].reverse().filter((a) => !deal.freshStartAt || a.createdAt > deal.freshStartAt);
+    const researchFrom = usable.find((a) => (a.checkpoint as Checkpoint | null)?.research || a.research);
+    const researchAge = researchFrom ? Date.now() - (researchFrom.completedAt ?? researchFrom.createdAt).getTime() : Infinity;
     // A re-run refreshes web research only if it is more than 30 days old; follow-ups always reuse it.
-    const researchAge = priorResearch ? Date.now() - (priorResearch.completedAt ?? priorResearch.createdAt).getTime() : Infinity;
     const refresh = analysis.trigger === "RERUN" && researchAge > 30 * 24 * 60 * 60 * 1000;
-    if (env.webResearchEnabled && (!research || !competitors || refresh)) {
+    const priorPass = (k: Pass) => (refresh ? undefined : usable.map((a) => (a.checkpoint as Checkpoint | null)?.research?.[k]).find(Boolean));
+    const passes: Partial<Record<Pass, string>> = {};
+    for (const k of ["science", "founders", "ip", "market"] as Pass[]) {
+      const v = own.research?.[k] ?? priorPass(k);
+      if (v) passes[k] = v;
+    }
+    // Versions from before progress was saved per pass kept the research as one block.
+    const legacy = !refresh && !Object.keys(passes).length ? usable.find((a) => a.research)?.research ?? null : null;
+    const legacySweep = refresh ? null : usable.find((a) => a.competitors);
+    let sweepDone: { notes: string; sweep: CompetitorSweep } | null =
+      own.sweep ?? (refresh ? null : usable.map((a) => (a.checkpoint as Checkpoint | null)?.sweep).find(Boolean)) ?? null;
+    if (!sweepDone && legacySweep?.competitors) sweepDone = { notes: legacySweep.competitorNotes ?? "", sweep: legacySweep.competitors as CompetitorSweep };
+
+    const missing = legacy ? [] : (["science", "founders", "ip", "market"] as Pass[]).filter((k) => !passes[k]);
+    if (legacy || missing.length < 4 || sweepDone) {
+      const names = [...(legacy ? ["all four research areas"] : (["science", "founders", "ip", "market"] as Pass[]).filter((k) => passes[k]).map((k) => PASS_LABEL[k])), ...(sweepDone ? ["the competitor sweep"] : [])];
+      if (names.length) await logStep(analysisId, `Re-using research already done: ${names.join(", ")}`, "info");
+    }
+    if (env.webResearchEnabled && (missing.length || !sweepDone)) {
       await setProgress(analysisId, "Researching science, founders, patents, market and competitors");
-      const needResearch = !research || refresh;
-      const needSweep = !competitors || refresh;
-      const passes = [
-        needResearch && "the science and regulatory path",
-        needResearch && "the founders and management team",
-        needResearch && "patents and IP",
-        needResearch && "the market",
-        needSweep && "competitors and their funding",
-      ].filter(Boolean) as string[];
-      await logStep(analysisId, `Searching the web in parallel: ${passes.join(", ")}`, "start");
-      // Each pass reports in the log as it finishes; a failed pass is skipped, not fatal.
-      const soft = <T,>(label: string, p: Promise<T | null>, done: (v: T) => string) =>
+      const todo = [...missing.map((k) => PASS_LABEL[k]), ...(!sweepDone ? ["competitors and their funding"] : [])];
+      await logStep(analysisId, `Searching the web in parallel: ${todo.join(", ")}`, "start");
+      // Each pass is saved the moment it finishes, so nothing is lost if the run stops later.
+      const soft = <T,>(label: string, p: Promise<T | null>, done: (v: T) => string, save: (v: T) => Promise<void>) =>
         p.then(
           async (v) => {
             if (!v) failedResearch.push(label);
+            else await save(v);
             await logStep(analysisId, v ? done(v) : `Couldn't complete the ${label} research; continuing without it`, v ? "done" : "warn");
             return v;
           },
@@ -513,41 +636,55 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
             if (isCreditError(err)) throw err;
             console.error(`[analyst] ${label} research failed; continuing without it`, err);
             failedResearch.push(label);
-            await logStep(analysisId, `Couldn't complete the ${label} research; continuing without it`, "warn");
+            await logStep(analysisId, `Couldn't complete the ${label} research; continuing without it (${errorDetail(err).slice(0, 160)})`, "warn");
             return null;
           },
         );
       const sourcesIn = (t: string) => new Set(t.match(URL_RE) ?? []).size;
       const finished = (what: string) => (t: string) => `Finished ${what}${sourcesIn(t) ? ` (${plural(sourcesIn(t), "source")})` : ""}`;
-      const [science, founders, ip, market, swept] = await Promise.all([
-        needResearch ? soft("science", researchBrief(companyName, researchInput(dossier, blocks)), finished("the science and regulatory research")) : null,
-        needResearch ? soft("founder", diligenceResearch("research: founders", FOUNDER_RESEARCH_PROMPT, companyName, researchInput(dossier, blocks)), finished("the founder and management research")) : null,
-        needResearch ? soft("patent", diligenceResearch("research: patents", IP_RESEARCH_PROMPT, companyName, researchInput(dossier, blocks)), finished("the patent and IP research")) : null,
-        needResearch ? soft("market", diligenceResearch("research: market", MARKET_RESEARCH_PROMPT, companyName, researchInput(dossier, blocks)), finished("the market research")) : null,
-        needSweep
-          ? soft("competitor", competitorSweep(companyName, researchInput(dossier, blocks)), (r) => {
-              const names = r.sweep.competitors.map((c) => c.name);
-              return names.length ? `Found ${plural(names.length, "competitor")}: ${listNames(names, 5)}` : "Competitor search finished; no direct competitors could be confirmed";
-            })
-          : null,
+      const input = researchInput(dossier, blocks);
+      const run = (k: Pass): Promise<string | null> =>
+        k === "science" ? researchBrief(companyName, input)
+        : diligenceResearch(`research: ${k === "ip" ? "patents" : k}`, k === "founders" ? FOUNDER_RESEARCH_PROMPT : k === "ip" ? IP_RESEARCH_PROMPT : MARKET_RESEARCH_PROMPT, companyName, input);
+      const [, swept] = await Promise.all([
+        Promise.all(
+          missing.map((k) =>
+            soft(k === "founders" ? "founder" : k === "ip" ? "patent" : k, run(k), finished(`the ${PASS_LABEL[k]} research`), async (v: string) => {
+              passes[k] = v;
+              await saveCheckpoint(analysisId, {}, { [k]: v });
+            }),
+          ),
+        ),
+        !sweepDone
+          ? soft(
+              "competitor",
+              competitorSweep(companyName, input),
+              (r) => {
+                const names = r.sweep.competitors.map((c) => c.name);
+                return names.length ? `Found ${plural(names.length, "competitor")}: ${listNames(names, 5)}` : "Competitor search finished; no direct competitors could be confirmed";
+              },
+              async (r) => saveCheckpoint(analysisId, { sweep: r }),
+            )
+          : Promise.resolve(null),
       ]);
-      if (needResearch) {
-        const sections = [
-          ["Science and regulatory brief", science],
-          ["Founders and management research", founders],
-          ["Intellectual property research", ip],
-          ["Market and epidemiology research", market],
-        ].filter(([, v]) => v) as [string, string][];
-        research = sections.length ? sections.map(([h, v]) => `## ${h}\n\n${v}`).join("\n\n") : null;
-      }
-      if (swept) {
-        competitors = swept.sweep;
-        competitorNotes = swept.notes;
-      }
+      if (swept) sweepDone = swept;
     }
-    else if (research || competitors) {
-      await logStep(analysisId, "Re-using the web research from the previous version", "info");
-    }
+    const sections = (
+      [
+        ["Science and regulatory brief", passes.science],
+        ["Founders and management research", passes.founders],
+        ["Intellectual property research", passes.ip],
+        ["Market and epidemiology research", passes.market],
+      ] as [string, string | undefined][]
+    ).filter(([, v]) => v) as [string, string][];
+    const research: string | null = legacy ?? (sections.length ? sections.map(([h, v]) => `## ${h}\n\n${v}`).join("\n\n") : null);
+    const competitors: CompetitorSweep | null = sweepDone?.sweep ?? null;
+    const competitorNotes: string | null = sweepDone?.notes || null;
+    // Keep the research on this version straight away, so a later re-run can find it.
+    await db.analysis.update({
+      where: { id: analysisId },
+      data: { research, competitorNotes, competitors: (competitors ?? undefined) as unknown as Prisma.InputJsonValue },
+    });
     // Everything retrieved from the web is a citable source for the fact-check.
     const webSources = [research, competitorNotes].filter(Boolean).join("\n\n") || null;
 
@@ -557,7 +694,8 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
       companyName,
       docs: blocks,
       coverage,
-      prior,
+      // After a file was removed, earlier memos (which may draw on it) are not passed on.
+      prior: prior.filter((a) => !deal.freshStartAt || a.createdAt > deal.freshStartAt),
       research,
       competitors,
       precedents,
@@ -565,7 +703,21 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
       analystContext: analysis.analystContext,
     };
     await logStep(analysisId, prior.length ? "Writing the updated memo with the new information" : "Writing the memo: science, team, IP, market, financials and fit with Genesys", "start");
-    const draft = await underwrite(underwriteArgs);
+    // A draft written before an interruption, for the same documents and note, is reused.
+    const docsKey = docsKeyFor(deal.documents.map((d) => d.id), analysis.analystContext);
+    const savedDraft = [own.draft, ...usable.filter((a) => a.status !== "COMPLETE").map((a) => (a.checkpoint as Checkpoint | null)?.draft)].find((d) => d?.docsKey === docsKey);
+    const textDocs = textOnlyDocs(deal.documents);
+    const writeMemo = (extra: Partial<Parameters<typeof underwrite>[0]>, what: string) =>
+      withFallbacks(analysisId, what, [
+        { label: "as usual", run: () => underwrite({ ...underwriteArgs, ...extra }) },
+        { label: "with the documents as plain text", run: () => underwrite({ ...underwriteArgs, ...extra, docs: textDocs }) },
+        { label: "in a simpler format", run: () => underwrite({ ...underwriteArgs, ...extra, docs: textDocs, mode: "json" }) },
+      ]);
+    const draft = savedDraft
+      ? { memo: savedDraft.memo, model: savedDraft.model, usage: { input_tokens: 0, output_tokens: 0 } as Anthropic.Beta.BetaUsage }
+      : await writeMemo({}, "memo-writing");
+    if (savedDraft) await logStep(analysisId, "Re-using the draft memo written before the interruption", "info");
+    else await saveCheckpoint(analysisId, { draft: { memo: draft.memo, model: draft.model, docsKey } });
     await logStep(analysisId, `Draft memo written: ${RECOMMENDATION_TEXT[draft.memo.recommendation]}, score ${draft.memo.overallScore}/100`, "done");
     let memo = draft.memo;
     const usage = { ...draft.usage };
@@ -604,7 +756,7 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
     if (checked.report.status === "FAILED" && serious.length) {
       await setProgress(analysisId, "Fixing the points the fact-check found");
       await logStep(analysisId, "Rewriting the memo to fix the serious points", "start");
-      const revised = await underwrite({ ...underwriteArgs, corrections: correctionsBlock(serious) });
+      const revised = await writeMemo({ corrections: correctionsBlock(serious) }, "memo-correction");
       usage.input_tokens += revised.usage.input_tokens;
       usage.output_tokens += revised.usage.output_tokens;
       await setProgress(analysisId, "Re-checking the corrected memo");
@@ -741,14 +893,15 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
       return;
     }
     const message = describeError(err);
+    const detail = errorDetail(err);
     console.error("[analyst] analysis failed", analysisId, err);
-    await logStep(analysisId, `Stopped: ${message}`, "warn");
+    await logStep(analysisId, `Stopped: ${message} Everything finished so far is saved and will be reused when it runs again. (Anthropic said: ${detail.slice(0, 300)})`, "warn");
     await notifyStarter(analysis.createdById, (to, firstName) =>
       sendAnalysisProblem(to, firstName, deal.companyName, `${env.appUrl}/deals/${deal.slug ?? deal.id}`, `${message} You can run it again from the deal page.`),
     );
     await db.analysis.update({
       where: { id: analysisId },
-      data: { status: "FAILED", progress: null, error: message.slice(0, 2000), completedAt: new Date() },
+      data: { status: "FAILED", progress: null, error: message.slice(0, 2000), errorDetail: detail.slice(0, 4000), completedAt: new Date() },
     });
     await db.activity.create({
       data: { dealId: deal.id, type: "analysis.failed", message: `The Sharminator could not finish version ${analysis.version}: ${message.slice(0, 300)}` },
@@ -771,7 +924,8 @@ function friendlyApiError(status: number | undefined, err?: unknown): string {
   if (isCreditError(err)) return "The Anthropic account behind the Sharminator has run out of credit. Add credit, then try again.";
   if (status === 401 || status === 403) return "The Sharminator's AI service key was rejected. Ask your developer to check the Anthropic API key.";
   if (status === 429) return "The AI service is busy or the account's usage limit was reached. Try again in a few minutes.";
-  if (status === 400 || status === 413) return "The AI service couldn't accept these files. Try again; if it repeats, upload fewer or smaller files.";
+  if (status === 413) return "The request to the AI service was too large, even with the documents sent as plain text. Remove or split the largest files and try again.";
+  if (status === 400 || status === 422) return "The AI service turned the request down, even after the Sharminator retried it in simpler forms. The exact reason is shown below; please pass it to your developer.";
   if (status && status >= 500) return "The AI service had a temporary problem. Try again in a few minutes.";
   return "The Sharminator couldn't reach the AI service. Check the connection and try again.";
 }

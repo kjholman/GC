@@ -197,7 +197,7 @@ export default async function DealsPage({ searchParams }: PageProps<"/deals">) {
                         <Link href={`/deals/${d.slug ?? d.id}`} className="font-medium text-navy-900 group-hover:underline">
                           {d.companyName}
                         </Link>
-                        <div className="mt-0.5 max-w-[320px] truncate text-[12px] text-muted">{d.oneLiner ?? "—"}</div>
+                        <div className="mt-0.5 max-w-[320px] truncate text-[12px] text-muted">{d.oneLiner ?? "Awaiting analysis"}</div>
                         {d.keyReason && d.recommendation !== "ADVANCE_TO_DILIGENCE" && (
                           <div className="mt-0.5 max-w-[360px] truncate text-[12px] text-neg" title={d.keyReason}>
                             {d.recommendation === "REJECT" ? "Why not: " : "Holding back: "}{d.keyReason}
@@ -207,10 +207,10 @@ export default async function DealsPage({ searchParams }: PageProps<"/deals">) {
                     </div>
                   </td>
                   <td className="px-4 py-4 text-ink-soft">
-                    <div>{d.sector ?? "—"}</div>
+                    <div>{d.sector ?? "Not yet known"}</div>
                     <div className="max-w-[220px] truncate text-[12px] text-muted">{d.modality}</div>
                   </td>
-                  <td className="max-w-[160px] px-4 py-4 text-ink-soft">{d.stage ?? "—"}</td>
+                  <td className="max-w-[160px] px-4 py-4 text-ink-soft">{d.stage ?? "Not yet known"}</td>
                   <td className={cx("px-4 py-4 font-medium", d.recommendation && REC_META[d.recommendation]?.cls)}>
                     {d.recommendation ? REC_META[d.recommendation]?.label : <span className="text-muted">Pending</span>}
                   </td>
@@ -218,7 +218,7 @@ export default async function DealsPage({ searchParams }: PageProps<"/deals">) {
                     <ScoreRing score={d.latestScore} size={40} />
                   </td>
                   <td className="px-4 py-4 text-center tabular text-ink">{d.analysisCount}</td>
-                  <td className="px-4 py-4 text-right text-[12.5px] tabular text-muted">{spend.has(d.id) ? formatUsd(spend.get(d.id)!) : "—"}</td>
+                  <td className="px-4 py-4 text-right text-[12.5px] tabular text-muted">{spend.has(d.id) ? formatUsd(spend.get(d.id)!) : "None yet"}</td>
                   <td className="px-4 py-4">
                     {badgeFor(d)}
                   </td>

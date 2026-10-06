@@ -50,6 +50,7 @@ export function describeEvent(
       return t(`${actor} moved ${deal} from ${stages[String(meta.from)] ?? "its previous stage"} to ${stages[String(meta.to)] ?? "a new stage"}`);
     case "deal.logo_changed": return t(`${actor} changed the logo for ${deal}`);
     case "deal.deleted": return t(`${actor} deleted a deal`, true);
+    case "document.removed": return t(`${actor} removed the file ${subject ?? "from a deal"}; it won't be used in analyses`, true);
     case "document.downloaded": return t(`${actor} opened a document${subject ? ` (${subject})` : ""}`);
     case "analysis.stopped": return t(`${actor} stopped an analysis of ${deal} before it finished`);
     case "admin.credit_checked": return t(`${actor} checked the Anthropic credit balance (${meta.ok ? "credit available" : "out of credit or unreachable"})`, !meta.ok);

@@ -46,7 +46,7 @@ function KV({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-function Bullets({ items, marker = "—" }: { items: string[]; marker?: string }) {
+function Bullets({ items, marker = "•" }: { items: string[]; marker?: string }) {
   if (!items.length) return <p className="text-[14px] text-muted">None identified.</p>;
   return (
     <ul className="space-y-2">
@@ -155,7 +155,7 @@ export function MemoView({ memo }: { memo: Memo }) {
                 <tr key={i}>
                   <td className="py-3 pr-4 text-ink"><Tagged text={m.milestone} /></td>
                   <td className="px-4 py-3 text-ink-soft">{m.expectedTiming}</td>
-                  <td className="px-4 py-3 text-ink-soft">{m.capitalRequired ?? "—"}</td>
+                  <td className="px-4 py-3 text-ink-soft">{m.capitalRequired ?? "Not stated"}</td>
                   <td className="py-3 pl-4 text-right">{m.valueInflection ? <span className="text-brand-600">◆</span> : ""}</td>
                 </tr>
               ))}
@@ -230,7 +230,7 @@ export function FinancialsView({ memo }: { memo: Memo }) {
           <div key={s.scenario} className="bg-paper px-6 py-5">
             <div className="eyebrow">{s.scenario === "BASE" ? "Base case" : "Bull case"} exit</div>
             <div className="mt-2 font-display font-semibold text-[36px] leading-none tabular text-navy-900">
-              {s.exitValueUsdM != null ? `$${s.exitValueUsdM >= 1000 ? `${(s.exitValueUsdM / 1000).toFixed(1)}B` : `${Math.round(s.exitValueUsdM)}M`}` : "—"}
+              {s.exitValueUsdM != null ? `$${s.exitValueUsdM >= 1000 ? `${(s.exitValueUsdM / 1000).toFixed(1)}B` : `${Math.round(s.exitValueUsdM)}M`}` : "n/a"}
             </div>
             <div className="mt-2 text-[12px] text-muted">{s.yearsToExit != null ? `~${s.yearsToExit} years · ` : ""}{s.exitRoute}</div>
           </div>
@@ -251,7 +251,7 @@ export function FinancialsView({ memo }: { memo: Memo }) {
                   <div className="h-2.5 flex-1 rounded-full bg-line">
                     <div className="h-2.5 rounded-full" style={{ width: `${((s.grossMoic ?? 0) / maxMoic) * 100}%`, background: tone[s.scenario] }} />
                   </div>
-                  <div className="w-16 text-right font-display font-semibold text-[22px] tabular text-navy-900">{s.grossMoic != null ? `${s.grossMoic.toFixed(1)}×` : "—"}</div>
+                  <div className="w-16 text-right font-display font-semibold text-[22px] tabular text-navy-900">{s.grossMoic != null ? `${s.grossMoic.toFixed(1)}×` : "n/a"}</div>
                 </div>
                 <div className="mt-2 text-[13px] text-ink-soft">
                   <span className="font-medium text-ink">{s.exitRoute}</span>

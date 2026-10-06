@@ -371,3 +371,31 @@ export async function setLogoAction(dealId: string, formData: FormData): Promise
   revalidatePath("/deals/[id]", "page");
   return { ok: true };
 }
+
+/**
+ * Removes one uploaded file from a deal. Nothing from it is used again: the deal
+ * starts fresh, so later analyses don't reuse earlier memos, research or the
+ * company summary that may have drawn on it.
+ */
+export async function removeDealDocumentAction(documentId: string): Promise<ActionState> {
+  const user = await requireUser();
+  const doc = await db.document.findUnique({ where: { id: documentId }, select: { dealId: true, filename: true } });
+  if (!doc) return { ok: false, error: "That file has already been removed." };
+  const running = await db.analysis.count({ where: { dealId: doc.dealId, status: { in: ["QUEUED", "RUNNING"] } } });
+  if (running) return { ok: false, error: "Wait for the current analysis to finish (or stop it) before removing files." };
+  await db.$transaction([
+    db.document.delete({ where: { id: documentId } }),
+    db.deal.update({ where: { id: doc.dealId }, data: { freshStartAt: new Date(), researchDossier: null } }),
+    db.activity.create({
+      data: {
+        dealId: doc.dealId,
+        userId: user.id,
+        type: "document.removed",
+        message: `Removed ${doc.filename}. Analyses from now on won't use it or anything drawn from it.`,
+      },
+    }),
+  ]);
+  await audit("document.removed", { userId: user.id, entity: "Document", entityId: documentId, meta: { name: doc.filename } });
+  revalidatePath("/deals/[id]", "page");
+  return { ok: true };
+}

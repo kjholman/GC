@@ -1,7 +1,7 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
-import type { z } from "zod";
+import { z } from "zod";
 import { env } from "../env";
 import { sanitizeStrings } from "./style";
 import { recordCreditOk } from "./credit";
@@ -35,16 +35,32 @@ export async function structuredCall<S extends z.ZodType>(args: {
   tier?: "main" | "fast";
   /** Label for spend reporting, e.g. "memo" or "fact-check". */
   step: string;
+  /**
+   * "structured" (default) constrains the output to the schema. "json" is the
+   * fallback when the API rejects a structured request: the schema is given as
+   * instructions and the answer is parsed and validated here.
+   */
+  mode?: "structured" | "json";
 }): Promise<{ data: z.infer<S>; usage: Anthropic.Beta.BetaUsage; model: string }> {
+  const json = args.mode === "json";
+  const content: ContentBlock[] = json
+    ? [
+        ...args.content,
+        {
+          type: "text",
+          text: `Return only one JSON object, with no other text, that matches this JSON Schema exactly:\n${JSON.stringify(z.toJSONSchema(args.schema))}`,
+        },
+      ]
+    : args.content;
   const stream = anthropic().beta.messages.stream({
     model: args.tier === "fast" ? env.anthropicFastModel : env.anthropicModel,
     max_tokens: args.maxTokens ?? 64000,
     thinking: { type: "adaptive" },
-    output_config: { effort: args.effort, format: betaZodOutputFormat(args.schema) },
+    output_config: json ? { effort: args.effort } : { effort: args.effort, format: betaZodOutputFormat(args.schema) },
     betas: [FALLBACK_BETA],
     fallbacks: "default",
     ...(args.system ? { system: args.system } : {}),
-    messages: [{ role: "user", content: args.content }],
+    messages: [{ role: "user", content }],
   });
   const response = await stream.finalMessage();
   recordUsage(response.model, response.usage, args.step);
@@ -55,7 +71,10 @@ export async function structuredCall<S extends z.ZodType>(args: {
   if (response.stop_reason === "max_tokens") {
     throw new Error("The response exceeded the maximum output length. Try again.");
   }
-  const raw = (response.parsed_output ?? args.schema.parse(JSON.parse(textOf(response.content)))) as z.infer<S>;
+  const text = textOf(response.content);
+  const raw = (json
+    ? args.schema.parse(JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1)))
+    : (response.parsed_output ?? args.schema.parse(JSON.parse(text)))) as z.infer<S>;
   // House style: no em/en dashes or typographic tells in anything we store or show.
   const data = sanitizeStrings(raw);
   return { data, usage: response.usage, model: response.model };

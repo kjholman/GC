@@ -6,7 +6,9 @@ import { cx } from "./ui";
  * Internal screens only: never in founder correspondence or memos.
  */
 const FACE = "/brand/sharminator-face.png";
-const FACE_RATIO = 331 / 220; // cut-out height / width
+const FACE_RATIO = 275 / 203; // cut-out height / width (full head, hair included)
+/** Scenes were laid out for a taller cut-out; keep the chin where they expect it. */
+const LAYOUT_RATIO = 331 / 220;
 
 export type Scene = "mice" | "blot" | "pvalue" | "slide31" | "runway" | "petri" | "retracted" | "deck";
 
@@ -14,7 +16,7 @@ const IMPACT = { fontFamily: "Impact, Anton, 'Arial Black', sans-serif", fontWei
 const MONO = { fontFamily: "ui-monospace, Menlo, monospace" } as const;
 
 function Face({ x, y, w, filter }: { x: number; y: number; w: number; filter?: string }) {
-  return <image href={FACE} x={x} y={y} width={w} height={w * FACE_RATIO} preserveAspectRatio="xMidYMid meet" filter={filter} />;
+  return <image href={FACE} x={x} y={y + w * (LAYOUT_RATIO - FACE_RATIO)} width={w} height={w * FACE_RATIO} preserveAspectRatio="xMidYMid meet" filter={filter} />;
 }
 
 /** Splits a caption into at most two balanced lines that fit the 300px frame. */

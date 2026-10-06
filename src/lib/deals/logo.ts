@@ -56,6 +56,9 @@ function candidates(html: string, base: URL): string[] {
   for (const l of icons) { const u = abs(l.href!); if (u) out.push(u); }
   const fav = abs("/favicon.ico");
   if (fav) out.push(fav);
+  // Public logo services, for sites that block automated requests or offer no icon.
+  out.push(`https://www.google.com/s2/favicons?domain=${encodeURIComponent(base.hostname)}&sz=256`);
+  out.push(`https://icons.duckduckgo.com/ip3/${encodeURIComponent(base.hostname)}.ico`);
   return [...new Set(out)];
 }
 
@@ -72,7 +75,8 @@ export async function fetchCompanyLogo(dealId: string): Promise<boolean> {
       const mime = res?.headers.get("content-type")?.split(";")[0].trim().toLowerCase() ?? "";
       if (!res || !/^image\/(png|jpe?g|gif|webp|svg\+xml|x-icon|vnd\.microsoft\.icon)$/.test(mime)) continue;
       const buf = Buffer.from(await res.arrayBuffer());
-      if (!buf.length || buf.length > MAX_BYTES) continue;
+      // Skip empty files and the 16px "no icon" placeholders the logo services return.
+      if (buf.length < 200 || buf.length > MAX_BYTES) continue;
       await db.deal.update({ where: { id: dealId }, data: { logo: buf, logoMime: mime, logoCheckedAt: new Date() } });
       return true;
     }
@@ -81,4 +85,17 @@ export async function fetchCompanyLogo(dealId: string): Promise<boolean> {
   }
   await db.deal.update({ where: { id: dealId }, data: { logoCheckedAt: new Date() } }).catch(() => {});
   return false;
+}
+
+/** Normalises "https://www.Example.com/about" or "example.com" to "example.com". */
+export function cleanDomain(raw: string | null | undefined): string | null {
+  const t = (raw ?? "").trim().replace(/^[<("']+|[>)"'.,;]+$/g, "");
+  if (!t) return null;
+  try {
+    const u = new URL(t.startsWith("http") ? t : `https://${t}`);
+    const host = u.hostname.toLowerCase().replace(/^www\./, "");
+    return /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(host) ? host : null;
+  } catch {
+    return null;
+  }
 }

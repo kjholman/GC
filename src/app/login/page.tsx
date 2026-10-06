@@ -5,7 +5,6 @@ import { DnaHelix } from "@/components/DnaHelix";
 import { AnalystAvatar } from "@/components/Analyst";
 import { env } from "@/lib/env";
 import { adminBypassAction } from "@/lib/auth/actions";
-import { emailDeliveryConfigured } from "@/lib/mailer";
 import { LoginForm, type LoginPerson } from "./LoginForm";
 import { TEAM } from "@/lib/team";
 import fs from "node:fs";
@@ -25,13 +24,11 @@ function teamPhoto(id: string): string | null {
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   if (await getCurrentUser()) redirect("/");
   const sp = await searchParams;
-  const emailEnabled = emailDeliveryConfigured();
   const people: LoginPerson[] = TEAM.map((m) => ({ id: m.id, name: m.name, fullName: m.fullName, title: m.title, enabled: !!m.email, photo: teamPhoto(m.id) }));
   return (
     <div className="flex min-h-screen flex-col bg-paper">
       <header className="flex items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
         <Logo />
-        <span className="hidden text-[13px] text-ink-soft sm:block">The Sharminator · Authorised personnel only</span>
       </header>
 
       <div className="relative mx-4 mb-4 flex flex-1 overflow-hidden rounded-2xl lg:mx-4">
@@ -60,17 +57,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
               That sign-in link has expired or was already used. Ask an administrator for a new one.
             </p>
           )}
-          {emailEnabled ? (
-            <LoginForm people={people} />
-          ) : (
-            <div>
-              <div className="eyebrow mb-2 !text-brand-600">Secure sign-in</div>
-              <h2 className="font-display font-semibold text-[30px] font-semibold leading-tight text-ink">Sign in with your link</h2>
-              <p className="mt-3 text-[14px] leading-relaxed text-ink-soft">
-                Access is by personal sign-in link. Ask a platform administrator to send you one. Each link works once and expires after 24 hours; your session then lasts several days.
-              </p>
-            </div>
-          )}
+          <LoginForm people={people} />
           {env.adminBypassEnabled && (
             <form action={adminBypassAction} className="mt-8 rounded-lg border border-dashed border-[#e3c3be] bg-neg-bg/60 p-4">
               <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-neg">Testing only</div>

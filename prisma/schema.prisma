@@ -102,6 +102,9 @@ model Deal {
   companyName   String
   /// True while the name is a placeholder from the uploaded file; the Sharminator replaces it with the real company name.
   autoNamed     Boolean    @default(false)
+  /// Set when a file is removed: analyses from before this are not reused, so nothing
+  /// learned from the removed file carries into later analyses.
+  freshStartAt  DateTime?
   /// Readable URL, e.g. /deals/northbridge-therapeutics. Follows the name.
   slug          String?    @unique
   /// Company logo fetched from its website (served from our own origin).
@@ -202,6 +205,11 @@ model Analysis {
   trigger        AnalysisTrigger @default(INITIAL_SCREEN)
   status         AnalysisStatus  @default(QUEUED)
   progress       String?
+  /// Work saved as it finishes (each research pass, competitor sweep, draft memo) so a
+  /// stopped, failed or resumed analysis never redoes it.
+  checkpoint     Json?
+  /// Anthropic's exact error text when an analysis fails, for troubleshooting.
+  errorDetail    String?
   /// The deal's stage before this version started, restored if the version is stopped.
   priorDealStatus DealStatus?
   /// Live step-by-step log shown while the analysis runs: [{ at, text, kind }].

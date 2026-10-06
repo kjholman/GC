@@ -26,7 +26,7 @@ export async function requestCodeAction(_: RequestCodeState, formData: FormData)
   if (!parsed.success) return { ok: false, error: "Enter a valid email address." };
   const email = normalizeEmail(parsed.data);
   if (!emailDeliveryConfigured()) {
-    return { ok: false, error: "Sign-in by email is not set up. Ask a platform administrator for a sign-in link." };
+    return { ok: false, error: "Sign-in codes can't be emailed yet because email isn't set up for this site. Your developer needs to add the email settings." };
   }
 
   if (!isAllowedDomain(email)) {

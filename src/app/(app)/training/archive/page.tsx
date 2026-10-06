@@ -56,7 +56,7 @@ export default async function ArchivePage({ searchParams }: PageProps<"/training
                         <div className="font-medium text-navy-900">
                           {d.companyName} <span className="ml-1 text-[12px] font-normal text-muted">{d.decisionYear ?? ""}</span>
                         </div>
-                        <div className="truncate text-[12.5px] text-muted">{[d.sector, d.modality, d.indication].filter(Boolean).join(" · ") || "—"}</div>
+                        <div className="truncate text-[12.5px] text-muted">{[d.sector, d.modality, d.indication].filter(Boolean).join(" · ") || "Details not recorded"}</div>
                       </div>
                       <span className={cx("rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]", DECISION[d.decision].cls)}>{DECISION[d.decision].label}</span>
                       <span className="w-24 text-right text-[11.5px] text-muted">{d.outcome.replaceAll("_", " ").toLowerCase()}</span>

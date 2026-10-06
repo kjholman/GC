@@ -62,7 +62,7 @@ export default async function Overview() {
           { label: "Active pipeline", value: (byStatus.SCREENING ?? 0) + (byStatus.PENDING_INFO ?? 0) + (byStatus.DILIGENCE ?? 0) + (byStatus.IC_REVIEW ?? 0), note: "Screening through IC" },
           { label: "Awaiting founders", value: byStatus.PENDING_INFO ?? 0, note: "Information requested" },
           { label: "In diligence", value: (byStatus.DILIGENCE ?? 0) + (byStatus.IC_REVIEW ?? 0), note: "Including IC review" },
-          { label: "Advance rate · 90d", value: screened90 ? `${Math.round((advanced90 / screened90) * 100)}%` : "—", note: `${screened90} screened` },
+          { label: "Advance rate · 90d", value: screened90 ? `${Math.round((advanced90 / screened90) * 100)}%` : "None yet", note: `${screened90} screened` },
         ].map((k) => (
           <div key={k.label} className="bg-paper px-6 py-5">
             <div className="eyebrow">{k.label}</div>

@@ -13,7 +13,8 @@ import { refreshSlug } from "@/lib/deals/slug";
 import { formatUsd, spendByDeal } from "@/lib/ai/usage";
 import { GapsView, PassReasons, SourcesList, VersionHistory, collectWebSources, type VersionRow } from "./History";
 import { LogoEditor } from "./LogoEditor";
-import { fetchCompanyLogo } from "@/lib/deals/logo";
+import { RemoveDocument } from "./RemoveDocument";
+import { ensureDealLogo } from "@/lib/ai/analyst";
 import { after } from "next/server";
 import { StepLog, asSteps } from "./StepLog";
 import { CopyButton } from "./CopyButton";
@@ -63,7 +64,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
   const slug = deal.slug ?? (await refreshSlug(deal.id));
   if (id !== slug) redirect(`/deals/${slug}${typeof sp.v === "string" ? `?v=${sp.v}` : ""}`);
   // Older deals: look for a logo the first time the page is opened.
-  if (deal.website && !deal.logoCheckedAt) after(() => fetchCompanyLogo(deal.id));
+  if (!deal.logoMime) after(() => ensureDealLogo(deal.id).catch(() => {}));
 
   const latest = deal.analyses[0];
   const inFlight = latest && (latest.status === "RUNNING" || latest.status === "QUEUED") ? latest : null;
@@ -220,6 +221,14 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
           <RerunButton dealId={deal.id} disabled={false} />
         </div>
       )}
+      {memo && shown && deal.freshStartAt && deal.freshStartAt > (shown.completedAt ?? shown.createdAt) && !inFlight && (
+        <div className="mb-8 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-[#efdcb4] bg-warn-bg px-5 py-4 sm:px-6">
+          <p className="min-w-0 flex-1 text-[13.5px] text-ink">
+            <span className="font-medium text-warn">A file was removed after this memo was written.</span> The memo below may still reflect it. Run the analysis again for a memo that doesn&apos;t use it.
+          </p>
+          <RerunButton dealId={deal.id} disabled={false} />
+        </div>
+      )}
       {shown && !isLatestShown && (
         <div className="mb-8 rounded-lg border border-brand-300 bg-brand-100/60 px-6 py-3 text-[13px] text-ink-soft">
           Viewing historical version v{shown.version}.{" "}
@@ -366,6 +375,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
                                   <a href={`/api/documents/${d.id}`} target="_blank" className="min-w-0 flex-1 truncate text-navy-800 hover:underline">{d.filename}</a>
                                   <span className="shrink-0 whitespace-nowrap text-[12px] tabular text-muted">{(d.sizeBytes / 1024 / 1024).toFixed(1)} MB</span>
                                   <span className="hidden w-28 text-right text-[12px] text-muted sm:block">{fmtDate(d.createdAt)}</span>
+                                  {!inFlight && <RemoveDocument id={d.id} filename={d.filename} />}
                                 </li>
                               ))}
                             </ul>
@@ -404,6 +414,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
                 <li key={d.id} className="flex items-baseline gap-2">
                   <a href={`/api/documents/${d.id}`} target="_blank" className="min-w-0 flex-1 truncate text-navy-800 hover:underline" title={d.filename}>{d.filename}</a>
                   <span className="shrink-0 text-[11.5px] text-muted">round {d.round}</span>
+                  {!inFlight && <RemoveDocument id={d.id} filename={d.filename} />}
                 </li>
               ))}
             </ul>
