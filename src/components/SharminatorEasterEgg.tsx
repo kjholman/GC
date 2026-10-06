@@ -84,16 +84,19 @@ export function SharminatorEasterEgg() {
 
   return (
     <>
-      <button
-        type="button"
-        aria-label="Psst"
-        title="Psst"
-        onClick={() => setOpen(true)}
-        className={`no-print fixed z-30 h-12 w-9 transition-all duration-500 ${pos[side]} ${shown ? "opacity-70 hover:opacity-100" : "pointer-events-none opacity-0"}`}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/brand/sharminator-face.png" alt="" className="h-full w-full object-contain drop-shadow" />
-      </button>
+      {/* Clipped to the screen so peeking past the edge never adds sideways scrolling. */}
+      <div className="no-print pointer-events-none fixed inset-0 z-30 overflow-hidden">
+        <button
+          type="button"
+          aria-label="Psst"
+          title="Psst"
+          onClick={() => setOpen(true)}
+          className={`absolute h-12 w-9 transition-all duration-500 ${pos[side]} ${shown ? "pointer-events-auto opacity-70 hover:opacity-100" : "opacity-0"}`}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/sharminator-face.png" alt="" className="h-full w-full object-contain drop-shadow" />
+        </button>
+      </div>
       {open && (
         <div className="no-print fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="The Sharminator">
           <button aria-label="Close" onClick={() => setOpen(false)} className="absolute inset-0 bg-navy-950/60 backdrop-blur-[2px]" />
