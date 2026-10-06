@@ -357,7 +357,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
               key={shown.id}
               analysisId={shown.id}
               version={shown.version}
-              reviews={shown.feedback.map((f) => ({ who: f.user.name ?? f.user.email.split("@")[0], verdict: f.verdict, comment: f.comment }))}
+              reviews={shown.feedback.map((f) => ({ who: f.user.name ?? f.user.email.split("@")[0], verdict: f.verdict, comment: f.comment, areas: f.areas, lesson: f.lesson, appliesTo: f.appliesTo }))}
             />
           )}
           <StatusPanel key={deal.status} dealId={deal.id} status={deal.status} canPartner={canPartner} />

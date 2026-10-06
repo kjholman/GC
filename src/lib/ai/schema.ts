@@ -297,6 +297,11 @@ export const FingerprintSchema = z.object({
 });
 export type Fingerprint = z.infer<typeof FingerprintSchema>;
 
+export const FeedbackLessonSchema = z.object({
+  lesson: z.string().describe("One or two plain sentences: what to do differently on future deals. Written as an instruction to yourself, specific enough to act on."),
+  appliesTo: z.string().describe("Which future deals this applies to, e.g. 'early-stage medical device deals' or 'all deals'."),
+});
+
 export const SuggestionsSchema = z.object({
   suggestions: z.array(z.object({ title: z.string(), body: z.string(), evidence: z.string() })),
 });

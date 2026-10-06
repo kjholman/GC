@@ -355,6 +355,9 @@ export type CalibrationExample = {
   correctedRecommendation: string | null;
   comment: string;
   reviewerRole: string;
+  areas?: string[];
+  lesson?: string | null;
+  appliesTo?: string | null;
 };
 
 export type FirmContext = {
@@ -377,7 +380,7 @@ export function firmContextBlock(ctx: FirmContext): string {
     ? ctx.calibration
         .map(
           (c) =>
-            `- ${c.companyName}: you recommended ${c.aiRecommendation ?? "n/a"} (score ${c.aiScore ?? "n/a"}). A ${c.reviewerRole.toLowerCase()} judged it ${c.verdict.replaceAll("_", " ").toLowerCase()}${c.correctedRecommendation ? `; the right call was ${c.correctedRecommendation}` : ""}. Reason: "${c.comment}"`,
+            `- ${c.companyName}: you recommended ${c.aiRecommendation ?? "n/a"} (score ${c.aiScore ?? "n/a"}). A ${c.reviewerRole.toLowerCase()} judged it ${c.verdict.replaceAll("_", " ").toLowerCase()}${c.correctedRecommendation ? `; the right call was ${c.correctedRecommendation}` : ""}.${c.areas?.length ? ` Issues flagged: ${c.areas.join("; ")}.` : ""} Reviewer's words: "${c.comment}"${c.lesson ? `\n  Lesson to apply${c.appliesTo ? ` (${c.appliesTo})` : ""}: ${c.lesson}` : ""}`,
         )
         .join("\n")
     : "(no partner feedback yet)";
@@ -407,7 +410,7 @@ These are standing rules set by the partnership. Apply each one. If a deal confl
 ${principles}
 
 ## Partner calibration of your past memos
-These are the partners' corrections to your earlier judgements. Learn the pattern, not only the individual cases. If the partners repeatedly find you too optimistic or too pessimistic on a type of deal, adjust for it. Partner judgement outranks your priors.
+These are the partners' corrections to your earlier judgements, each with the lesson drawn from it. Apply every lesson whose scope covers this deal. Learn the pattern, not only the individual cases. If the partners repeatedly find you too optimistic or too pessimistic on a type of deal, adjust for it. Partner judgement outranks your priors.
 ${calibration}
 
 ## Genesys portfolio history
@@ -546,6 +549,15 @@ Classify the life-science opportunity in the attached materials so it can be mat
 - **stage:** development stage.
 - **tags:** 5-12 lowercase keywords covering target, mechanism, therapeutic area, technology, business model and geography, e.g. "nlrp3", "inflammation", "cardiometabolic", "oral", "university-spinout", "ontario".
 - **digest:** a 120-200 word factual summary of what the company is and what it claims, with any key numbers.
+`.trim();
+
+export const INTERPRET_FEEDBACK_PROMPT = `
+A Genesys Capital reviewer has given feedback on one of your screening memos. Turn it into a lesson you will apply to future deals.
+- Base the lesson only on what the reviewer said and ticked, read against the memo. Do not invent criticisms they did not make.
+- Generalise from this deal to the pattern behind it, but keep the specifics that make it actionable (the kind of evidence, metric or risk involved).
+- Write it as a short instruction to yourself in plain business English, for example: "On early-stage device deals, do not credit clinical traction until there is first-in-human data; weight the regulatory path more heavily."
+- If the reviewer agreed with the memo, the lesson is what to keep doing.
+- No dashes used as punctuation; use commas, colons or full stops.
 `.trim();
 
 export const SUGGEST_PRINCIPLES_PROMPT = `

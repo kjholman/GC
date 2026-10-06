@@ -1,5 +1,6 @@
 import "server-only";
 import type { HistoricalDeal, Prisma } from "@prisma/client";
+import { FEEDBACK_AREA_LABEL } from "../feedback/options";
 import { db } from "../db";
 import { env } from "../env";
 import { buildFirmContext, describeError, fingerprint, structuredCall, underwrite, type ContentBlock } from "../ai/analyst";
@@ -206,7 +207,7 @@ export async function generatePrincipleSuggestions(): Promise<number> {
     "## Partner critiques",
     ...feedback.map(
       (f) =>
-        `- ${f.analysis.deal.companyName} (${f.analysis.deal.sector ?? "?"}; ${f.analysis.deal.modality ?? "?"}): AI said ${f.analysis.recommendation} (score ${f.analysis.overallScore}); partner verdict ${f.verdict}${f.correctedRecommendation ? ` → should be ${f.correctedRecommendation}` : ""}. "${f.comment}"`,
+        `- ${f.analysis.deal.companyName} (${f.analysis.deal.sector ?? "?"}; ${f.analysis.deal.modality ?? "?"}): AI said ${f.analysis.recommendation} (score ${f.analysis.overallScore}); partner verdict ${f.verdict}${f.correctedRecommendation ? ` → should be ${f.correctedRecommendation}` : ""}${f.areas.length ? `; issues: ${f.areas.map((a) => FEEDBACK_AREA_LABEL[a] ?? a).join("; ")}` : ""}. "${f.comment}"${f.lesson ? ` Lesson drawn: ${f.lesson}` : ""}`,
     ),
     "",
     "## Existing principles",
@@ -252,7 +253,7 @@ export async function* exportDataset(): AsyncGenerator<string> {
       company: f.analysis.deal.companyName,
       profile: { sector: f.analysis.deal.sector, modality: f.analysis.deal.modality, tags: f.analysis.deal.tags },
       ai: { recommendation: f.analysis.recommendation, score: f.analysis.overallScore, memo: f.analysis.memo },
-      label: { verdict: f.verdict, corrected_recommendation: f.correctedRecommendation, comment: f.comment },
+      label: { verdict: f.verdict, corrected_recommendation: f.correctedRecommendation, issues: f.areas, comment: f.comment, lesson: f.lesson, applies_to: f.appliesTo },
     }) + "\n";
   }
 }

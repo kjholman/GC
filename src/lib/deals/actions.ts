@@ -7,6 +7,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { AnalysisTrigger, DealStatus, DocumentKind } from "@prisma/client";
 import { db } from "../db";
+import { FEEDBACK_AREA_IDS, FEEDBACK_AREA_LABEL } from "../feedback/options";
+import { interpretFeedback } from "../feedback/interpret";
 import { audit } from "../audit";
 import { requireRole, requireUser } from "../auth/session";
 import { runAnalysis } from "../ai/analyst";
@@ -280,6 +282,12 @@ export async function deleteDealAction(dealId: string) {
 }
 
 const VERDICTS = ["AGREE", "TOO_OPTIMISTIC", "TOO_PESSIMISTIC", "WRONG_DECISION"] as const;
+const VERDICT_TEXT: Record<(typeof VERDICTS)[number], string> = {
+  AGREE: "agreed with it",
+  TOO_OPTIMISTIC: "too optimistic",
+  TOO_PESSIMISTIC: "too pessimistic",
+  WRONG_DECISION: "wrong decision",
+};
 
 /** Partner/analyst critique of a memo, fed into every future analysis as calibration. */
 export async function submitFeedbackAction(analysisId: string, _: ActionState, formData: FormData): Promise<ActionState> {
@@ -287,27 +295,34 @@ export async function submitFeedbackAction(analysisId: string, _: ActionState, f
   const verdict = String(formData.get("verdict")) as (typeof VERDICTS)[number];
   const corrected = String(formData.get("correctedRecommendation") ?? "") || null;
   const comment = String(formData.get("comment") ?? "").trim().slice(0, 4000);
-  if (!VERDICTS.includes(verdict)) return { ok: false, error: "Choose an assessment." };
-  if (verdict !== "AGREE" && comment.length < 10) {
-    return { ok: false, error: "Explain your reasoning. This is what the analyst learns from." };
+  const areas = [...new Set(formData.getAll("areas").map(String))].filter((a) => FEEDBACK_AREA_IDS.includes(a));
+  if (!VERDICTS.includes(verdict)) return { ok: false, error: "Choose an overall view." };
+  if (verdict !== "AGREE" && !areas.length && comment.length < 10) {
+    return { ok: false, error: "Tick at least one issue or say what it got wrong. This is what the Sharminator learns from." };
   }
   const analysis = await db.analysis.findUnique({ where: { id: analysisId }, select: { dealId: true, version: true } });
   if (!analysis) return { ok: false, error: "Analysis not found." };
-  await db.analysisFeedback.create({
+  const labels = areas.map((a) => FEEDBACK_AREA_LABEL[a]);
+  const created = await db.analysisFeedback.create({
     data: {
       analysisId,
       userId: user.id,
       verdict,
+      areas,
       correctedRecommendation: corrected && ["REJECT", "PENDING_INFO", "ADVANCE_TO_DILIGENCE"].includes(corrected) ? corrected : null,
-      comment: comment || "Agree with the analysis.",
+      comment: comment || (labels.length ? labels.join("; ") : "Agree with the analysis."),
     },
+  });
+  // Turn the review into a lesson for future analyses, in the background.
+  after(async () => {
+    await interpretFeedback(created.id);
   });
   await db.activity.create({
     data: {
       dealId: analysis.dealId,
       userId: user.id,
       type: "feedback",
-      message: `Reviewed memo v${analysis.version}: ${verdict.replaceAll("_", " ").toLowerCase()}${comment ? `: “${comment.slice(0, 200)}”` : ""}`,
+      message: `Reviewed memo version ${analysis.version}: ${VERDICT_TEXT[verdict]}${labels.length ? ` (${labels.join("; ")})` : ""}${comment ? `: “${comment.slice(0, 200)}”` : ""}`,
     },
   });
   await audit("analysis.feedback", { userId: user.id, entity: "Analysis", entityId: analysisId, meta: { verdict } });

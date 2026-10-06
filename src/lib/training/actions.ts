@@ -3,6 +3,7 @@
 import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { interpretFeedback } from "../feedback/interpret";
 import type { HistoricalDecision, PortfolioOutcome, Prisma } from "@prisma/client";
 import { db } from "../db";
 import { audit } from "../audit";
@@ -238,7 +239,7 @@ export async function saveExemplarAction(sourceAnalysisId: string, _: TrainState
   });
   // A corrected memo is also a calibration signal.
   if (memo.recommendation !== base.recommendation || Math.abs(memo.overallScore - base.overallScore) >= 10) {
-    await db.analysisFeedback.create({
+    const fb = await db.analysisFeedback.create({
       data: {
         analysisId: sourceAnalysisId,
         userId: user.id,
@@ -246,6 +247,9 @@ export async function saveExemplarAction(sourceAnalysisId: string, _: TrainState
         correctedRecommendation: memo.recommendation !== base.recommendation ? memo.recommendation : null,
         comment: commentary,
       },
+    });
+    after(async () => {
+      await interpretFeedback(fb.id);
     });
   }
   await audit("training.exemplar_saved", { userId: user.id, entity: "Exemplar", entityId: ex.id });

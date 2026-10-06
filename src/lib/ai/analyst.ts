@@ -9,6 +9,7 @@ import { coverageNote, prepareFiles, type InputFile, type PreparedFiles } from "
 import { FALLBACK_BETA, anthropic, structuredCall, textOf, type ContentBlock } from "./client";
 import { plainPunctuation } from "./style";
 import { isCreditError, recordCreditOk, recordCreditProblem } from "./credit";
+import { FEEDBACK_AREA_LABEL } from "../feedback/options";
 import { automatedChecks, correctionsBlock, modelFactCheck, sourceTexts, summarise } from "./verify";
 import { CompetitorSweepSchema, FingerprintSchema, MemoSchema, normaliseMemo, type CompetitorSweep, type Fingerprint, type Memo } from "./schema";
 
@@ -215,6 +216,9 @@ export async function buildFirmContext(opts: { excludeDealId?: string } = {}) {
     correctedRecommendation: f.correctedRecommendation,
     comment: f.comment,
     reviewerRole: f.user.role,
+    areas: f.areas.map((a) => FEEDBACK_AREA_LABEL[a] ?? a),
+    lesson: f.lesson,
+    appliesTo: f.appliesTo,
   }));
   return firmContextBlock({ settings, principles, calibration, portfolio, pipeline });
 }
@@ -226,14 +230,33 @@ export function systemBlocks(firmContext: string): Anthropic.Beta.BetaTextBlockP
   ];
 }
 
-function priorAnalysesBlock(prior: Analysis[]): string | null {
+type PriorWithFeedback = Analysis & { feedback?: { verdict: string; comment: string; areas: string[]; lesson: string | null; correctedRecommendation: string | null }[] };
+
+function priorAnalysesBlock(prior: PriorWithFeedback[]): string | null {
   const complete = prior.filter((a) => a.status === "COMPLETE" && a.memo);
   if (!complete.length) return null;
   const latest = complete[complete.length - 1];
   const history = complete
     .map((a) => `- v${a.version} (${a.completedAt?.toISOString().slice(0, 10)}): ${a.recommendation}, score ${a.overallScore}${a.analystContext ? `; team note: "${a.analystContext}"` : ""}`)
     .join("\n");
-  return ["## Prior analyses of this deal", history, "", `### Most recent memo (v${latest.version}), in full`, "```json", JSON.stringify(latest.memo), "```"].join("\n");
+  const reviews = complete.flatMap((a) =>
+    (a.feedback ?? []).map(
+      (f) =>
+        `- On v${a.version}: ${f.verdict.replaceAll("_", " ").toLowerCase()}${f.correctedRecommendation ? ` (right call: ${f.correctedRecommendation})` : ""}${f.areas.length ? `; issues: ${f.areas.map((x) => FEEDBACK_AREA_LABEL[x] ?? x).join("; ")}` : ""}. "${f.comment}"${f.lesson ? ` Lesson: ${f.lesson}` : ""}`,
+    ),
+  );
+  return [
+    "## Prior analyses of this deal",
+    history,
+    ...(reviews.length
+      ? ["", "### The team's feedback on earlier versions of this memo", "Address every point below in this version, and say in versionDelta how each was handled.", ...reviews]
+      : []),
+    "",
+    `### Most recent memo (v${latest.version}), in full`,
+    "```json",
+    JSON.stringify(latest.memo),
+    "```",
+  ].join("\n");
 }
 
 /** The underwriting core, shared by live analyses and backtests. */
@@ -245,7 +268,7 @@ export async function underwrite(args: {
   research: string | null;
   competitors?: CompetitorSweep | null;
   coverage?: string;
-  prior?: Analysis[];
+  prior?: PriorWithFeedback[];
   analystContext?: string | null;
   backtest?: { year: number | null };
   corrections?: string;
@@ -315,6 +338,7 @@ export async function runAnalysis(analysisId: string): Promise<void> {
     const prior = await db.analysis.findMany({
       where: { dealId: deal.id, version: { lt: analysis.version } },
       orderBy: { version: "asc" },
+      include: { feedback: { select: { verdict: true, comment: true, areas: true, lesson: true, correctedRecommendation: true } } },
     });
     await setProgress(analysisId, "Reading submitted materials");
     const pages = deal.documents.reduce((n, d) => n + (d.pageCount ?? 0), 0);
@@ -373,6 +397,10 @@ export async function runAnalysis(analysisId: string): Promise<void> {
         : "No closely similar past Genesys deals found",
       "done",
     );
+    const lessons = await db.analysisFeedback.count({ where: { lesson: { not: null } } });
+    if (lessons) await logStep(analysisId, `Applying ${plural(Math.min(lessons, 40), "lesson")} from the team's feedback on earlier memos`, "info");
+    const dealReviews = prior.reduce((n, a) => n + a.feedback.length, 0);
+    if (dealReviews) await logStep(analysisId, `Addressing ${plural(dealReviews, "review")} of earlier versions of this memo`, "info");
     if (precedents.exemplars.length) await logStep(analysisId, `Using ${plural(precedents.exemplars.length, "example memo")} the partners approved`, "info");
 
     // Web research: five passes in parallel. Re-used on follow-ups unless a re-run is requested.

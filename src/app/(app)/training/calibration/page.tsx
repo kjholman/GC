@@ -3,9 +3,11 @@ import { db } from "@/lib/db";
 import { hasRole, requireUser } from "@/lib/auth/session";
 import { Card, Empty, SectionTitle, cx, relTime } from "@/components/ui";
 import { GenerateSuggestions, SuggestionActions } from "./CalibrationActions";
+import { FEEDBACK_AREA_LABEL } from "@/lib/feedback/options";
 
 
 const VERDICTS = ["AGREE", "TOO_OPTIMISTIC", "TOO_PESSIMISTIC", "WRONG_DECISION"] as const;
+const VLABEL: Record<string, string> = { AGREE: "Agreed", TOO_OPTIMISTIC: "Too optimistic", TOO_PESSIMISTIC: "Too pessimistic", WRONG_DECISION: "Wrong decision" };
 const VCLS: Record<string, string> = { AGREE: "bg-pos", TOO_OPTIMISTIC: "bg-warn", TOO_PESSIMISTIC: "bg-info", WRONG_DECISION: "bg-neg" };
 
 export default async function CalibrationPage() {
@@ -27,6 +29,10 @@ export default async function CalibrationPage() {
     row[f.verdict]++;
     sectors.set(s, row);
   }
+  // Which issues reviewers tick most often.
+  const areaCounts = new Map<string, number>();
+  for (const f of feedback) for (const a of f.areas) areaCounts.set(a, (areaCounts.get(a) ?? 0) + 1);
+  const topAreas = [...areaCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
 
   return (
     <div className="space-y-8">
@@ -43,7 +49,7 @@ export default async function CalibrationPage() {
               <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">
                 {VERDICTS.map((v) => (
                   <div key={v}>
-                    <div className="flex items-center gap-2 text-[12px] text-muted"><span className={cx("h-2 w-2 rounded-full", VCLS[v])} />{v.replaceAll("_", " ").toLowerCase()}</div>
+                    <div className="flex items-center gap-2 text-[12px] text-muted"><span className={cx("h-2 w-2 rounded-full", VCLS[v])} />{VLABEL[v]}</div>
                     <div className="mt-1 pl-4 font-display font-semibold text-2xl tabular text-navy-900">{counts[v]}</div>
                   </div>
                 ))}
@@ -53,7 +59,7 @@ export default async function CalibrationPage() {
                 <thead>
                   <tr className="border-b border-line text-[11px] uppercase tracking-[0.12em] text-muted">
                     <th className="py-2 pr-4 font-semibold">Sector</th>
-                    {VERDICTS.map((v) => <th key={v} className="px-3 py-2 text-right font-semibold">{v.replaceAll("_", " ").toLowerCase()}</th>)}
+                    {VERDICTS.map((v) => <th key={v} className="px-3 py-2 text-right font-semibold">{VLABEL[v]}</th>)}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
@@ -66,6 +72,20 @@ export default async function CalibrationPage() {
                 </tbody>
               </table>
               </div>
+              {topAreas.length > 0 && (
+                <div className="mt-8">
+                  <div className="eyebrow mb-3">Most common issues flagged</div>
+                  <ul className="space-y-2">
+                    {topAreas.map(([a, n]) => (
+                      <li key={a} className="flex items-center gap-3 text-[13px]">
+                        <span className="w-56 shrink-0 text-ink sm:w-72">{FEEDBACK_AREA_LABEL[a] ?? a}</span>
+                        <span className="h-2 flex-1 overflow-hidden rounded-full bg-line"><span className="block h-full bg-brand-500" style={{ width: `${(n / topAreas[0][1]) * 100}%` }} /></span>
+                        <span className="w-6 text-right tabular text-muted">{n}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </>
           )}
         </Card>
@@ -104,10 +124,23 @@ export default async function CalibrationPage() {
                 </Link>
                 <span className="text-[12.5px] text-ink-soft">
                   <span className={cx("mr-2 inline-block h-2 w-2 rounded-full", VCLS[f.verdict])} />
-                  {f.verdict.replaceAll("_", " ").toLowerCase()}
+                  {VLABEL[f.verdict]}
                   {f.correctedRecommendation && <span className="block pl-4 text-[11.5px] text-muted">→ {f.correctedRecommendation.replaceAll("_", " ").toLowerCase()}</span>}
                 </span>
-                <p className="text-[13px] leading-relaxed text-ink-soft">{f.comment}</p>
+                <div className="text-[13px] leading-relaxed">
+                  {f.areas.length > 0 && (
+                    <div className="mb-1.5 flex flex-wrap gap-1">
+                      {f.areas.map((a) => <span key={a} className="rounded-full bg-mist px-2 py-0.5 text-[11px] text-ink-soft">{FEEDBACK_AREA_LABEL[a] ?? a}</span>)}
+                    </div>
+                  )}
+                  <p className="text-ink-soft">{f.comment}</p>
+                  {f.lesson && (
+                    <p className="mt-1.5 border-l-2 border-brand-500 pl-2.5 text-ink">
+                      <span className="text-[10.5px] font-semibold uppercase tracking-[0.1em] text-brand-600">Lesson </span>
+                      {f.lesson}{f.appliesTo && <span className="text-muted"> ({f.appliesTo})</span>}
+                    </p>
+                  )}
+                </div>
                 <span className="text-right text-[11.5px] text-muted">{f.user.name ?? f.user.email.split("@")[0]} · {relTime(f.createdAt)}</span>
               </li>
             ))}

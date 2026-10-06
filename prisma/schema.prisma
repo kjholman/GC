@@ -310,6 +310,13 @@ model AnalysisFeedback {
   verdict                 FeedbackVerdict
   correctedRecommendation String?
   comment                 String
+  /// Issues the reviewer ticked (ids from src/lib/feedback/options.ts).
+  areas                   String[]        @default([])
+  /// The Sharminator's reading of this review as a standing lesson for future deals.
+  lesson                  String?
+  /// Which future deals the lesson applies to.
+  appliesTo               String?
+  interpretedAt           DateTime?
   createdAt               DateTime        @default(now())
 
   analysis Analysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
