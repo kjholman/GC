@@ -8,7 +8,7 @@ export type TeamMember = { id: string; name: string; email: string | null };
 export const TEAM: TeamMember[] = [
   { id: "sarah", name: "Sarah", email: null },
   { id: "jamie", name: "Jamie", email: null },
-  { id: "damien", name: "Damien", email: null },
+  { id: "damien", name: "Damian", email: null },
   { id: "kelly", name: "Kelly", email: "kelly@genesyscapital.com" },
   { id: "jen", name: "Jen", email: null },
   { id: "lori", name: "Lori", email: null },
