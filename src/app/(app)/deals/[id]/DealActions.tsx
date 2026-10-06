@@ -64,6 +64,9 @@ export function FollowUpPanel({ dealId, disabled, openRequests, awaitingFounders
         <Field label="What was received" hint="Summarise call notes or email answers here if there are no files.">
           <textarea name="analystContext" rows={3} className={inputCls} />
         </Field>
+        <Field label="Instructions for this analysis" hint="Optional. What to focus on or do differently from the last version.">
+          <textarea name="instructions" rows={2} className={inputCls} />
+        </Field>
         {state.error && <p className="text-[13px] text-neg">{state.error}</p>}
         <Button type="submit" disabled={pending || disabled} className="w-full">
           {pending ? "Submitting…" : disabled ? "Analysis in progress" : "Re-run analysis with new information"}
@@ -124,26 +127,83 @@ export function ResumeButton({ analysisId }: { analysisId: string }) {
   );
 }
 
-export function RerunButton({ dealId, disabled }: { dealId: string; disabled: boolean }) {
+/**
+ * Re-run with optional instructions: what to focus on or do differently this time,
+ * drawing on earlier versions and partner feedback.
+ */
+export function RerunButton({ dealId, disabled, lastInstructions, feedback = [] }: { dealId: string; disabled: boolean; lastInstructions?: string | null; feedback?: string[] }) {
+  const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
-  const confirm = useConfirm();
+  const [text, setText] = useState("");
+  const [refresh, setRefresh] = useState(false);
+  const add = (t: string) => setText((v) => (v.trim() ? `${v.trim()}\n${t}` : t));
   return (
     <div>
-      <Button
-        variant="ghost"
-        disabled={disabled || pending}
-        onClick={async () => {
-          if (!(await confirm({ title: "Run the analysis again?", body: "This starts a new version and uses Anthropic credit. Web research from the last 30 days is reused to save credit.", confirmLabel: "Run again" }))) return;
-          setPending(true);
-          const res = await rerunAnalysisAction(dealId);
-          if (!res.ok) setError(res.error);
-          setPending(false);
-        }}
-      >
-        ↻ Re-run analysis
+      <Button variant="ghost" disabled={disabled || pending} onClick={() => { setOpen(true); setError(undefined); }}>
+        {pending ? "Starting…" : "↻ Re-run analysis"}
       </Button>
       {error && <p className="mt-1 text-[12px] text-neg">{error}</p>}
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-navy-950/40 p-4 sm:p-10" onClick={(e) => e.target === e.currentTarget && setOpen(false)}>
+          <div role="dialog" aria-modal="true" aria-labelledby="rerun-title" className="w-full max-w-xl rounded-xl border border-line bg-paper p-6 text-left shadow-[var(--shadow-lift)]">
+            <div className="eyebrow mb-1 text-brand-600">New version</div>
+            <h3 id="rerun-title" className="font-display text-[20px] font-semibold text-navy-900">Run the analysis again</h3>
+            <p className="mt-1.5 text-[13px] leading-relaxed text-ink-soft">
+              The new version builds on the earlier ones and reuses the research already on file for this deal, so only new work uses Anthropic credit.
+            </p>
+            <label className="mt-5 block">
+              <span className="mb-1.5 block text-[12.5px] font-medium text-ink-soft">Instructions for this analysis <span className="font-normal text-muted">(optional)</span></span>
+              <textarea
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                rows={5}
+                autoFocus
+                placeholder={"e.g. Go deeper on reimbursement in the US. The last version under-weighted the founder's prior exit. Benchmark the valuation against our 2019 to 2023 Series A deals."}
+                className={inputCls}
+              />
+            </label>
+            {(lastInstructions || feedback.length > 0) && (
+              <div className="mt-3 space-y-1.5 text-[12.5px]">
+                <div className="text-muted">Add from earlier versions:</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {lastInstructions && (
+                    <button type="button" onClick={() => add(lastInstructions)} className="rounded-full border border-line px-3 py-1 text-left text-navy-800 hover:border-navy-700">
+                      + Last instructions
+                    </button>
+                  )}
+                  {feedback.map((f, i) => (
+                    <button key={i} type="button" onClick={() => add(f)} title={f} className="max-w-full truncate rounded-full border border-line px-3 py-1 text-left text-navy-800 hover:border-navy-700">
+                      + {f.length > 70 ? `${f.slice(0, 70)}…` : f}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <label className="mt-4 flex items-start gap-2 text-[13px] text-ink-soft">
+              <input type="checkbox" checked={refresh} onChange={(e) => setRefresh(e.target.checked)} className="mt-0.5 accent-navy-900" />
+              <span>Redo the web research from scratch <span className="block text-[12px] text-muted">Only needed if things have changed online. Uses more credit.</span></span>
+            </label>
+            <div className="mt-6 flex justify-end gap-2">
+              <button type="button" onClick={() => setOpen(false)} className="rounded-lg px-4 py-2 text-[13px] text-muted hover:text-ink">Cancel</button>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={async () => {
+                  setPending(true);
+                  setOpen(false);
+                  const res = await rerunAnalysisAction(dealId, { instructions: text, refreshResearch: refresh });
+                  if (!res.ok) setError(res.error);
+                  setPending(false);
+                }}
+                className="rounded-lg bg-navy-900 px-4 py-2 text-[13px] font-medium text-white hover:bg-navy-800"
+              >
+                Run analysis
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

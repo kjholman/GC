@@ -353,9 +353,11 @@ export async function underwrite(args: {
   coverage?: string;
   prior?: PriorWithFeedback[];
   analystContext?: string | null;
+  instructions?: string | null;
   backtest?: { year: number | null };
   corrections?: string;
   mode?: "structured" | "json";
+  onSection?: (key: string) => void;
 }) {
   const priorBlock = args.prior ? priorAnalysesBlock(args.prior) : null;
   const precedents = precedentsBlock(args.precedents);
@@ -365,6 +367,9 @@ export async function underwrite(args: {
       : `Screen this opportunity (${args.companyName}) and write the investment memo.`,
     args.backtest ? asOfInstruction(args.backtest.year) : "",
     args.analystContext ? `\n## Note from the Genesys team\n${args.analystContext}` : "",
+    args.instructions
+      ? `\n## Instructions from the Genesys team for this version\nFollow these. They say what to focus on or do differently from earlier versions. Where they conflict with a default in your guidance, the team's instruction wins, except that every claim must still be sourced and the founder email must still never mention AI or internal scores.\n${args.instructions}`
+      : "",
     args.coverage ?? "",
     priorBlock ? `\n${priorBlock}` : "",
     args.competitors ? `\n${competitorBlock(JSON.stringify(args.competitors))}` : "\n(No competitive sweep was available. Base market.comparableOutcomes on the materials and research brief, and flag that a full competitor sweep is outstanding.)",
@@ -379,6 +384,7 @@ export async function underwrite(args: {
     schema: MemoSchema,
     step: args.corrections ? "memo correction" : "memo",
     mode: args.mode,
+    onSection: args.onSection,
     effort: env.analysisEffort,
     system: systemBlocks(args.firmContext),
     content: [...args.docs, { type: "text", text: task }],
@@ -432,6 +438,33 @@ async function withFallbacks<T>(analysisId: string, what: string, attempts: { la
   throw last;
 }
 
+/** Plain names for the memo's parts, shown in the live log as each is written. */
+const MEMO_SECTION_LABEL: Record<string, string> = {
+  company: "company overview",
+  recommendation: "recommendation and score",
+  worthOurTime: "whether it is worth our time",
+  executiveSummary: "executive summary",
+  investmentHighlights: "investment highlights",
+  keyRisks: "key risks",
+  redFlags: "red flags",
+  passReasons: "reasons not to pursue",
+  scorecard: "scorecard",
+  science: "science",
+  clinicalRegulatory: "clinical and regulatory path",
+  intellectualProperty: "patents and IP",
+  market: "market and competitors",
+  team: "founders and team",
+  financials: "financials and round",
+  portfolioFit: "fit with Genesys",
+  informationRequests: "questions for the founders",
+  dueDiligencePlan: "diligence plan",
+  founderEmail: "email to the founders",
+  versionDelta: "what changed since the last version",
+  analystCaveats: "caveats",
+  gaps: "gaps needing manual follow-up",
+  evidence: "evidence and sources for each claim",
+};
+
 type Pass = "science" | "founders" | "ip" | "market";
 export type Checkpoint = {
   research?: Partial<Record<Pass, string>>;
@@ -445,6 +478,21 @@ async function saveCheckpoint(id: string, patch: Omit<Checkpoint, "research">, r
   const r = JSON.stringify(research ?? {});
   await db.$executeRaw`UPDATE "Analysis" SET "checkpoint" = COALESCE("checkpoint", '{}'::jsonb) || ${p}::jsonb || jsonb_build_object('research', COALESCE("checkpoint"->'research', '{}'::jsonb) || ${r}::jsonb) WHERE "id" = ${id}`.catch(
     (err) => console.error("[analyst] could not save progress", err),
+  );
+}
+
+/** Research kept on the deal itself, so any later analysis can reuse it. */
+type ResearchStore = {
+  passes?: Partial<Record<Pass, { text: string; at: string }>>;
+  sweep?: { notes: string; sweep: CompetitorSweep; at: string };
+};
+
+/** Merges new research into the deal's store (atomic, safe while passes finish in parallel). */
+async function saveDealResearch(dealId: string, patch: ResearchStore) {
+  const passes = JSON.stringify(patch.passes ?? {});
+  const rest = JSON.stringify(patch.sweep ? { sweep: patch.sweep } : {});
+  await db.$executeRaw`UPDATE "Deal" SET "researchStore" = COALESCE("researchStore", '{}'::jsonb) || ${rest}::jsonb || jsonb_build_object('passes', COALESCE("researchStore"->'passes', '{}'::jsonb) || ${passes}::jsonb) WHERE "id" = ${dealId}`.catch(
+    (err) => console.error("[analyst] could not save research to the deal", err),
   );
 }
 
@@ -633,8 +681,13 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
     const researchFrom = usable.find((a) => (a.checkpoint as Checkpoint | null)?.research || a.research);
     const researchAge = researchFrom ? Date.now() - (researchFrom.completedAt ?? researchFrom.createdAt).getTime() : Infinity;
     // A re-run refreshes web research only if it is more than 30 days old; follow-ups always reuse it.
-    const refresh = analysis.trigger === "RERUN" && researchAge > 30 * 24 * 60 * 60 * 1000;
-    const priorPass = (k: Pass) => (refresh ? undefined : usable.map((a) => (a.checkpoint as Checkpoint | null)?.research?.[k]).find(Boolean));
+    const refresh = analysis.refreshResearch || (analysis.trigger === "RERUN" && researchAge > 30 * 24 * 60 * 60 * 1000);
+    // The deal keeps every piece of research ever done for it; earlier versions are the backup.
+    const store = (deal.researchStore ?? {}) as ResearchStore;
+    const fresh = (at?: string) => !!at && !analysis.refreshResearch && (!refresh || Date.now() - new Date(at).getTime() < 30 * 24 * 60 * 60 * 1000);
+    const priorPass = (k: Pass) =>
+      (fresh(store.passes?.[k]?.at) ? store.passes?.[k]?.text : undefined) ??
+      (refresh ? undefined : usable.map((a) => (a.checkpoint as Checkpoint | null)?.research?.[k]).find(Boolean));
     const passes: Partial<Record<Pass, string>> = {};
     for (const k of ["science", "founders", "ip", "market"] as Pass[]) {
       const v = own.research?.[k] ?? priorPass(k);
@@ -644,9 +697,21 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
     const legacy = !refresh && !Object.keys(passes).length ? usable.find((a) => a.research)?.research ?? null : null;
     const legacySweep = refresh ? null : usable.find((a) => a.competitors);
     let sweepDone: { notes: string; sweep: CompetitorSweep } | null =
-      own.sweep ?? (refresh ? null : usable.map((a) => (a.checkpoint as Checkpoint | null)?.sweep).find(Boolean)) ?? null;
+      own.sweep ??
+      (store.sweep && fresh(store.sweep.at) ? { notes: store.sweep.notes, sweep: store.sweep.sweep } : null) ??
+      (refresh ? null : usable.map((a) => (a.checkpoint as Checkpoint | null)?.sweep).find(Boolean)) ??
+      null;
     if (!sweepDone && legacySweep?.competitors) sweepDone = { notes: legacySweep.competitorNotes ?? "", sweep: legacySweep.competitors as CompetitorSweep };
 
+    // Research found on earlier versions but not yet on the deal is copied across, keeping its date.
+    const foundAt = new Date(researchFrom?.completedAt ?? researchFrom?.createdAt ?? Date.now()).toISOString();
+    const backfill = (["science", "founders", "ip", "market"] as Pass[]).filter((k) => passes[k] && !store.passes?.[k]);
+    if (backfill.length || (sweepDone && !store.sweep)) {
+      await saveDealResearch(deal.id, {
+        passes: Object.fromEntries(backfill.map((k) => [k, { text: passes[k]!, at: foundAt }])),
+        ...(sweepDone && !store.sweep ? { sweep: { ...sweepDone, at: foundAt } } : {}),
+      });
+    }
     const missing = legacy ? [] : (["science", "founders", "ip", "market"] as Pass[]).filter((k) => !passes[k]);
     if (legacy || missing.length < 4 || sweepDone) {
       const names = [...(legacy ? ["all four research areas"] : (["science", "founders", "ip", "market"] as Pass[]).filter((k) => passes[k]).map((k) => PASS_LABEL[k])), ...(sweepDone ? ["the competitor sweep"] : [])];
@@ -676,7 +741,10 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
         );
       const sourcesIn = (t: string) => new Set(t.match(URL_RE) ?? []).size;
       const finished = (what: string) => (t: string) => `Finished ${what}${sourcesIn(t) ? ` (${plural(sourcesIn(t), "source")})` : ""}`;
-      const input = researchInput(dossier, blocks);
+      const input: ContentBlock[] = [
+        ...researchInput(dossier, blocks),
+        ...(analysis.instructions ? [{ type: "text" as const, text: `## The Genesys team's instructions for this analysis (apply them to your research where relevant)\n${analysis.instructions}` }] : []),
+      ];
       const run = (k: Pass): Promise<string | null> =>
         k === "science" ? researchBrief(companyName, input)
         : diligenceResearch(`research: ${k === "ip" ? "patents" : k}`, k === "founders" ? FOUNDER_RESEARCH_PROMPT : k === "ip" ? IP_RESEARCH_PROMPT : MARKET_RESEARCH_PROMPT, companyName, input);
@@ -686,6 +754,7 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
             soft(k === "founders" ? "founder" : k === "ip" ? "patent" : k, run(k), finished(`the ${PASS_LABEL[k]} research`), async (v: string) => {
               passes[k] = v;
               await saveCheckpoint(analysisId, {}, { [k]: v });
+              await saveDealResearch(deal.id, { passes: { [k]: { text: v, at: new Date().toISOString() } } });
             }),
           ),
         ),
@@ -697,7 +766,10 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
                 const names = r.sweep.competitors.map((c) => c.name);
                 return names.length ? `Found ${plural(names.length, "competitor")}: ${listNames(names, 5)}` : "Competitor search finished; no direct competitors could be confirmed";
               },
-              async (r) => saveCheckpoint(analysisId, { sweep: r }),
+              async (r) => {
+                await saveCheckpoint(analysisId, { sweep: r });
+                await saveDealResearch(deal.id, { sweep: { ...r, at: new Date().toISOString() } });
+              },
             )
           : Promise.resolve(null),
       ]);
@@ -735,12 +807,28 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
       precedents,
       firmContext,
       analystContext: analysis.analystContext,
+      instructions: analysis.instructions,
     };
+    if (analysis.instructions) await logStep(analysisId, `Following the team's instructions: "${analysis.instructions.slice(0, 280)}${analysis.instructions.length > 280 ? "…" : ""}"`, "info");
     await logStep(analysisId, prior.length ? "Writing the updated memo with the new information" : "Writing the memo: science, team, IP, market, financials and fit with Genesys", "start");
     // A draft written before an interruption, for the same documents and note, is reused.
-    const docsKey = docsKeyFor(deal.documents.map((d) => d.id), analysis.analystContext);
+    const docsKey = docsKeyFor(deal.documents.map((d) => d.id), [analysis.analystContext, analysis.instructions].filter(Boolean).join("\n") || null);
     const savedDraft = [own.draft, ...usable.filter((a) => a.status !== "COMPLETE").map((a) => (a.checkpoint as Checkpoint | null)?.draft)].find((d) => d?.docsKey === docsKey);
     const textDocs = textOnlyDocs(deal.documents);
+    // Live progress: each part of the memo is logged as it starts being written.
+    const sectionLogger = (verb: string) => {
+      let chain = Promise.resolve();
+      const seen = new Set<string>();
+      return (key: string) => {
+        const label = MEMO_SECTION_LABEL[key];
+        if (!label || seen.has(key)) return;
+        seen.add(key);
+        chain = chain
+          .then(() => setProgress(analysisId, `${verb}: ${label}`))
+          .then(() => logStep(analysisId, `${verb}: ${label}`, "info"))
+          .catch(() => {});
+      };
+    };
     const writeMemo = (extra: Partial<Parameters<typeof underwrite>[0]>, what: string) =>
       withFallbacks(analysisId, what, [
         { label: "as usual", run: () => underwrite({ ...underwriteArgs, ...extra }) },
@@ -749,7 +837,7 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
       ]);
     const draft = savedDraft
       ? { memo: savedDraft.memo, model: savedDraft.model, usage: { input_tokens: 0, output_tokens: 0 } as Anthropic.Beta.BetaUsage }
-      : await writeMemo({}, "memo-writing");
+      : await writeMemo({ onSection: sectionLogger("Writing the memo") }, "memo-writing");
     if (savedDraft) await logStep(analysisId, "Re-using the draft memo written before the interruption", "info");
     else await saveCheckpoint(analysisId, { draft: { memo: draft.memo, model: draft.model, docsKey } });
     await logStep(analysisId, `Draft memo written: ${RECOMMENDATION_TEXT[draft.memo.recommendation]}, score ${draft.memo.overallScore}/100`, "done");
@@ -790,7 +878,7 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
     if (checked.report.status === "FAILED" && serious.length) {
       await setProgress(analysisId, "Fixing the points the fact-check found");
       await logStep(analysisId, "Rewriting the memo to fix the serious points", "start");
-      const revised = await writeMemo({ corrections: correctionsBlock(serious) }, "memo-correction");
+      const revised = await writeMemo({ corrections: correctionsBlock(serious), onSection: sectionLogger("Correcting the memo") }, "memo-correction");
       usage.input_tokens += revised.usage.input_tokens;
       usage.output_tokens += revised.usage.output_tokens;
       await setProgress(analysisId, "Re-checking the corrected memo");

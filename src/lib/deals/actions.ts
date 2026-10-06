@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { AnalysisTrigger, DealStatus, DocumentKind } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { db } from "../db";
 import { FEEDBACK_AREA_IDS, FEEDBACK_AREA_LABEL } from "../feedback/options";
 import { interpretFeedback } from "../feedback/interpret";
@@ -87,6 +88,7 @@ const NewDeal = z.object({
   contactEmail: z.string().trim().max(200).optional(),
   source: z.string().trim().max(200).optional(),
   analystContext: z.string().trim().max(5000).optional(),
+  instructions: z.string().trim().max(5000).optional(),
 });
 
 export async function createDealAction(_: ActionState, formData: FormData): Promise<ActionState> {
@@ -97,6 +99,7 @@ export async function createDealAction(_: ActionState, formData: FormData): Prom
     contactEmail: formData.get("contactEmail") || undefined,
     source: formData.get("source") || undefined,
     analystContext: formData.get("analystContext") || undefined,
+    instructions: formData.get("instructions") || undefined,
   });
   const files = formData.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
   if (!files.length) return { ok: false, error: "Attach the pitch deck to begin the analysis." };
@@ -118,7 +121,7 @@ export async function createDealAction(_: ActionState, formData: FormData): Prom
       ownerId: user.id,
       documents: { create: docs.map((d) => ({ ...d, round: 1, uploadedById: user.id })) },
       analyses: {
-        create: { version: 1, trigger: "INITIAL_SCREEN", analystContext: fields.analystContext, createdById: user.id },
+        create: { version: 1, trigger: "INITIAL_SCREEN", analystContext: fields.analystContext, instructions: fields.instructions, createdById: user.id },
       },
       activities: {
         create: {
@@ -135,7 +138,13 @@ export async function createDealAction(_: ActionState, formData: FormData): Prom
   redirect(`/deals/${await refreshSlug(deal.id)}`);
 }
 
-async function queueNewVersion(dealId: string, userId: string, trigger: AnalysisTrigger, analystContext?: string) {
+async function queueNewVersion(
+  dealId: string,
+  userId: string,
+  trigger: AnalysisTrigger,
+  analystContext?: string,
+  opts: { instructions?: string; refreshResearch?: boolean } = {},
+) {
   const last = await db.analysis.findFirst({ where: { dealId }, orderBy: { version: "desc" } });
   if (last && (last.status === "RUNNING" || last.status === "QUEUED")) {
     throw new Error("An analysis is already in progress for this deal.");
@@ -144,7 +153,16 @@ async function queueNewVersion(dealId: string, userId: string, trigger: Analysis
   await db.analysis.updateMany({ where: { dealId, status: "PAUSED" }, data: { status: "STOPPED", error: "Replaced by a newer version." } });
   const deal = await db.deal.findUnique({ where: { id: dealId }, select: { status: true } });
   return db.analysis.create({
-    data: { dealId, version: (last?.version ?? 0) + 1, trigger, analystContext, createdById: userId, priorDealStatus: deal?.status ?? null },
+    data: {
+      dealId,
+      version: (last?.version ?? 0) + 1,
+      trigger,
+      analystContext,
+      instructions: opts.instructions?.trim().slice(0, 5000) || null,
+      refreshResearch: !!opts.refreshResearch,
+      createdById: userId,
+      priorDealStatus: deal?.status ?? null,
+    },
   });
 }
 
@@ -165,7 +183,7 @@ export async function submitFollowUpAction(dealId: string, _: ActionState, formD
     const docs = await ingestFiles(files, defaultKind);
     const maxRound = await db.document.aggregate({ where: { dealId }, _max: { round: true } });
     const round = (maxRound._max.round ?? 1) + 1;
-    const analysis = await queueNewVersion(dealId, user.id, "NEW_INFORMATION", context || undefined);
+    const analysis = await queueNewVersion(dealId, user.id, "NEW_INFORMATION", context || undefined, { instructions: String(formData.get("instructions") ?? "") });
     await db.$transaction([
       ...docs.map((d) => db.document.create({ data: { ...d, dealId, round, uploadedById: user.id } })),
       db.deal.update({ where: { id: dealId }, data: { status: "SCREENING" } }),
@@ -228,12 +246,12 @@ export async function stopAnalysisAction(analysisId: string): Promise<ActionStat
   return { ok: true };
 }
 
-export async function rerunAnalysisAction(dealId: string): Promise<ActionState> {
+export async function rerunAnalysisAction(dealId: string, opts: { instructions?: string; refreshResearch?: boolean } = {}): Promise<ActionState> {
   const user = await requireUser();
   try {
-    const analysis = await queueNewVersion(dealId, user.id, "RERUN");
+    const analysis = await queueNewVersion(dealId, user.id, "RERUN", undefined, opts);
     await db.activity.create({
-      data: { dealId, userId: user.id, type: "analysis.rerun", message: `Asked the Sharminator to re-run the analysis (v${analysis.version}).` },
+      data: { dealId, userId: user.id, type: "analysis.rerun", message: `Asked the Sharminator to re-run the analysis (v${analysis.version})${analysis.instructions ? `, with instructions: "${analysis.instructions.slice(0, 300)}"` : ""}${analysis.refreshResearch ? "; web research redone" : ""}.` },
     });
     scheduleAnalysis(analysis.id);
   } catch (err) {
@@ -385,7 +403,7 @@ export async function removeDealDocumentAction(documentId: string): Promise<Acti
   if (running) return { ok: false, error: "Wait for the current analysis to finish (or stop it) before removing files." };
   await db.$transaction([
     db.document.delete({ where: { id: documentId } }),
-    db.deal.update({ where: { id: doc.dealId }, data: { freshStartAt: new Date(), researchDossier: null } }),
+    db.deal.update({ where: { id: doc.dealId }, data: { freshStartAt: new Date(), researchDossier: null, researchStore: Prisma.DbNull } }),
     db.activity.create({
       data: {
         dealId: doc.dealId,

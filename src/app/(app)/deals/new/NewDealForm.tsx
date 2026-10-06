@@ -42,6 +42,11 @@ export function NewDealForm() {
               <textarea name="analystContext" rows={4} className={inputCls} />
             </Field>
           </div>
+          <div className="mt-4">
+            <Field label="Instructions for the analysis" hint="Optional. What to focus on, questions to answer, or anything to treat differently.">
+              <textarea name="instructions" rows={3} className={inputCls} placeholder="e.g. Pay particular attention to the reimbursement pathway and the founder's prior company." />
+            </Field>
+          </div>
         </Card>
       </div>
 

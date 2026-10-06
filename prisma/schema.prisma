@@ -113,6 +113,9 @@ model Deal {
   logoCheckedAt DateTime?
   /// Factual summary of the submitted materials, given to the web-research passes instead of the full deck.
   researchDossier String?
+  /// Every piece of AI web research done for this deal, kept so later analyses reuse it:
+  /// { passes: { science|founders|ip|market: { text, at } }, sweep: { notes, sweep, at } }.
+  researchStore   Json?
   oneLiner      String?
   sector        String?
   modality      String?
@@ -218,6 +221,10 @@ model Analysis {
   steps          Json            @default("[]")
   /// Context the analyst typed when submitting (e.g. "Founders replied with CMC data").
   analystContext String?
+  /// The team's instructions for this run: what to focus on or do differently from earlier versions.
+  instructions   String?
+  /// true = redo the web research instead of reusing what the deal already has.
+  refreshResearch Boolean        @default(false)
   recommendation String?
   overallScore   Int?
   memo           Json?

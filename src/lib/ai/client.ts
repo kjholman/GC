@@ -41,6 +41,8 @@ export async function structuredCall<S extends z.ZodType>(args: {
    * instructions and the answer is parsed and validated here.
    */
   mode?: "structured" | "json";
+  /** Called with each top-level field name as the answer starts writing it (for live progress). */
+  onSection?: (key: string) => void;
 }): Promise<{ data: z.infer<S>; usage: Anthropic.Beta.BetaUsage; model: string }> {
   // Formats Anthropic can't compile into a strict grammar go straight to JSON mode
   // (validated and repaired here), and are remembered so later calls skip the failed attempt.
@@ -84,6 +86,10 @@ async function structuredCallOnce<S extends z.ZodType>(args: Parameters<typeof s
     ...(args.system ? { system: args.system } : {}),
     messages: [{ role: "user", content }],
   });
+  if (args.onSection) {
+    const scan = topLevelKeys(args.onSection);
+    stream.on("text", (delta) => scan(delta));
+  }
   const response = await stream.finalMessage();
   recordUsage(response.model, response.usage, args.step);
   void recordCreditOk().catch(() => {});
@@ -178,4 +184,33 @@ function parseLenient<S extends z.ZodType>(schema: S, value: unknown): z.infer<S
   }
   if (!fixed) throw first.error;
   return schema.parse(value) as z.infer<S>;
+}
+
+/**
+ * Watches streamed JSON and reports each top-level key as it begins, so a long
+ * answer can say which part it is on. Tolerates text before the opening brace.
+ */
+function topLevelKeys(onKey: (key: string) => void) {
+  let depth = 0;
+  let inStr = false;
+  let escaped = false;
+  let buf = "";
+  let expectingKey = false;
+  let pending: string | null = null;
+  return (chunk: string) => {
+    for (const ch of chunk) {
+      if (inStr) {
+        if (escaped) escaped = false;
+        else if (ch === "\\") escaped = true;
+        else if (ch === '"') { inStr = false; if (expectingKey && depth === 1) pending = buf; }
+        else if (expectingKey && depth === 1 && buf.length < 64) buf += ch;
+        continue;
+      }
+      if (ch === '"') { inStr = true; buf = ""; continue; }
+      if (ch === "{" || ch === "[") { depth++; if (depth === 1 && ch === "{") expectingKey = true; continue; }
+      if (ch === "}" || ch === "]") { depth--; continue; }
+      if (depth === 1 && ch === ":" && pending) { const k = pending; pending = null; expectingKey = false; try { onKey(k); } catch {} continue; }
+      if (depth === 1 && ch === ",") expectingKey = true;
+    }
+  };
 }

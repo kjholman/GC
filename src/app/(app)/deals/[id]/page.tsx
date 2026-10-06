@@ -65,6 +65,9 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
   const slug = deal.slug ?? (await refreshSlug(deal.id));
   if (id !== slug) redirect(`/deals/${slug}${typeof sp.v === "string" ? `?v=${sp.v}` : ""}`);
   // Older deals: look for a logo the first time the page is opened.
+  // For the re-run dialog: the last instructions given and this deal's partner feedback.
+  const lastInstructions = [...deal.analyses].sort((x, y) => y.version - x.version).find((a) => a.instructions)?.instructions ?? null;
+  const feedbackHints = [...new Set(deal.analyses.flatMap((a) => a.feedback.map((f) => (f.lesson ?? f.comment).trim())).filter(Boolean))].slice(-6);
   if (!deal.logoMime) after(() => ensureDealLogo(deal.id).catch(() => {}));
 
   const latest = deal.analyses[0];
@@ -225,7 +228,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
               </details>
             )}
           </div>
-          <RerunButton dealId={deal.id} disabled={false} />
+          <RerunButton dealId={deal.id} disabled={false} lastInstructions={lastInstructions} feedback={feedbackHints} />
         </div>
       )}
       {memo && shown && deal.freshStartAt && deal.freshStartAt > (shown.completedAt ?? shown.createdAt) && !inFlight && (
@@ -233,7 +236,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
           <p className="min-w-0 flex-1 text-[13.5px] text-ink">
             <span className="font-medium text-warn">A file was removed after this memo was written.</span> The memo below may still reflect it. Run the analysis again for a memo that doesn&apos;t use it.
           </p>
-          <RerunButton dealId={deal.id} disabled={false} />
+          <RerunButton dealId={deal.id} disabled={false} lastInstructions={lastInstructions} feedback={feedbackHints} />
         </div>
       )}
       {shown && !isLatestShown && (
@@ -453,7 +456,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
           <Card>
             <div className="eyebrow mb-3">Tools</div>
             <div className="flex flex-col items-start gap-1">
-              <RerunButton dealId={deal.id} disabled={!!inFlight} />
+              <RerunButton dealId={deal.id} disabled={!!inFlight} lastInstructions={lastInstructions} feedback={feedbackHints} />
               {memo && <PrintButton />}
             </div>
           </Card>
