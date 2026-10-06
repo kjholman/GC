@@ -45,7 +45,7 @@ export function Dropzone({ name = "files", prompt, compact = false }: { name?: s
         </svg>
         <div className="font-serif text-[18px] text-navy-900">{prompt}</div>
         <div className="mt-1.5 text-[12.5px] text-muted">
-          Drag and drop, or <span className="text-navy-700 underline underline-offset-2">browse</span> · PDF preferred for decks · PPTX, DOCX, XLSX, CSV, images · 20 MB per file
+          Drag and drop several files at once, or <span className="text-navy-700 underline underline-offset-2">browse</span> · PDF preferred for decks · PPTX, DOCX, XLSX, CSV, images · up to 500 MB each
         </div>
         <input
           ref={inputRef}
@@ -57,6 +57,11 @@ export function Dropzone({ name = "files", prompt, compact = false }: { name?: s
           onChange={(e) => sync([...files, ...Array.from(e.target.files ?? [])])}
         />
       </div>
+      {files.length > 1 && (
+        <div className="mt-3 text-[12px] text-muted">
+          {files.length} files · {fmtSize(files.reduce((a, f) => a + f.size, 0))} total
+        </div>
+      )}
       {files.length > 0 && (
         <ul className="mt-3 divide-y divide-line rounded-[3px] border border-line bg-paper">
           {files.map((f, i) => (
@@ -65,7 +70,7 @@ export function Dropzone({ name = "files", prompt, compact = false }: { name?: s
                 {f.name.split(".").pop()}
               </span>
               <span className="min-w-0 flex-1 truncate text-ink">{f.name}</span>
-              <span className={cx("tabular text-[12px]", f.size > 20 * 1024 * 1024 ? "text-neg" : "text-muted")}>{fmtSize(f.size)}</span>
+              <span className={cx("tabular text-[12px]", f.size > 500 * 1024 * 1024 ? "text-neg" : "text-muted")}>{fmtSize(f.size)}</span>
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); sync(files.filter((_, k) => k !== i)); }}

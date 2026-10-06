@@ -163,59 +163,23 @@ export function MemoView({ memo }: { memo: Memo }) {
         </div>
       </Card>
 
-      <div className="grid gap-8 lg:grid-cols-2">
-        <Card>
-          <SectionTitle eyebrow="Intellectual property" title="IP position" />
-          <Paras text={memo.intellectualProperty.position} />
-          {memo.intellectualProperty.concerns.length > 0 && (
-            <div className="mt-5">
-              <div className="eyebrow mb-2">Concerns</div>
-              <Bullets items={memo.intellectualProperty.concerns} />
-            </div>
-          )}
-        </Card>
-        <Card>
-          <SectionTitle eyebrow="People" title="Management team" />
-          <Paras text={memo.team.assessment} />
-          <div className="mt-5 grid gap-5 sm:grid-cols-2">
-            <div>
-              <div className="eyebrow mb-2">Strengths</div>
-              <Bullets items={memo.team.strengths} marker="+" />
-            </div>
-            <div>
-              <div className="eyebrow mb-2">Gaps</div>
-              <Bullets items={memo.team.gaps} marker="○" />
-            </div>
-          </div>
-        </Card>
-      </div>
-
       <Card>
-        <SectionTitle eyebrow="Market" title="Commercial landscape" />
-        <KV label="Unmet need">{memo.market.unmetNeed}</KV>
-        <KV label="Addressable market">{memo.market.addressableMarket}</KV>
-        <KV label="Reimbursement & access">{memo.market.reimbursementAndAccess}</KV>
-        <KV label="Likely acquirers">
-          <div className="flex flex-wrap gap-2">
-            {memo.market.likelyAcquirers.map((a) => (
-              <span key={a} className="rounded-full border border-line-strong px-3 py-1 text-[12.5px] text-ink-soft">{a}</span>
-            ))}
+        <SectionTitle eyebrow="Diligence workstreams" title="Market, IP and team at a glance" />
+        <div className="grid gap-6 md:grid-cols-3">
+          <div>
+            <div className="eyebrow mb-1">Market</div>
+            <p className="text-[13.5px] leading-relaxed text-ink-soft"><Tagged text={memo.market.addressableMarket} /></p>
           </div>
-        </KV>
-        <div className="mt-4 overflow-x-auto">
-          <div className="eyebrow mb-2">Competitive set</div>
-          <table className="w-full text-left text-[13.5px]">
-            <tbody className="divide-y divide-line">
-              {memo.market.competitors.map((c, i) => (
-                <tr key={i}>
-                  <td className="py-3 pr-4 font-medium text-navy-900">{c.name}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-ink-soft">{c.stage}</td>
-                  <td className="py-3 pl-4 text-ink-soft"><Tagged text={c.differentiation} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div>
+            <div className="eyebrow mb-1">Intellectual property{memo.intellectualProperty.strength ? ` · ${memo.intellectualProperty.strength.toLowerCase()}` : ""}</div>
+            <p className="text-[13.5px] leading-relaxed text-ink-soft"><Tagged text={memo.intellectualProperty.position} /></p>
+          </div>
+          <div>
+            <div className="eyebrow mb-1">Founders &amp; management</div>
+            <p className="text-[13.5px] leading-relaxed text-ink-soft"><Tagged text={memo.team.assessment} /></p>
+          </div>
         </div>
+        <p className="mt-5 text-[12px] text-muted">The full analysis is in the Market, IP and Team tabs.</p>
       </Card>
 
       <Card>
@@ -472,6 +436,230 @@ export function DiligenceView({ memo }: { memo: Memo }) {
             </li>
           ))}
         </ol>
+      </Card>
+    </div>
+  );
+}
+
+const money = (m: number | null | undefined) => (m == null ? "n/a" : m >= 1000 ? `US$${(m / 1000).toFixed(1)}B` : `US$${Math.round(m)}M`);
+
+export function MarketView({ memo }: { memo: Memo }) {
+  const m = memo.market;
+  const ms = m.marketSizing;
+  return (
+    <div className="space-y-8">
+      {ms && (
+        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-[3px] border border-line bg-line md:grid-cols-4">
+          {[
+            ["Total market (TAM)", money(ms.tamUsdM), "Bottom-up"],
+            ["Serviceable (SAM)", money(ms.samUsdM), "Reachable with this product"],
+            ["Peak sales, base", money(ms.peakSalesUsdM.base), `Range ${money(ms.peakSalesUsdM.low)} to ${money(ms.peakSalesUsdM.high)}`],
+            ["Pricing analogues", m.pricingAnalogues?.length ?? 0, "Named comparators"],
+          ].map(([k, v, n]) => (
+            <div key={k as string} className="bg-paper px-6 py-5">
+              <div className="eyebrow">{k}</div>
+              <div className="mt-2 font-serif text-[30px] leading-none tabular text-navy-900">{v}</div>
+              <div className="mt-2 text-[12px] text-muted">{n}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      <Card>
+        <SectionTitle eyebrow="Market" title="Need and standard of care" />
+        <KV label="Conclusion">{m.addressableMarket}</KV>
+        <KV label="Unmet need">{m.unmetNeed}</KV>
+        {m.standardOfCare && <KV label="Standard of care">{m.standardOfCare}</KV>}
+        {m.marketTiming && <KV label="Timing">{m.marketTiming}</KV>}
+      </Card>
+      {m.patientPopulation?.length > 0 && (
+        <Card>
+          <SectionTitle eyebrow="Epidemiology" title="Patient population" />
+          <table className="w-full text-left text-[13.5px]">
+            <thead>
+              <tr className="border-b border-line text-[11px] uppercase tracking-[0.12em] text-muted">
+                <th className="py-2 pr-4 font-semibold">Segment</th>
+                <th className="px-4 py-2 font-semibold">Geography</th>
+                <th className="px-4 py-2 font-semibold">Patients</th>
+                <th className="py-2 pl-4 font-semibold">Basis</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line">
+              {m.patientPopulation.map((p, i) => (
+                <tr key={i}>
+                  <td className="py-3 pr-4 text-ink">{p.segment}</td>
+                  <td className="px-4 py-3 text-ink-soft">{p.geography}</td>
+                  <td className="px-4 py-3 font-serif text-[16px] tabular text-navy-900">{p.value}</td>
+                  <td className="py-3 pl-4 text-[12.5px] text-ink-soft"><Tagged text={p.basis} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      )}
+      {ms && (
+        <Card>
+          <SectionTitle eyebrow="Sizing" title="Bottom-up market model" />
+          <KV label="Method">{ms.method}</KV>
+          <KV label="Assumptions"><Bullets items={ms.assumptions} /></KV>
+          <KV label="Versus the deck">{ms.deckClaimCritique}</KV>
+        </Card>
+      )}
+      {m.pricingAnalogues?.length > 0 && (
+        <Card>
+          <SectionTitle eyebrow="Pricing" title="Analogues" />
+          <table className="w-full text-left text-[13.5px]">
+            <tbody className="divide-y divide-line">
+              {m.pricingAnalogues.map((p, i) => (
+                <tr key={i}>
+                  <td className="py-3 pr-4 font-medium text-navy-900">{p.product}</td>
+                  <td className="px-4 py-3 whitespace-nowrap tabular text-ink">{p.price}</td>
+                  <td className="py-3 pl-4 text-ink-soft"><Tagged text={p.relevance} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      )}
+      <Card>
+        <SectionTitle eyebrow="Access" title="Reimbursement and adoption" />
+        <KV label="Reimbursement">{m.reimbursementAndAccess}</KV>
+        {m.adoptionBarriers && <KV label="Adoption barriers"><Bullets items={m.adoptionBarriers} /></KV>}
+        <KV label="Likely acquirers">
+          <div className="flex flex-wrap gap-2">
+            {m.likelyAcquirers.map((a) => (
+              <span key={a} className="rounded-full border border-line-strong px-3 py-1 text-[12.5px] text-ink-soft">{a}</span>
+            ))}
+          </div>
+        </KV>
+      </Card>
+    </div>
+  );
+}
+
+const IP_STATUS: Record<string, string> = {
+  GRANTED: "bg-pos-bg text-pos",
+  PENDING: "bg-warn-bg text-warn",
+  PCT: "bg-warn-bg text-warn",
+  PROVISIONAL: "bg-warn-bg text-warn",
+  LAPSED: "bg-neg-bg text-neg",
+  UNKNOWN: "bg-[#f1efea] text-muted",
+};
+
+export function IPView({ memo }: { memo: Memo }) {
+  const ip = memo.intellectualProperty;
+  return (
+    <div className="space-y-8">
+      <Card>
+        <SectionTitle
+          eyebrow="Intellectual property"
+          title="IP position"
+          action={ip.strength ? <span className={cx("rounded-[2px] px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.1em]", ip.strength === "STRONG" ? "bg-pos-bg text-pos" : ip.strength === "ADEQUATE" ? "bg-navy-50 text-navy-700" : ip.strength === "WEAK" ? "bg-neg-bg text-neg" : "bg-warn-bg text-warn")}>{ip.strength.toLowerCase()}</span> : undefined}
+        />
+        <Paras text={ip.position} />
+      </Card>
+      {ip.assets && (
+        <Card pad={false}>
+          <div className="px-6 pt-6"><SectionTitle eyebrow="Inventory" title="Patents and applications" /></div>
+          {ip.assets.length === 0 ? (
+            <p className="px-6 pb-6 text-[14px] text-muted">No patents or applications were identified in the materials or the IP research.</p>
+          ) : (
+            <table className="w-full text-left text-[13px]">
+              <thead>
+                <tr className="border-y border-line text-[11px] uppercase tracking-[0.12em] text-muted">
+                  <th className="py-2.5 pr-3 pl-6 font-semibold">Identifier</th>
+                  <th className="px-3 py-2.5 font-semibold">Title and type</th>
+                  <th className="px-3 py-2.5 font-semibold">Status</th>
+                  <th className="px-3 py-2.5 font-semibold">Owner</th>
+                  <th className="py-2.5 pr-6 pl-3 font-semibold">Expiry</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {ip.assets.map((a, i) => (
+                  <tr key={i}>
+                    <td className="py-3 pr-3 pl-6 align-top font-mono text-[12px] text-navy-900">{a.identifier}</td>
+                    <td className="px-3 py-3 align-top">
+                      <div className="text-ink">{a.title}</div>
+                      <div className="text-[11.5px] text-muted">{a.type.replaceAll("_", " ").toLowerCase()}{a.jurisdictions ? ` · ${a.jurisdictions}` : ""}</div>
+                    </td>
+                    <td className="px-3 py-3 align-top"><span className={cx("rounded-[2px] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]", IP_STATUS[a.status])}>{a.status.toLowerCase()}</span></td>
+                    <td className="px-3 py-3 align-top text-ink-soft">{a.ownerOrAssignee ?? "Unknown"}</td>
+                    <td className="py-3 pr-6 pl-3 align-top text-ink-soft">{a.estimatedExpiry ?? "Unknown"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </Card>
+      )}
+      <Card>
+        <SectionTitle eyebrow="Analysis" title="Ownership, freedom to operate and exclusivity" />
+        {ip.ownershipAndLicensing && <KV label="Ownership and licensing">{ip.ownershipAndLicensing}</KV>}
+        {ip.freedomToOperate && <KV label="Freedom to operate">{ip.freedomToOperate}</KV>}
+        {ip.exclusivityRunway && <KV label="Exclusivity runway">{ip.exclusivityRunway}</KV>}
+        {ip.tradeSecretsAndKnowHow && <KV label="Trade secrets and know-how">{ip.tradeSecretsAndKnowHow}</KV>}
+        <KV label="Concerns"><Bullets items={ip.concerns} /></KV>
+        {ip.diligenceSteps && <KV label="IP diligence required"><Bullets items={ip.diligenceSteps} /></KV>}
+      </Card>
+    </div>
+  );
+}
+
+const VERIF: Record<string, { label: string; cls: string }> = {
+  VERIFIED: { label: "Verified", cls: "bg-pos-bg text-pos" },
+  PARTIALLY_VERIFIED: { label: "Partly verified", cls: "bg-warn-bg text-warn" },
+  UNVERIFIED: { label: "Unverified", cls: "bg-neg-bg text-neg" },
+};
+
+export function TeamView({ memo }: { memo: Memo }) {
+  const t = memo.team;
+  return (
+    <div className="space-y-8">
+      <Card>
+        <SectionTitle eyebrow="People" title="Founders and management" />
+        <Paras text={t.assessment} />
+        {t.founderMarketFit && <div className="mt-5"><KV label="Founder-market fit">{t.founderMarketFit}</KV></div>}
+      </Card>
+      {t.members?.length > 0 && (
+        <div className="grid gap-5 md:grid-cols-2">
+          {t.members.map((p, i) => (
+            <Card key={i}>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h4 className="font-serif text-[20px] text-navy-900">{p.name}</h4>
+                  <div className="text-[12.5px] text-muted">{p.role}</div>
+                </div>
+                <span className={cx("shrink-0 rounded-[2px] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]", VERIF[p.verification].cls)}>{VERIF[p.verification].label}</span>
+              </div>
+              <dl className="mt-4 space-y-3 text-[13px]">
+                {[
+                  ["Background", p.background],
+                  ["Relevant experience", p.relevantExperience],
+                  ["Prior ventures", p.priorVentures],
+                  ["Commitment", p.commitment],
+                ].map(([k, v]) => (
+                  <div key={k}>
+                    <dt className="eyebrow mb-0.5">{k}</dt>
+                    <dd className="leading-relaxed text-ink-soft"><Tagged text={v} /></dd>
+                  </div>
+                ))}
+                {p.concerns && (
+                  <div className="rounded-[3px] bg-neg-bg/60 px-3 py-2">
+                    <dt className="eyebrow mb-0.5 text-neg">Concerns</dt>
+                    <dd className="leading-relaxed text-ink"><Tagged text={p.concerns} /></dd>
+                  </div>
+                )}
+              </dl>
+            </Card>
+          ))}
+        </div>
+      )}
+      <Card>
+        <SectionTitle eyebrow="Organisation" title="Board, gaps and next hires" />
+        {t.boardAndAdvisors && <KV label="Board and advisors">{t.boardAndAdvisors}</KV>}
+        <KV label="Strengths"><Bullets items={t.strengths} marker="+" /></KV>
+        <KV label="Gaps"><Bullets items={t.gaps} marker="○" /></KV>
+        {t.hiringPriorities && <KV label="Hiring priorities"><Bullets items={t.hiringPriorities} /></KV>}
+        {t.referenceChecks && <KV label="Reference checks"><Bullets items={t.referenceChecks} /></KV>}
       </Card>
     </div>
   );

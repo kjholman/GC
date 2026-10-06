@@ -35,10 +35,11 @@ The memo's evidence ledger and its prose must agree with these sources.
    - The claim must match its source, and the quote must appear in that source.
    - VERIFIED_IN_SOURCE must really be shown by the source, not merely asserted by the company.
 2. **Numbers and named entities in the prose.** Check every number and named entity: data values, n, dollar amounts, dates, market sizes, competitors, funding rounds, investors, trials, deals, people and publications. Flag any not traceable to a source, or labelled with the wrong source type.
-3. **Information requests.** Flag any request for information the materials already contain (ALREADY_PROVIDED).
-4. **The recommendation.** Check that it follows the decision rules given the verified evidence, and that the score is consistent with the scorecard.
-5. **Overstated certainty.** Flag company claims or inferences presented as established fact.
-6. **The founder email.** It must not contain internal scores, mention AI, or contain claims absent from the memo.
+3. **Market, IP and team sections.** Check that population figures, prices and market sizes match the sources and that the arithmetic is right. Check that every patent number and status is supported. Check that every person's background, prior ventures and verification status match the founder research.
+4. **Information requests.** Flag any request for information the materials already contain (ALREADY_PROVIDED).
+5. **The recommendation.** Check that it follows the decision rules given the verified evidence, and that the score is consistent with the scorecard.
+6. **Overstated certainty.** Flag company claims or inferences presented as established fact.
+7. **The founder email.** It must not contain internal scores, mention AI, or contain claims absent from the memo.
 
 **Severity:**
 - **HIGH:** fabricated or contradicted facts, misquotes, wrong numbers, or a decision the evidence does not support.
@@ -189,6 +190,58 @@ export function automatedChecks(
     add({ location: "portfolioFit.historicalPrecedents", excerpt: c.company, problem: "FABRICATED_ENTITY", severity: "HIGH", explanation: "Not among the precedents provided. Removed automatically.", correction: "remove" });
     return false;
   });
+
+  // People: every founder or executive profiled must be named in the materials or research.
+  const corpus = `${allSource}\n${ctx.research ?? ""}`;
+  const corpusNorm = norm(corpus);
+  const canCheckText = corpus.trim().length > 200;
+  if (canCheckText) {
+    for (const m of memo.team.members ?? []) {
+      const parts = norm(m.name).split(" ").filter((w) => w.length > 2 && !["dr", "prof", "phd", "md", "mba"].includes(w));
+      const surname = parts[parts.length - 1];
+      if (surname && !corpusNorm.includes(surname)) {
+        add({
+          location: "team.members", excerpt: m.name, problem: "FABRICATED_ENTITY", severity: "HIGH",
+          explanation: "This person does not appear in the submitted materials or the web research. Removed automatically.", correction: "remove",
+        });
+        sanitized.team.members = sanitized.team.members.filter((x) => x.name !== m.name);
+      } else if (m.verification === "VERIFIED" && surname && !norm(ctx.research ?? "").includes(surname)) {
+        add({
+          location: "team.members", excerpt: `${m.name}: VERIFIED`, problem: "OVERSTATED_CERTAINTY", severity: "MEDIUM",
+          explanation: "Marked verified, but the founder research does not mention this person.", correction: "Set verification to UNVERIFIED or PARTIALLY_VERIFIED.",
+        });
+      }
+    }
+  }
+
+  // Patents: any identifier that looks like a number must appear verbatim (ignoring punctuation) in a source.
+  const alnum = (x: string) => x.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const corpusAlnum = alnum(corpus);
+  sanitized.intellectualProperty.assets = (memo.intellectualProperty.assets ?? []).filter((a) => {
+    const digits = a.identifier.replace(/\D/g, "");
+    if (digits.length < 5 || !canCheckText) return true; // descriptive entry, or no text to check against
+    if (corpusAlnum.includes(alnum(a.identifier)) || corpusAlnum.includes(digits)) return true;
+    add({
+      location: "intellectualProperty.assets", excerpt: a.identifier, problem: "FABRICATED_ENTITY", severity: "HIGH",
+      explanation: "This patent number does not appear in the materials or the IP research. Removed automatically.", correction: "remove",
+    });
+    return false;
+  });
+
+  // Market sizing arithmetic.
+  const ms = memo.market.marketSizing;
+  if (ms) {
+    if (ms.tamUsdM != null && ms.samUsdM != null && ms.samUsdM > ms.tamUsdM) {
+      add({ location: "market.marketSizing", excerpt: `SAM ${ms.samUsdM} > TAM ${ms.tamUsdM}`, problem: "INTERNAL_INCONSISTENCY", severity: "MEDIUM", explanation: "Serviceable market cannot exceed total market.", correction: "Correct the sizing." });
+    }
+    const { low, base, high } = ms.peakSalesUsdM;
+    if ((low != null && base != null && low > base) || (base != null && high != null && base > high)) {
+      add({ location: "market.marketSizing.peakSalesUsdM", excerpt: `${low} / ${base} / ${high}`, problem: "INTERNAL_INCONSISTENCY", severity: "MEDIUM", explanation: "Peak sales must satisfy low ≤ base ≤ high.", correction: "Correct the range." });
+    }
+    if (high != null && ms.samUsdM != null && high > ms.samUsdM) {
+      add({ location: "market.marketSizing.peakSalesUsdM", excerpt: `high ${high} > SAM ${ms.samUsdM}`, problem: "INTERNAL_INCONSISTENCY", severity: "MEDIUM", explanation: "Peak sales cannot exceed the serviceable market.", correction: "Correct the range or the SAM." });
+    }
+  }
 
   // Internal consistency with the decision rules.
   const dims = memo.scorecard.map((s) => s.dimension);

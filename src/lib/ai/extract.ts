@@ -35,7 +35,11 @@ const EXTENSION_TYPES: Record<string, keyof typeof ACCEPTED> = {
   md: "text/markdown",
 };
 
-export const MAX_FILE_BYTES = 20 * 1024 * 1024;
+/**
+ * No app-imposed size limit beyond the model provider's own per-file ceiling
+ * (Anthropic Files API: 500 MB). Large files are routed through the Files API.
+ */
+export const MAX_FILE_BYTES = 500 * 1024 * 1024;
 
 export function resolveMimeType(filename: string, declared: string): keyof typeof ACCEPTED | null {
   if (declared in ACCEPTED) return declared as keyof typeof ACCEPTED;

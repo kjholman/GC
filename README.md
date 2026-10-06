@@ -22,6 +22,11 @@ When founders reply, **reopen the deal**: upload their materials and the analyst
   - Sessions last 12 hours and can be revoked server-side.
 - **Deck screening.**
   - Formats: PDF (read visually), PPTX (including speaker notes), DOCX, XLSX (including formulas), CSV, TXT and images.
+- **Deep diligence workstreams**, each with its own tab:
+  - **Market:** epidemiology funnel, pricing analogues, bottom-up TAM/SAM and peak-sales range, deck critique, reimbursement, adoption barriers.
+  - **IP:** patent inventory, chain of title and licence, freedom to operate, exclusivity runway.
+  - **Team:** a profile per person with verification status, founder-market fit, board, gaps, hiring priorities and reference checks.
+- **Uploads:** many files at once, up to 500 MB each. Large files are handled through the AI provider's file storage and deleted after analysis.
 - **The memo covers:**
   - "Is this worth our time?" verdict and executive summary.
   - 8-dimension scorecard with evidence.

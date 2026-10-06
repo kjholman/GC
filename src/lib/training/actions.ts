@@ -24,7 +24,7 @@ function str(fd: FormData, k: string) {
 
 async function prepareDeck(file: File | null) {
   if (!file || file.size === 0) return {};
-  if (file.size > MAX_FILE_BYTES) throw new Error(`${file.name} is larger than 20 MB.`);
+  if (file.size > MAX_FILE_BYTES) throw new Error(`${file.name} is larger than 500 MB, the model provider's per-file maximum.`);
   const mime = resolveMimeType(file.name, file.type);
   if (!mime) throw new Error(`${file.name}: unsupported file type.`);
   const buf = Buffer.from(await file.arrayBuffer());

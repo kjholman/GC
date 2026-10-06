@@ -11,7 +11,7 @@ import { EvidenceProvider } from "./Evidence";
 import { EvidenceLedger, VerificationBanner } from "./Verification";
 import { CompetitorsView } from "./Competitors";
 import type { VerificationReport } from "@/lib/ai/verify";
-import { DiligenceView, FinancialsView, FitView, MemoView, Paras, RequestsView } from "./Memo";
+import { DiligenceView, FinancialsView, FitView, IPView, MarketView, MemoView, Paras, RequestsView, TeamView } from "./Memo";
 import { PrintButton } from "./PrintButton";
 import { Tabs } from "./Tabs";
 
@@ -174,6 +174,9 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
               key={shown!.id}
               tabs={[
                 { id: "memo", label: "Investment memo", content: <MemoView memo={memo} /> },
+                { id: "market", label: "Market", content: <MarketView memo={memo} /> },
+                { id: "ip", label: "IP", badge: memo.intellectualProperty.assets?.length, content: <IPView memo={memo} /> },
+                { id: "team", label: "Team", badge: memo.team.members?.length, content: <TeamView memo={memo} /> },
                 { id: "fin", label: "Financials & returns", content: <FinancialsView memo={memo} /> },
                 {
                   id: "comp",

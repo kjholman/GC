@@ -19,7 +19,7 @@ export function NewDealForm() {
       <div className="space-y-6">
         <Card>
           <div className="eyebrow mb-4">Materials</div>
-          <Dropzone prompt="Drop the pitch deck here" />
+          <Dropzone prompt="Drop the pitch deck and any supporting files" />
         </Card>
         <Card>
           <div className="eyebrow mb-5">Deal details <span className="normal-case tracking-normal font-normal">(optional; the analyst extracts these from the deck)</span></div>
@@ -63,7 +63,7 @@ export function NewDealForm() {
           </Card>
           {state.error && <p className="rounded-[3px] border border-[#efd2ce] bg-neg-bg px-4 py-3 text-[13px] text-neg">{state.error}</p>}
           <Button type="submit" disabled={pending} className="w-full py-3.5">
-            {pending ? "Uploading materials…" : "Begin analysis"}
+            {pending ? "Uploading materials… large files can take a few minutes" : "Begin analysis"}
           </Button>
           <p className="text-[11.5px] leading-relaxed text-muted">
             Materials are stored in Genesys&apos; private database and sent to the model provider only for analysis, under

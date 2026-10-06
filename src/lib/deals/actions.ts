@@ -11,6 +11,7 @@ import { audit } from "../audit";
 import { requireRole, requireUser } from "../auth/session";
 import { runAnalysis } from "../ai/analyst";
 import { MAX_FILE_BYTES, extractText, resolveMimeType } from "../ai/extract";
+import { pdfInfo } from "../ai/files";
 
 export type ActionState = { ok: boolean; error?: string };
 
@@ -39,7 +40,7 @@ async function ingestFiles(files: File[], defaultKind: DocumentKind) {
   for (const file of files) {
     if (file.size === 0) continue;
     if (file.size > MAX_FILE_BYTES) {
-      throw new Error(`${file.name} is larger than ${MAX_FILE_BYTES / 1024 / 1024} MB.`);
+      throw new Error(`${file.name} is larger than 500 MB, the maximum the AI model provider accepts per file. Split it into parts and upload them together.`);
     }
     const mimeType = resolveMimeType(file.name, file.type);
     if (!mimeType) {
@@ -52,7 +53,12 @@ async function ingestFiles(files: File[], defaultKind: DocumentKind) {
     } catch {
       throw new Error(`${file.name} could not be read. If it is a deck, export it to PDF and try again.`);
     }
+    // PDFs: record page count and text up front (for long-document handling and quote checks).
+    let pdf: { pageCount: number; text: string } | null = null;
+    if (mimeType === "application/pdf") pdf = await pdfInfo(buf).catch(() => null);
     prepared.push({
+      pageCount: pdf?.pageCount ?? null,
+      plainText: pdf?.text ?? null,
       filename: file.name.slice(0, 250),
       mimeType,
       sizeBytes: file.size,

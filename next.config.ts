@@ -12,9 +12,9 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   serverExternalPackages: ["exceljs"],
   experimental: {
-    // Deal rooms routinely include 20 MB decks plus supporting files.
-    serverActions: { bodySizeLimit: "100mb" },
-    proxyClientMaxBodySize: "100mb",
+    // Deal rooms can be large: many files per upload, up to 500 MB each.
+    serverActions: { bodySizeLimit: "2gb" },
+    proxyClientMaxBodySize: "2gb",
   },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];

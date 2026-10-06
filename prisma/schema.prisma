@@ -136,8 +136,9 @@ model Document {
   data         Bytes
   /// Text extracted server-side for non-PDF formats (pptx, docx, xlsx, csv, txt).
   extractedText String?
-  /// Plain text of PDFs, used only to check quotes in the evidence ledger.
+  /// Plain text of PDFs: used to check quotes, and as a fallback for PDFs too long to read visually.
   plainText     String?
+  pageCount     Int?
   uploadedById String?
   createdAt    DateTime     @default(now())
 

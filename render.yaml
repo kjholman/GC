@@ -5,9 +5,10 @@ services:
   - type: web
     name: genesys-analyst
     runtime: node
-    # Starter or higher: AI analyses run in the background after an upload,
-    # and free instances sleep, which would interrupt them.
-    plan: starter
+    # Standard (2 GB RAM): uploads of several large files are held in memory
+    # while they are stored, and analyses run in the background after an upload.
+    # Free/starter instances are too small or sleep, which would interrupt them.
+    plan: standard
     region: ohio
     buildCommand: npm ci && npm run build
     startCommand: npm run start:render

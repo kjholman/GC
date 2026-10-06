@@ -5,20 +5,19 @@ import { db } from "../db";
 import { env } from "../env";
 import { getFirmSettings } from "../training/settings";
 import { findPrecedents } from "../training/retrieval";
-import { familyOf } from "./extract";
+import { coverageNote, prepareFiles, type InputFile, type PreparedFiles } from "./files";
 import { FALLBACK_BETA, anthropic, structuredCall, textOf, type ContentBlock } from "./client";
 import { plainPunctuation } from "./style";
 import { automatedChecks, correctionsBlock, modelFactCheck, sourceTexts, summarise } from "./verify";
 import { CompetitorSweepSchema, FingerprintSchema, MemoSchema, normaliseMemo, type CompetitorSweep, type Fingerprint, type Memo } from "./schema";
 
-export { anthropic, structuredCall, type ContentBlock };
-
-/** Requests are capped at 32 MB; base64 adds ~33%, so keep raw binaries under this. */
-const BINARY_BUDGET_BYTES = 20 * 1024 * 1024;
 import {
   ANALYST_PROFILE,
   COMPETITOR_EXTRACT_PROMPT,
   COMPETITOR_SWEEP_PROMPT,
+  FOUNDER_RESEARCH_PROMPT,
+  IP_RESEARCH_PROMPT,
+  MARKET_RESEARCH_PROMPT,
   competitorBlock,
   FINGERPRINT_PROMPT,
   METHODOLOGY,
@@ -30,6 +29,8 @@ import {
   type Precedents,
 } from "./prompts";
 
+export { anthropic, structuredCall, type ContentBlock };
+
 export const STATUS_FOR_RECOMMENDATION: Record<Memo["recommendation"], DealStatus> = {
   REJECT: "REJECTED",
   PENDING_INFO: "PENDING_INFO",
@@ -40,50 +41,14 @@ async function setProgress(id: string, progress: string) {
   await db.analysis.update({ where: { id }, data: { progress } });
 }
 
-type FileLike = { filename: string; mimeType: string; sizeBytes: number; data: Uint8Array; extractedText: string | null };
-
-/** Convert one stored file into model content blocks (native PDF/image, or extracted text). */
-export function fileBlocks(file: FileLike, context: string): ContentBlock[] {
-  if (file.extractedText != null) {
-    return [{
-      type: "document",
-      source: { type: "text", media_type: "text/plain", data: file.extractedText || "(no extractable text)" },
-      title: file.filename,
-      context,
-    }];
-  }
-  const data = Buffer.from(file.data).toString("base64");
-  const family = familyOf(file.mimeType);
-  if (family === "pdf") {
-    return [{ type: "document", source: { type: "base64", media_type: "application/pdf", data }, title: file.filename, context }];
-  }
-  if (family === "image") {
-    return [
-      { type: "text", text: `Image: ${file.filename}. ${context}` },
-      { type: "image", source: { type: "base64", media_type: file.mimeType as "image/png" | "image/jpeg" | "image/webp", data } },
-    ];
-  }
-  return [];
-}
-
-/** Convert a deal's documents into content blocks, newest round first, within the request budget. */
-function documentBlocks(docs: Document[]): { blocks: ContentBlock[]; omitted: string[] } {
-  const sorted = [...docs].sort((a, b) => b.round - a.round || b.createdAt.getTime() - a.createdAt.getTime());
-  const blocks: ContentBlock[] = [];
-  const omitted: string[] = [];
-  let binaryBytes = 0;
-  for (const doc of sorted) {
-    const context = `Submitted in round ${doc.round}${doc.round === 1 ? " (original pitch)" : " (follow-up information)"}; category: ${doc.kind.replaceAll("_", " ").toLowerCase()}.`;
-    if (doc.extractedText == null) {
-      if (binaryBytes + doc.sizeBytes > BINARY_BUDGET_BYTES) {
-        omitted.push(doc.filename);
-        continue;
-      }
-      binaryBytes += doc.sizeBytes;
-    }
-    blocks.push(...fileBlocks(doc, context));
-  }
-  return { blocks, omitted };
+/** Deal documents in priority order: newest round first, pitch deck first within a round. */
+function dealFiles(docs: Document[]): InputFile[] {
+  return [...docs]
+    .sort((a, b) => b.round - a.round || Number(b.kind === "PITCH_DECK") - Number(a.kind === "PITCH_DECK") || b.createdAt.getTime() - a.createdAt.getTime())
+    .map((doc) => ({
+      ...doc,
+      context: `Submitted in round ${doc.round}${doc.round === 1 ? " (original pitch)" : " (follow-up information)"}; category: ${doc.kind.replaceAll("_", " ").toLowerCase()}.`,
+    }));
 }
 
 /** Classify an opportunity so similar historical deals can be retrieved. */
@@ -126,9 +91,14 @@ async function webResearch(prompt: string, docs: ContentBlock[], limits: { searc
   return null;
 }
 
-/** Stage 1: background research on the company, science, regulatory precedent and contradictions. */
+/** Science, regulatory precedent, licensing comps and contradictions. */
 function researchBrief(companyName: string, docs: ContentBlock[]) {
   return webResearch(`Company under review: ${companyName}.\n\n${RESEARCH_PROMPT}`, docs, { search: 12, fetch: 8 });
+}
+
+/** Dedicated diligence passes: founders and management, IP, market. */
+function diligenceResearch(prompt: string, companyName: string, docs: ContentBlock[]) {
+  return webResearch(`Company under review: ${companyName}.\n\n${prompt}`, docs, { search: 15, fetch: 10 });
 }
 
 const URL_RE = /https?:\/\/[^\s"'<>)\]]+/g;
@@ -234,7 +204,7 @@ export async function underwrite(args: {
   precedents: Precedents;
   research: string | null;
   competitors?: CompetitorSweep | null;
-  omitted?: string[];
+  coverage?: string;
   prior?: Analysis[];
   analystContext?: string | null;
   backtest?: { year: number | null };
@@ -248,14 +218,12 @@ export async function underwrite(args: {
       : `Screen this opportunity (${args.companyName}) and write the investment memo.`,
     args.backtest ? asOfInstruction(args.backtest.year) : "",
     args.analystContext ? `\n## Note from the Genesys team\n${args.analystContext}` : "",
-    args.omitted?.length
-      ? `\nThese earlier files were too large to re-attach this round; rely on the prior memo for their content: ${args.omitted.join(", ")}.`
-      : "",
+    args.coverage ?? "",
     priorBlock ? `\n${priorBlock}` : "",
     args.competitors ? `\n${competitorBlock(JSON.stringify(args.competitors))}` : "\n(No competitive sweep was available. Base market.comparableOutcomes on the materials and research brief, and flag that a full competitor sweep is outstanding.)",
     precedents ? `\n${precedents}` : "\n(No sufficiently similar precedents in Genesys' deal archive; set portfolioFit.historicalPrecedents to an empty list.)",
     args.research
-      ? `\n## Independent research brief (live web research, compiled before this memo)\n${args.research}`
+      ? `\n## Independent web research (science, founders, IP and market; compiled before this memo)\n${args.research}`
       : "\n(No independent web research for this analysis. Rely on the materials and your own knowledge, and flag anything that needs verification.)",
     args.corrections ? `\n${args.corrections}` : "",
   ].join("\n");
@@ -290,13 +258,17 @@ export async function runAnalysis(analysisId: string): Promise<void> {
     data: { status: "RUNNING", startedAt: new Date(), progress: "Reading submitted materials", error: null },
   });
 
+  let prepared: PreparedFiles | null = null;
   try {
     const prior = await db.analysis.findMany({
       where: { dealId: deal.id, version: { lt: analysis.version } },
       orderBy: { version: "asc" },
     });
-    const { blocks, omitted } = documentBlocks(deal.documents);
+    await setProgress(analysisId, "Reading submitted materials");
+    prepared = await prepareFiles(dealFiles(deal.documents));
+    const blocks = prepared.blocks;
     if (!blocks.length) throw new Error("No readable documents are attached to this deal.");
+    const coverage = coverageNote(prepared);
 
     // Fingerprint the deal (once, or again when new materials arrive) to find precedents.
     let probe: { sector: string | null; modality: string | null; indication: string | null; tags: string[] } = deal;
@@ -316,26 +288,38 @@ export async function runAnalysis(analysisId: string): Promise<void> {
     await setProgress(analysisId, "Retrieving precedents from Genesys' deal history");
     const precedents = await findPrecedents(probe);
 
-    // Re-use earlier research on follow-ups unless none exists yet.
-    let research = [...prior].reverse().find((a) => a.research)?.research ?? null;
-    if (env.webResearchEnabled && (!research || analysis.trigger === "RERUN")) {
-      await setProgress(analysisId, "Researching science, competitors and comparable deals");
-      research = await researchBrief(deal.companyName, blocks).catch((err) => {
-        console.error("[analyst] research stage failed; continuing without it", err);
-        return null;
-      });
-    }
-
-    // Competitive sweep: re-used on follow-ups unless a full re-run is requested.
+    // Web research: five passes in parallel. Re-used on follow-ups unless a re-run is requested.
+    const priorResearch = [...prior].reverse().find((a) => a.research);
     const priorSweep = [...prior].reverse().find((a) => a.competitors);
+    let research = priorResearch?.research ?? null;
     let competitors = (priorSweep?.competitors as CompetitorSweep | undefined) ?? null;
     let competitorNotes = priorSweep?.competitorNotes ?? null;
-    if (env.webResearchEnabled && (!competitors || analysis.trigger === "RERUN")) {
-      await setProgress(analysisId, "Sweeping competitors: funding, investors and outcomes");
-      const swept = await competitorSweep(deal.companyName, blocks).catch((err) => {
-        console.error("[analyst] competitor sweep failed; continuing without it", err);
-        return null;
-      });
+    const refresh = analysis.trigger === "RERUN";
+    if (env.webResearchEnabled && (!research || !competitors || refresh)) {
+      await setProgress(analysisId, "Researching science, founders, patents, market and competitors");
+      const soft = <T,>(label: string, p: Promise<T>) =>
+        p.catch((err) => {
+          console.error(`[analyst] ${label} research failed; continuing without it`, err);
+          return null;
+        });
+      const needResearch = !research || refresh;
+      const needSweep = !competitors || refresh;
+      const [science, founders, ip, market, swept] = await Promise.all([
+        needResearch ? soft("science", researchBrief(deal.companyName, blocks)) : null,
+        needResearch ? soft("founder", diligenceResearch(FOUNDER_RESEARCH_PROMPT, deal.companyName, blocks)) : null,
+        needResearch ? soft("ip", diligenceResearch(IP_RESEARCH_PROMPT, deal.companyName, blocks)) : null,
+        needResearch ? soft("market", diligenceResearch(MARKET_RESEARCH_PROMPT, deal.companyName, blocks)) : null,
+        needSweep ? soft("competitor", competitorSweep(deal.companyName, blocks)) : null,
+      ]);
+      if (needResearch) {
+        const sections = [
+          ["Science and regulatory brief", science],
+          ["Founders and management research", founders],
+          ["Intellectual property research", ip],
+          ["Market and epidemiology research", market],
+        ].filter(([, v]) => v) as [string, string][];
+        research = sections.length ? sections.map(([h, v]) => `## ${h}\n\n${v}`).join("\n\n") : null;
+      }
       if (swept) {
         competitors = swept.sweep;
         competitorNotes = swept.notes;
@@ -349,7 +333,7 @@ export async function runAnalysis(analysisId: string): Promise<void> {
     const underwriteArgs = {
       companyName: deal.companyName,
       docs: blocks,
-      omitted,
+      coverage,
       prior,
       research,
       competitors,
@@ -453,6 +437,9 @@ export async function runAnalysis(analysisId: string): Promise<void> {
     await db.activity.create({
       data: { dealId: deal.id, type: "analysis.failed", message: `AI analysis v${analysis.version} failed: ${message.slice(0, 300)}` },
     });
+  } finally {
+    // Remove any large files uploaded to the model provider for this analysis.
+    await prepared?.cleanup();
   }
 }
 

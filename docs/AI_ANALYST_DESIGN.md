@@ -20,13 +20,21 @@ Configuration is in `.env`:
 
 ## Pipeline (`src/lib/ai/analyst.ts`)
 
-1. **Ingest.** PDFs and images go to the model natively. PPTX (including speaker notes), DOCX and XLSX (including formulas) are converted to text on the server.
+1. **Ingest** (`src/lib/ai/files.ts`). Any number of files per upload, with no size limit in the app beyond the provider's 500 MB per file.
+   - Small PDFs and images are sent inline. Larger ones are uploaded to Anthropic's Files API with a 24-hour expiry and deleted when the analysis finishes.
+   - PDFs over 600 pages are read as extracted text.
+   - If the materials exceed the context budget, lower-priority files are read as text or excerpted, and the memo states which files were not fully read.
+   - PPTX (including speaker notes), DOCX and XLSX (including formulas) are converted to text.
 2. **Fingerprint.** A quick classification (sector, modality, indication, stage, tags) is used to retrieve precedents.
 3. **Precedent retrieval** (`src/lib/training/retrieval.ts`).
    - Pulls the most similar past Genesys decisions from the deal archive, with the partners' rationale and the outcome.
    - Pulls any partner-endorsed exemplar memos for similar deals.
    - Each match carries a readable "why", and the precedents used are stored on the analysis.
-4. **Research** (optional). Claude uses web search and fetch to compile a sourced brief covering founders, target validation, competitors, comparable deals, regulatory precedent, and contradictions with the deck.
+4. **Research** (optional). Four sourced web-research passes run in parallel with the competitive sweep:
+   - **Science and regulatory:** target validation, regulatory precedent, licensing comparables, contradictions with the deck.
+   - **Founders and management:** careers, prior ventures and outcomes, publications and patents, commitment, and any litigation, sanctions or discrepancies. Public professional information only.
+   - **Intellectual property:** patent families from Google Patents, WIPO, Espacenet, USPTO and CIPO; licence evidence; blocking third-party patents; expiry and regulatory exclusivity.
+   - **Market and epidemiology:** prevalence and incidence, standard of care, pricing analogues and codes, reimbursement path, adoption barriers.
 5. **Competitive sweep** (optional, with web research).
    - A dedicated search pass (up to 25 searches and 15 page reads) covers companies doing the same thing: direct competitors, adjacent approaches, and earlier attempts.
    - For each company it records: stage, status (active, acquired, IPO, partnered, failed, shut down), every funding round with amount and lead and other investors, the outcome, whether its backers resemble Genesys, and the lesson for this deal.
@@ -47,7 +55,7 @@ This is a high-stakes setting, so no single safeguard is trusted on its own.
 |---|---|
 | Grounding rules in the prompt | Every number, named entity and decision-relevant fact must appear in the evidence ledger. Each entry has a source type, a reference (file and page, or a URL from the research brief), a verbatim quote, and a status: verified / company claim / inference / needs verification. Background knowledge must be labelled and flagged. Gaps become information requests, not plausible-sounding filler. |
 | Inline citations | Prose carries `[E4]`-style tags. The UI renders each as a chip that shows the claim, source and status on hover. |
-| Code-level checks | Quotes are matched against the actual text of the documents (PDF text is extracted server-side) and of the research brief. URLs must come from the research brief. Cited Genesys companies must exist in the firm's records; fabricated ones are removed automatically. Decision, scores and scenarios must be internally consistent with the decision rules. The founder email must not reveal scores or mention AI. |
+| Code-level checks | Every person profiled must be named in the materials or research, and anyone who is not is removed. Every patent number must appear in a source, and fabricated ones are removed. Market sizing must be arithmetically consistent (SAM ≤ TAM, low ≤ base ≤ high, peak ≤ SAM). Quotes are matched against the actual text of the documents (PDF text is extracted server-side) and of the research brief. URLs must come from the research brief. Cited Genesys companies must exist in the firm's records; fabricated ones are removed automatically. Decision, scores and scenarios must be internally consistent with the decision rules. The founder email must not reveal scores or mention AI. |
 | Independent fact-check | A separate, adversarial model pass compares every claim and information request against the sources. It flags unsupported, contradicted, misquoted, fabricated, overstated or already-provided items, and judges whether the decision follows from the verified evidence. |
 | Automatic correction | If HIGH or MEDIUM issues are found, the memo is rewritten once with the exact corrections required, then fully re-checked. |
 | Human sign-off | The verification report (passed / warnings / failed, with every issue) is shown above the memo. An analyst must sign off, with a note whenever issues remain, before the founder email can be copied or sent. Sign-offs are audit-logged. |

@@ -270,6 +270,28 @@ The overall score is your weighted judgement, not an average. At Genesys' stage,
 - In versionDelta, explain what changed and why: name the new evidence and its effect on the score.
 - Never re-request information that has already been supplied.
 
+## 7a. Market analysis standard
+- Build the market from the bottom up: start from prevalence or incidence, narrow to the diagnosed, eligible and treated population, apply a realistic penetration rate and a price anchored on named analogues, then adjust for compliance or utilisation.
+- Show the arithmetic in marketSizing.method and list every assumption. Give TAM, SAM and a low / base / high peak-sales range.
+- Critique the deck's own market claims against your build. Top-down "global market of US$X billion" figures are not evidence of an addressable market.
+- Cover the standard of care, the reimbursement path in the U.S. and Canada, adoption barriers, and timing.
+- If the epidemiology or pricing cannot be sourced, leave the number null, say why, and make it an information request.
+
+## 7b. Intellectual property standard
+- List every patent family or application found in the materials or the IP research in intellectualProperty.assets. Copy each identifier exactly; never invent a number.
+- Distinguish composition-of-matter claims (strongest for therapeutics) from method-of-use, formulation and process claims.
+- Assess the chain of title: inventor assignment, university licence scope (field, territory, exclusivity), economics (royalty, milestones, sublicence share) and encumbrances.
+- Assess freedom to operate against named third-party patents. Estimate the exclusivity runway from patent expiry plus regulatory exclusivity.
+- An IP position that has not been disclosed is a gap, not a strength. Turn it into an information request and an IP diligence step.
+
+## 7c. Founder and management standard
+- Profile every founder, executive and key board member or advisor in team.members.
+- Give each person's background, the experience relevant to the company's next three years, prior ventures and outcomes, and commitment (full-time or still in an academic post).
+- Set verification honestly: VERIFIED only when the founder research independently confirms the background; PARTIALLY_VERIFIED when some of it is confirmed; UNVERIFIED when you rely on the deck alone.
+- Report factual concerns (undisclosed prior failures, litigation, sanctions, discrepancies with the deck) neutrally and with their source. Never speculate about character.
+- Assess founder-market fit, board quality, and the gaps the company must fill before its next financing. Specify hiring priorities and the reference calls the partners should make.
+- Use only public professional information.
+
 ## 8. Evidence and grounding (non-negotiable)
 This memo drives decisions about real capital and real founders. An unsupported claim is worse than an admitted gap.
 - **Evidence ledger.** Every material claim goes into the \`evidence\` array with a unique id (E1, E2, …). A material claim is any of these:
@@ -446,17 +468,73 @@ ${hist}${ex ? `\n\n## Memos the partners have endorsed as the standard to emulat
 }
 
 export const RESEARCH_PROMPT = `
-Prepare a background research brief for the Genesys Capital investment team on the company in the attached materials. Use web search to verify claims and add context. Do not restate the deck.
+Prepare a science and regulatory research brief for the Genesys Capital investment team on the company in the attached materials. Use web search to verify claims and add context. Do not restate the deck. Founders, patents, market size and competitors are covered by separate research passes, so do not duplicate them.
 
 Cover each of the following concisely, with source URLs inline:
-1. **Company and founders:** prior companies, publications, financing history, press, litigation.
-2. **Target and mechanism:** strength of human-genetic or clinical validation; the key literature, including negative results.
-3. **Competitive landscape:** programmes against the same target or indication, with sponsor and stage (ClinicalTrials.gov, company pipelines), plus the standard of care.
-4. **Comparable transactions:** recent financings, licensing deals and M&A for similar assets or devices, with values and dates.
-5. **Regulatory precedent:** relevant approvals, designations, predicate devices, FDA guidances and Health Canada decisions.
-6. **Contradictions:** anything that contradicts or qualifies a claim in the deck. Quote the claim.
+1. **Target and mechanism:** strength of human-genetic or clinical validation; the key literature, including negative results and retractions.
+2. **Regulatory precedent:** relevant approvals, designations, predicate devices, FDA guidance and Health Canada decisions.
+3. **Comparable licensing transactions:** upfront payments, milestones and royalties for similar assets, with dates.
+4. **Contradictions:** anything in the literature that contradicts or qualifies a claim in the deck. Quote the claim.
 
-Stay under 1,200 words. If you cannot find something, say so. Do not speculate beyond your sources.
+Stay under 1,000 words. If you cannot find something, say so. Do not speculate beyond your sources.
+`.trim();
+
+export const FOUNDER_RESEARCH_PROMPT = `
+Research the founders, executives, board members and key advisors named in the attached materials for the Genesys Capital investment team. Confine yourself to **public professional information only**: no personal life, family, health or other private matters.
+
+For each person, find:
+1. **Career and education:** current and past roles, with dates; degrees and institutions. Confirm whether these match the deck.
+2. **Prior ventures:** companies founded or led, and their outcomes (acquired, failed, still operating), with any amounts.
+3. **Scientific or technical record:** relevant publications, patents as inventor, clinical programmes led, and products brought to approval or market.
+4. **Commitment:** whether they still hold an academic or other full-time post.
+5. **Issues:** litigation, regulatory sanctions, research-misconduct findings, retractions, or failed companies not mentioned in the deck. Report these factually, with sources.
+6. **Discrepancies:** any difference between the deck's description of a person and the public record.
+
+**Rules:**
+- Cite a source URL for every fact.
+- If you cannot find someone, or cannot confirm a claim, say so explicitly. Never infer someone's background.
+- Be careful with common names: confirm identity through institution, field or company before attributing anything.
+
+Keep it to about 1,200 words.
+`.trim();
+
+export const IP_RESEARCH_PROMPT = `
+Research the intellectual property position of the company in the attached materials for the Genesys Capital investment team.
+
+1. **Company patents:** search Google Patents, WIPO PATENTSCOPE, Espacenet, USPTO and CIPO by:
+   - company name
+   - university or institute assignee
+   - founders as inventors
+   - key technical terms
+
+   For each patent family, list the publication or application number exactly, title, assignee, priority date, status, jurisdictions and claim type (composition of matter, method of use, device, formulation, process).
+2. **Licences:** public evidence of the licence from a university or institute, including any announced terms.
+3. **Third-party patents:** the most relevant patents held by others that could block the company's lead product (freedom to operate), with numbers and owners.
+4. **Exclusivity:** expected expiry dates, and any applicable regulatory exclusivity (NCE, orphan, biologics, Canadian data protection).
+
+**Rules:**
+- Copy patent numbers exactly as published, with a source URL for each.
+- If no patents can be found, say so plainly. Never invent or guess a patent number.
+
+Keep it to about 1,000 words.
+`.trim();
+
+export const MARKET_RESEARCH_PROMPT = `
+Research the market for the lead product in the attached materials for the Genesys Capital investment team. Build the evidence a bottom-up market model needs.
+
+1. **Epidemiology:** prevalence and incidence of the target indication in the U.S., EU and Canada, from authoritative sources (CDC, NIH, WHO, Global Burden of Disease, peer-reviewed studies, Statistics Canada, Canadian disease registries). Break it down to the diagnosed, eligible and treated population where possible.
+2. **Standard of care:** the current treatment paradigm or clinical workflow, relevant guidelines, and where the product would sit.
+3. **Pricing analogues:** list prices (e.g. U.S. WAC), reimbursement rates and Canadian prices for comparable products. For devices and diagnostics, CPT/HCPCS codes and Medicare payment rates.
+4. **Reimbursement path:** U.S. coverage requirements; Canada's Drug Agency and pCPA outcomes for analogues.
+5. **Adoption barriers and catalysts:** physician behaviour, capital costs, guideline changes, upcoming patent expiries, policy changes.
+6. **Market-size claims:** any third-party market-size estimates, labelled with their source and treated sceptically.
+
+**Rules:**
+- Cite a source URL for every figure.
+- Give the year and geography for each figure.
+- Prefer primary and peer-reviewed sources over market-research press releases.
+
+Keep it to about 1,200 words.
 `.trim();
 
 export const FINGERPRINT_PROMPT = `
@@ -516,7 +594,7 @@ Include private start-ups, public companies, big-pharma or big-medtech programme
 - Cite a source URL for every fact.
 - Report figures exactly as sourced, with currency.
 - If funding or an outcome cannot be found, say "not found"; never estimate.
-- Aim for the 6–15 most relevant companies, prioritising direct competitors.
+- Aim for the 6 to 15 most relevant companies, prioritising direct competitors.
 - Keep it to roughly 2,000 words of dense notes.
 `.trim();
 

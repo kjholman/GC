@@ -2,27 +2,25 @@ import "server-only";
 import type { HistoricalDeal, Prisma } from "@prisma/client";
 import { db } from "../db";
 import { env } from "../env";
-import { buildFirmContext, describeError, fileBlocks, fingerprint, structuredCall, underwrite, type ContentBlock } from "../ai/analyst";
+import { buildFirmContext, describeError, fingerprint, structuredCall, underwrite, type ContentBlock } from "../ai/analyst";
+import { coverageNote, prepareFiles, type PreparedFiles } from "../ai/files";
 import { SuggestionsSchema } from "../ai/schema";
 import { SUGGEST_PRINCIPLES_PROMPT } from "../ai/prompts";
 import { findPrecedents } from "./retrieval";
 
 // ─── Historical deal ingestion ──────────────────────────────────────────────
 
-function historicalBlocks(h: HistoricalDeal): ContentBlock[] {
-  const blocks: ContentBlock[] = [];
-  if (h.deckData && h.deckFilename && h.deckMimeType) {
-    blocks.push(
-      ...fileBlocks(
-        { filename: h.deckFilename, mimeType: h.deckMimeType, sizeBytes: h.deckData.length, data: h.deckData, extractedText: h.deckExtractedText },
-        "Original materials submitted to Genesys.",
-      ),
-    );
+/** Original materials (plus the internal memo, except in backtests) as model input. */
+async function historicalFiles(h: HistoricalDeal, opts: { includeMemo: boolean }): Promise<PreparedFiles> {
+  const prepared = await prepareFiles(
+    h.deckData && h.deckFilename && h.deckMimeType
+      ? [{ filename: h.deckFilename, mimeType: h.deckMimeType, sizeBytes: h.deckData.length, data: h.deckData, extractedText: h.deckExtractedText, context: "Original materials submitted to Genesys." }]
+      : [],
+  );
+  if (opts.includeMemo && h.icMemoText) {
+    prepared.blocks.push({ type: "document", source: { type: "text", media_type: "text/plain", data: h.icMemoText }, title: "Genesys internal memo", context: "Written by the Genesys team at the time." });
   }
-  if (h.icMemoText) {
-    blocks.push({ type: "document", source: { type: "text", media_type: "text/plain", data: h.icMemoText }, title: "Genesys internal memo", context: "Written by the Genesys team at the time." });
-  }
-  return blocks;
+  return prepared;
 }
 
 /** Reads a historical deal's materials and stores its fingerprint and digest. */
@@ -30,8 +28,10 @@ export async function ingestHistoricalDeal(id: string) {
   const h = await db.historicalDeal.findUnique({ where: { id } });
   if (!h) return;
   await db.historicalDeal.update({ where: { id }, data: { ingestStatus: "PROCESSING", ingestError: null } });
+  let prepared: PreparedFiles | null = null;
   try {
-    const blocks = historicalBlocks(h);
+    prepared = await historicalFiles(h, { includeMemo: true });
+    const blocks: ContentBlock[] = prepared.blocks;
     if (!blocks.length) {
       // No materials: the partner-entered fields alone are enough to retrieve on.
       blocks.push({
@@ -54,6 +54,8 @@ export async function ingestHistoricalDeal(id: string) {
     });
   } catch (err) {
     await db.historicalDeal.update({ where: { id }, data: { ingestStatus: "FAILED", ingestError: describeError(err).slice(0, 1000) } });
+  } finally {
+    await prepared?.cleanup();
   }
 }
 
@@ -133,8 +135,10 @@ export async function runBacktest(runId: string) {
     });
     for (const result of pending) {
       const h = result.historicalDeal;
+      let prepared: PreparedFiles | null = null;
       try {
-        const blocks = historicalBlocks({ ...h, icMemoText: null }); // never show the answer key
+        prepared = await historicalFiles(h, { includeMemo: false }); // never show the answer key
+        const blocks = prepared.blocks;
         if (!blocks.length) throw new Error("No materials to replay.");
         const precedents = await findPrecedents(h, { excludeHistoricalId: h.id, beforeYear: h.decisionYear });
         const { memo } = await underwrite({
@@ -143,6 +147,7 @@ export async function runBacktest(runId: string) {
           firmContext,
           precedents,
           research: null,
+          coverage: coverageNote(prepared),
           backtest: { year: h.decisionYear },
         });
         await db.backtestResult.update({
@@ -156,6 +161,8 @@ export async function runBacktest(runId: string) {
         });
       } catch (err) {
         await db.backtestResult.update({ where: { id: result.id }, data: { error: describeError(err).slice(0, 1000) } });
+      } finally {
+        await prepared?.cleanup();
       }
       await db.backtestRun.update({ where: { id: runId }, data: { completed: { increment: 1 } } });
     }

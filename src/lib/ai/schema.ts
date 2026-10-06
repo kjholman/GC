@@ -96,14 +96,56 @@ export const MemoSchema = z.object({
   }),
 
   intellectualProperty: z.object({
-    position: z.string(),
+    position: z.string().describe("Overall IP assessment for a partner: what is protected, how strongly, for how long."),
+    strength: z.enum(["STRONG", "ADEQUATE", "WEAK", "UNCLEAR"]),
+    assets: z
+      .array(
+        z.object({
+          identifier: z.string().describe("Patent or application number exactly as it appears in a source, or a description such as 'Provisional application (number not disclosed)'."),
+          title: z.string(),
+          type: z.enum(["COMPOSITION_OF_MATTER", "METHOD_OF_USE", "DEVICE", "FORMULATION", "PROCESS", "PLATFORM", "OTHER"]),
+          status: z.enum(["GRANTED", "PENDING", "PCT", "PROVISIONAL", "LAPSED", "UNKNOWN"]),
+          jurisdictions: z.string().nullable(),
+          ownerOrAssignee: z.string().nullable(),
+          estimatedExpiry: z.string().nullable().describe("Typically 20 years from priority/filing; note PTE/SPC possibilities."),
+          source: z.string().describe("Deck page or URL from the research."),
+        }),
+      )
+      .describe("Every patent family or application identified in the materials or research. Empty if none."),
+    ownershipAndLicensing: z.string().describe("Chain of title: assignment from inventors/university, exclusive licence terms (field, territory, royalties, milestones, sublicensing), encumbrances."),
+    freedomToOperate: z.string().describe("Named third-party patents or families that could block, and how serious they look. 'Not assessed' if no information."),
+    exclusivityRunway: z.string().describe("Years of protection from patents plus regulatory exclusivity (e.g. U.S. NCE 5 yrs, orphan 7 yrs, biologics 12 yrs; Canadian data protection 8 yrs)."),
+    tradeSecretsAndKnowHow: z.string(),
     concerns: z.array(z.string()),
+    diligenceSteps: z.array(z.string()).describe("Specific IP work required: claim review, FTO search, licence review."),
   }),
 
   market: z.object({
     unmetNeed: z.string(),
-    addressableMarket: z.string().describe("Bottom-up where possible; flag inflated top-down TAM claims."),
-    reimbursementAndAccess: z.string(),
+    standardOfCare: z.string().describe("Current treatment paradigm or clinical workflow, and where this product would fit."),
+    patientPopulation: z
+      .array(
+        z.object({
+          segment: z.string().describe("e.g. 'Diagnosed HFpEF', 'with hsCRP ≥2 mg/L', 'eligible and treated'"),
+          geography: z.string(),
+          value: z.string().describe("Number with units, e.g. '6.2M patients'"),
+          basis: z.string().describe("Source or derivation."),
+        }),
+      )
+      .describe("Funnel from total prevalence/incidence down to the addressable, treated population."),
+    pricingAnalogues: z.array(z.object({ product: z.string(), price: z.string(), relevance: z.string() })),
+    marketSizing: z.object({
+      method: z.string().describe("Bottom-up calculation spelled out: patients × penetration × price × compliance."),
+      assumptions: z.array(z.string()),
+      tamUsdM: z.number().nullable(),
+      samUsdM: z.number().nullable(),
+      peakSalesUsdM: z.object({ low: z.number().nullable(), base: z.number().nullable(), high: z.number().nullable() }),
+      deckClaimCritique: z.string().describe("How the deck's market claims compare with the bottom-up view."),
+    }),
+    addressableMarket: z.string().describe("One-paragraph conclusion on market size and quality."),
+    reimbursementAndAccess: z.string().describe("Payer path in the U.S. (CMS/commercial, coding for devices/diagnostics) and Canada (Canada's Drug Agency, pCPA, provincial)."),
+    adoptionBarriers: z.array(z.string()),
+    marketTiming: z.string().describe("Trends, guideline changes, patent cliffs or catalysts that help or hurt timing."),
     competitors: z.array(
       z.object({ name: z.string(), stage: z.string(), differentiation: z.string() }),
     ),
@@ -114,9 +156,25 @@ export const MemoSchema = z.object({
   }),
 
   team: z.object({
-    assessment: z.string(),
+    assessment: z.string().describe("Overall view of the founders and management for a partner."),
+    members: z.array(
+      z.object({
+        name: z.string().describe("Exactly as named in the materials or research."),
+        role: z.string(),
+        background: z.string().describe("Education, training and career path."),
+        relevantExperience: z.string().describe("Experience directly relevant to this company's next 3 years (drug/device development, regulatory, fundraising, commercial)."),
+        priorVentures: z.string().describe("Prior companies founded or led, and their outcomes. 'None identified' if none."),
+        commitment: z.string().describe("Full-time, part-time, still in an academic post, or unknown."),
+        verification: z.enum(["VERIFIED", "PARTIALLY_VERIFIED", "UNVERIFIED"]).describe("Whether the research independently confirms this person's background."),
+        concerns: z.string().nullable(),
+      }),
+    ),
+    founderMarketFit: z.string(),
+    boardAndAdvisors: z.string().describe("Board composition, independent directors, scientific/clinical advisors and their value."),
     strengths: z.array(z.string()),
-    gaps: z.array(z.string()),
+    gaps: z.array(z.string()).describe("Missing roles or capabilities for the next stage."),
+    hiringPriorities: z.array(z.string()),
+    referenceChecks: z.array(z.string()).describe("Specific references to call and what to ask."),
   }),
 
   financials: z.object({
