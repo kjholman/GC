@@ -4,7 +4,6 @@ import { requireRole } from "@/lib/auth/session";
 import type { Memo } from "@/lib/ai/schema";
 import { ExemplarEditor } from "./ExemplarEditor";
 
-export const metadata = { title: "Endorse exemplar" };
 
 export default async function NewExemplarPage({ searchParams }: PageProps<"/training/exemplars/new">) {
   await requireRole("PARTNER");

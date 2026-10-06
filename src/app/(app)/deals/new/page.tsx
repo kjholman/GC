@@ -1,7 +1,6 @@
 import { PageHeader } from "@/components/ui";
 import { NewDealForm } from "./NewDealForm";
 
-export const metadata = { title: "New screening" };
 
 export default function NewDealPage() {
   return (

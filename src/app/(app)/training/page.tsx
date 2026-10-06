@@ -3,7 +3,6 @@ import { db } from "@/lib/db";
 import type { BacktestMetrics } from "@/lib/training/engine";
 import { Button, Card, SectionTitle, cx, fmtDate } from "@/components/ui";
 
-export const metadata = { title: "Training Studio" };
 
 const FINE_TUNE_THRESHOLD = 300;
 
@@ -21,17 +20,17 @@ export default async function TrainingOverview() {
   const datasetSize = archive + exemplars + feedback;
 
   const levers = [
-    { href: "/training/archive", n: archive, label: "Past deals in the archive", hint: "Retrieved as precedent for similar new deals.", target: 100 },
-    { href: "/training/exemplars", n: exemplars, label: "Exemplar memos", hint: "Corrected memos the analyst models itself on.", target: 20 },
-    { href: "/training/calibration", n: feedback, label: "Partner reviews", hint: "Corrections fed into every analysis.", target: 50 },
-    { href: "/knowledge", n: principles, label: "Investment principles", hint: "Standing rules applied to every memo.", target: 10 },
+    { href: "/training/archive", n: archive, label: "Past deals", hint: "Used as precedents for similar new deals.", target: 100 },
+    { href: "/training/exemplars", n: exemplars, label: "Example memos", hint: "Corrected memos the Sharminator learns from.", target: 20 },
+    { href: "/training/calibration", n: feedback, label: "Partner reviews", hint: "Feedback applied to every analysis.", target: 50 },
+    { href: "/knowledge", n: principles, label: "Investment principles", hint: "The firm's rules, applied to every memo.", target: 10 },
   ];
 
   return (
     <div className="space-y-8">
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
         <Card>
-          <SectionTitle eyebrow="Judgement" title="Agreement with Genesys decisions" />
+          <SectionTitle eyebrow="Judgement" title="How often it agrees with Genesys" />
           {m ? (
             <>
               <div className="flex flex-wrap items-end gap-10">
@@ -40,14 +39,14 @@ export default async function TrainingOverview() {
                   <div className="mt-2 text-[12.5px] text-muted">of {m.scored} replayed deals · {lastRun!.label} · {fmtDate(lastRun!.completedAt)}</div>
                 </div>
                 <div className="text-[13px] text-ink-soft">
-                  <div>Bias: <span className={cx("font-medium", m.bias === "balanced" ? "text-pos" : "text-warn")}>{m.bias}</span></div>
+                  <div>Leaning: <span className={cx("font-medium", m.bias === "balanced" ? "text-pos" : "text-warn")}>{m.bias}</span></div>
                   <div className="mt-1">Missed winners: <span className="font-medium text-ink">{m.missedWinners.length}</span></div>
                   <div className="mt-1">False advances: <span className="font-medium text-ink">{m.falseAdvances.length}</span></div>
                 </div>
               </div>
               {runs.length > 1 && (
                 <div className="mt-8">
-                  <div className="eyebrow mb-3">Trend across backtests</div>
+                  <div className="eyebrow mb-3">Trend across tests</div>
                   <div className="flex h-24 items-end gap-2">
                     {runs.map((r) => {
                       const a = (r.metrics as BacktestMetrics | null)?.agreement ?? 0;
@@ -63,10 +62,10 @@ export default async function TrainingOverview() {
             </>
           ) : (
             <div className="text-[14px] text-ink-soft">
-              No backtests yet. Add past deals with their original decks to the archive. Then run a backtest to measure how often the analyst reaches the same decision the partners did.
+              No accuracy tests yet. Add past deals with their original decks to the archive. Then run an accuracy test to see how often the Sharminator reaches the same decision the partners did.
               <div className="mt-5">
                 <Link href={archiveWithDecks ? "/training/backtests" : "/training/archive"}>
-                  <Button variant="secondary">{archiveWithDecks ? "Run first backtest" : "Build the deal archive"}</Button>
+                  <Button variant="secondary">{archiveWithDecks ? "Run the first accuracy test" : "Add past deals"}</Button>
                 </Link>
               </div>
             </div>
@@ -74,17 +73,17 @@ export default async function TrainingOverview() {
         </Card>
 
         <Card className="bg-brand-gradient !border-transparent text-white">
-          <div className="eyebrow !text-white/80">Proprietary model readiness</div>
+          <div className="eyebrow !text-white/80">Training data collected</div>
           <div className="mt-3 font-display font-semibold text-[40px] leading-none tabular">{datasetSize}<span className="text-[18px] text-white/50"> / {FINE_TUNE_THRESHOLD}</span></div>
-          <div className="mt-2 text-[12.5px] text-white/60">labelled examples (deals, exemplars, reviews)</div>
+          <div className="mt-2 text-[12.5px] text-white/60">examples so far (past deals, example memos and partner reviews)</div>
           <div className="mt-5 h-1.5 rounded-full bg-white/10">
             <div className="h-1.5 rounded-full bg-brand-500" style={{ width: `${Math.min(100, (datasetSize / FINE_TUNE_THRESHOLD) * 100)}%` }} />
           </div>
           <p className="mt-5 text-[12.5px] leading-relaxed text-white/65">
-            At about {FINE_TUNE_THRESHOLD} examples, this dataset is enough to train a Genesys-owned open-weight model to give a second opinion alongside the analyst.
+            At about {FINE_TUNE_THRESHOLD} examples, there is enough to train Genesys&rsquo;s own AI model to give a second opinion alongside the Sharminator.
           </p>
           <a href="/api/training/export" className="mt-5 inline-block text-[13px] text-white underline underline-offset-4 hover:text-white">
-            Export dataset (JSONL)
+            Download the training data
           </a>
         </Card>
       </div>

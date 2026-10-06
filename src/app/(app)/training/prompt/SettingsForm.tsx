@@ -15,13 +15,13 @@ export function SettingsForm({ settings, canEdit }: { settings: S[]; canEdit: bo
           <div>
             <div className="text-[13.5px] font-medium text-navy-900">{s.label}</div>
             <div className="text-[12px] text-muted">{s.help}</div>
-            {!s.confirmed && <div className="mt-1 text-[11.5px] text-warn">● Default; not yet confirmed by a partner</div>}
+            {!s.confirmed && <div className="mt-1 text-[11.5px] text-warn">● Starting value; not yet confirmed by a partner</div>}
           </div>
           <textarea name={s.key} defaultValue={s.value} rows={2} disabled={!canEdit} className={inputCls} />
         </div>
       ))}
       {(state.error || state.message) && <p className={cx("text-[13px]", state.error ? "text-neg" : "text-pos")}>{state.error ?? state.message}</p>}
-      {canEdit && <Button type="submit" disabled={pending}>{pending ? "Saving…" : "Save & confirm parameters"}</Button>}
+      {canEdit && <Button type="submit" disabled={pending}>{pending ? "Saving…" : "Save and confirm settings"}</Button>}
     </form>
   );
 }

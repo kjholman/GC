@@ -5,7 +5,6 @@ import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/session";
 import { Button, Card, Empty, PageHeader, SectionTitle, STATUS_META, ScoreRing, StatusBadge, cx, relTime } from "@/components/ui";
 
-export const metadata = { title: "Overview" };
 
 const FUNNEL: DealStatus[] = ["SCREENING", "PENDING_INFO", "DILIGENCE", "IC_REVIEW", "INVESTED", "REJECTED"];
 

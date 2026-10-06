@@ -30,9 +30,9 @@ async function sendViaResend(msg: { to: string; subject: string; text: string; h
 }
 
 export async function sendLoginCode(to: string, code: string) {
-  const subject = `${code} is your Genesys Analyst sign-in code`;
+  const subject = `${code} is your Sharminator sign-in code`;
   const text = [
-    `Your Genesys Analyst sign-in code is: ${code}`,
+    `Your Sharminator sign-in code is: ${code}`,
     "",
     "This code expires in 10 minutes and can be used once.",
     "If you did not request it, you can safely ignore this email.",
@@ -45,7 +45,7 @@ export async function sendLoginCode(to: string, code: string) {
     <table role="presentation" width="520" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border:1px solid #dbe5e9;">
       <tr><td style="background:#15354f;padding:28px 40px;">
         <div style="color:#ffffff;font-size:22px;font-weight:600;">Genesys <span style="font-weight:400;">Capital</span></div>
-        <div style="color:#29a2b5;font-family:Helvetica,Arial,sans-serif;font-size:11px;letter-spacing:0.2em;margin-top:6px;">ANALYST PLATFORM</div>
+        <div style="color:#29a2b5;font-family:Helvetica,Arial,sans-serif;font-size:11px;letter-spacing:0.2em;margin-top:6px;">THE SHARMINATOR</div>
       </td></tr>
       <tr><td style="padding:40px;">
         <p style="font-family:Helvetica,Arial,sans-serif;color:#3d4451;font-size:15px;margin:0 0 24px;">Use the code below to sign in. It expires in 10 minutes.</p>

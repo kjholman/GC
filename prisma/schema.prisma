@@ -100,6 +100,8 @@ enum DealStatus {
 model Deal {
   id            String     @id @default(cuid())
   companyName   String
+  /// True while the name is a placeholder from the uploaded file; the Sharminator replaces it with the real company name.
+  autoNamed     Boolean    @default(false)
   oneLiner      String?
   sector        String?
   modality      String?
@@ -184,6 +186,8 @@ model Analysis {
   trigger        AnalysisTrigger @default(INITIAL_SCREEN)
   status         AnalysisStatus  @default(QUEUED)
   progress       String?
+  /// Live step-by-step log shown while the analysis runs: [{ at, text, kind }].
+  steps          Json            @default("[]")
   /// Context the analyst typed when submitting (e.g. "Founders replied with CMC data").
   analystContext String?
   recommendation String?
@@ -262,6 +266,8 @@ model PortfolioCompany {
   website      String?
   /// false = imported from public sources and awaiting confirmation by the firm.
   verified     Boolean          @default(false)
+  /// true = maintained by the seed (refreshed on deploy) until a partner edits it.
+  seeded       Boolean          @default(false)
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
 }
@@ -358,6 +364,8 @@ model HistoricalDeal {
   deckData          Bytes?
   deckExtractedText String?
   ingestStatus      IngestStatus       @default(PENDING)
+  /// true = maintained by the seed (refreshed on deploy) until a partner edits it.
+  seeded            Boolean            @default(false)
   ingestError       String?
   createdById       String?
   createdAt         DateTime           @default(now())

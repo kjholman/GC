@@ -3,7 +3,6 @@ import { hasRole, requireUser } from "@/lib/auth/session";
 import { Card, Empty, cx } from "@/components/ui";
 import { AddHistoricalForm, ArchiveRowActions, ImportCsvForm } from "./ArchiveForms";
 
-export const metadata = { title: "Deal archive" };
 
 const DECISION: Record<string, { label: string; cls: string }> = {
   INVESTED: { label: "Invested", cls: "bg-pos-bg text-pos" },
@@ -25,10 +24,10 @@ export default async function ArchivePage() {
     <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_380px]">
       <div>
         <p className="mb-6 max-w-3xl text-[14px] leading-relaxed text-ink-soft">
-          For each new deck, the analyst retrieves the most similar deals from this archive. It reads what the partners decided and why, and how each bet turned out, before writing its memo. Decks attached here are also used for backtesting. Include deals Genesys <em>declined</em>; they matter as much as investments.
+          For each new deck, the Sharminator looks up the most similar past deals here: what the partners decided, why, and how it turned out. Original decks attached here are also used for accuracy tests. Include deals Genesys <em>declined</em>; they matter as much as investments.
         </p>
         {deals.length === 0 ? (
-          <Empty title="The archive is empty">Import past deals by CSV, or add them one at a time.</Empty>
+          <Empty title="No past deals yet">Import them from a spreadsheet, or add them one at a time.</Empty>
         ) : (
           <Card pad={false}>
             <ul className="divide-y divide-line">
@@ -45,7 +44,7 @@ export default async function ArchivePage() {
                       <span className={cx("rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]", DECISION[d.decision].cls)}>{DECISION[d.decision].label}</span>
                       <span className="w-24 text-right text-[11.5px] text-muted">{d.outcome.replaceAll("_", " ").toLowerCase()}</span>
                       <span className={cx("w-24 text-right text-[11.5px]", d.ingestStatus === "READY" ? "text-pos" : d.ingestStatus === "FAILED" ? "text-neg" : "text-warn")}>
-                        {d.ingestStatus === "READY" ? (d.deckFilename ? "● deck read" : "● ready") : d.ingestStatus.toLowerCase()}
+                        {d.ingestStatus === "READY" ? (d.deckFilename ? "● deck read" : "● ready") : d.ingestStatus === "FAILED" ? "couldn't read" : "reading…"}
                       </span>
                     </summary>
                     <div className="mt-4 grid gap-4 border-t border-line pt-4 text-[13px] md:grid-cols-2">
@@ -55,7 +54,7 @@ export default async function ArchivePage() {
                         {d.outcomeNotes && (<><div className="eyebrow mt-3 mb-1">Outcome</div><p className="text-ink-soft">{d.outcomeNotes}</p></>)}
                       </div>
                       <div>
-                        <div className="eyebrow mb-1">Analyst digest</div>
+                        <div className="eyebrow mb-1">Sharminator&rsquo;s summary</div>
                         <p className="text-ink-soft">{d.digest ?? (d.ingestError ? <span className="text-neg">{d.ingestError}</span> : "Pending…")}</p>
                         {d.tags.length > 0 && (
                           <div className="mt-2 flex flex-wrap gap-1">

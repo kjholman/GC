@@ -4,7 +4,6 @@ import { hasRole, requireUser } from "@/lib/auth/session";
 import { Card, Empty, REC_META, cx, fmtDate } from "@/components/ui";
 import { ExemplarToggle } from "./ExemplarToggle";
 
-export const metadata = { title: "Exemplar memos" };
 
 export default async function ExemplarsPage() {
   const user = await requireUser();
@@ -13,10 +12,10 @@ export default async function ExemplarsPage() {
   return (
     <div>
       <p className="mb-6 max-w-3xl text-[14px] leading-relaxed text-ink-soft">
-        Exemplars are memos the partners have corrected and endorsed as the standard. When a new deal resembles one, the analyst studies the endorsed verdict and reasoning before writing. To create one, open any deal and choose <span className="font-medium text-ink">Correct &amp; endorse as exemplar</span>.
+        Example memos are memos the partners have corrected and approved as the standard to follow. When a new deal resembles one, the Sharminator studies it before writing. To create one, open any deal and choose <span className="font-medium text-ink">Correct this memo and save as an example</span>.
       </p>
       {exemplars.length === 0 ? (
-        <Empty title="No exemplars yet">Open a deal with a completed memo and choose “Correct &amp; endorse as exemplar”.</Empty>
+        <Empty title="No example memos yet">Open a deal with a finished memo and choose “Correct this memo and save as an example”.</Empty>
       ) : (
         <div className="grid gap-5 md:grid-cols-2">
           {exemplars.map((e) => (
@@ -33,9 +32,9 @@ export default async function ExemplarsPage() {
               </div>
               <p className="mt-4 border-l-2 border-brand-500 pl-3 text-[13.5px] italic leading-relaxed text-ink">{e.partnerCommentary}</p>
               <div className="mt-4 flex items-center justify-between text-[12px] text-muted">
-                <span>Endorsed {fmtDate(e.createdAt)}</span>
+                <span>Saved {fmtDate(e.createdAt)}</span>
                 <span className="flex gap-4">
-                  {e.sourceAnalysisId && <Link href={`/training/exemplars/new?analysis=${e.sourceAnalysisId}`} className="text-navy-700 hover:underline">Source memo</Link>}
+                  {e.sourceAnalysisId && <Link href={`/training/exemplars/new?analysis=${e.sourceAnalysisId}`} className="text-navy-700 hover:underline">Original memo</Link>}
                   {canEdit && <ExemplarToggle id={e.id} active={e.active} />}
                 </span>
               </div>

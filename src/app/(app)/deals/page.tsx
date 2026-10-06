@@ -3,7 +3,6 @@ import type { DealStatus, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { Button, Card, Empty, PageHeader, REC_META, STATUS_META, ScoreRing, StatusBadge, cx, fmtDate, inputCls } from "@/components/ui";
 
-export const metadata = { title: "Deal pipeline" };
 
 const TABS: (DealStatus | "ALL" | "OPEN")[] = ["OPEN", "SCREENING", "PENDING_INFO", "DILIGENCE", "IC_REVIEW", "INVESTED", "REJECTED", "ARCHIVED", "ALL"];
 

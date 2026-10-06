@@ -4,7 +4,6 @@ import { Card, PageHeader, cx } from "@/components/ui";
 import { Principles } from "./Principles";
 import { DeleteCompanyButton, EditCompanyDialog, PortfolioForm } from "./PortfolioForm";
 
-export const metadata = { title: "Knowledge base" };
 
 const OUTCOME: Record<string, { label: string; cls: string }> = {
   ACQUIRED: { label: "Acquired", cls: "bg-pos-bg text-pos" },

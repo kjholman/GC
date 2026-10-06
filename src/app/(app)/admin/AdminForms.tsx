@@ -9,22 +9,22 @@ export function AddUsersForm() {
   const [state, action, pending] = useActionState<AdminState, FormData>(addUsersAction, { ok: false });
   return (
     <Card>
-      <div className="eyebrow mb-1 text-brand-600">Grant access</div>
-      <h3 className="mb-5 font-display font-semibold text-[20px] text-navy-900">Authorise users</h3>
+      <div className="eyebrow mb-1 !text-brand-600">Add people</div>
+      <h3 className="mb-5 font-display font-semibold text-[20px] text-navy-900">Give someone access</h3>
       <form action={action} className="space-y-4">
-        <Field label="Email addresses" hint="One per line, or comma-separated.">
+        <Field label="Their Genesys Capital email" hint="You can add several at once: one per line, or separated by commas.">
           <textarea name="emails" rows={5} placeholder={"jane.doe@genesyscapital.com\njohn.smith@genesyscapital.com"} className={inputCls} />
         </Field>
-        <Field label="Role">
+        <Field label="Access level">
           <select name="role" className={inputCls} defaultValue="ANALYST">
-            <option value="ANALYST">Analyst: screen and analyse deals</option>
-            <option value="PARTNER">Partner: also IC decisions and knowledge base</option>
-            <option value="ADMIN">Administrator: also user management</option>
+            <option value="ANALYST">Analyst: screen decks and work on deals</option>
+            <option value="PARTNER">Partner: also approves IC decisions and trains the Sharminator</option>
+            <option value="ADMIN">Administrator: also manages who has access</option>
           </select>
         </Field>
         {state.error && <p className="text-[13px] text-neg">{state.error}</p>}
         {state.message && <p className="text-[13px] text-pos">{state.message}</p>}
-        <Button type="submit" disabled={pending} className="w-full">Authorise</Button>
+        <Button type="submit" disabled={pending} className="w-full">Give access</Button>
       </form>
     </Card>
   );
@@ -56,7 +56,7 @@ export function UserRow({ user, isSelf }: { user: RowUser; isSelf: boolean }) {
           >
             <option value="ANALYST">Analyst</option>
             <option value="PARTNER">Partner</option>
-            <option value="ADMIN">Admin</option>
+            <option value="ADMIN">Administrator</option>
           </select>
         </form>
       </td>
@@ -66,12 +66,12 @@ export function UserRow({ user, isSelf }: { user: RowUser; isSelf: boolean }) {
         {!isSelf && (
           <button
             onClick={async () => {
-              if (user.active && !confirm(`Revoke access for ${user.email}? Their sessions end immediately.`)) return;
+              if (user.active && !confirm(`Remove access for ${user.email}? They will be signed out straight away.`)) return;
               await setUserActiveAction(user.id, !user.active);
             }}
             className={cx("text-[12.5px] hover:underline", user.active ? "text-neg" : "text-pos")}
           >
-            {user.active ? "Revoke" : "Restore"}
+            {user.active ? "Remove access" : "Restore access"}
           </button>
         )}
       </td>
@@ -98,15 +98,15 @@ function SignInLinkButton({ userId, email }: { userId: string; email: string }) 
         }}
         className="text-[12.5px] text-navy-700 hover:underline"
       >
-        {busy ? "Creating…" : "Sign-in link"}
+        {busy ? "Creating…" : "Get sign-in link"}
       </button>
       {link && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-navy-950/40 p-6" onClick={(e) => e.target === e.currentTarget && setLink(null)}>
           <div className="w-full max-w-lg rounded-lg border border-line bg-paper p-6 text-left shadow-[var(--shadow-lift)]">
-            <div className="eyebrow mb-1 text-brand-600">Single-use sign-in link</div>
+            <div className="eyebrow mb-1 !text-brand-600">Sign-in link</div>
             <h3 className="font-display font-semibold text-[20px] text-navy-900">{email}</h3>
             <p className="mt-2 text-[12.5px] leading-relaxed text-ink-soft">
-              Send this to the user by any channel (Teams, text, your own email). It works once and expires {link.expires}. Creating a new link cancels this one.
+              Copy this link and send it to them however you like (Teams, text or your own email). It works once and expires {link.expires}. If you create another link, this one stops working.
             </p>
             <div className="mt-4 rounded-lg border border-line bg-mist px-3 py-2 font-mono text-[11.5px] text-ink [overflow-wrap:anywhere]">{link.url}</div>
             <div className="mt-4 flex justify-end gap-2">

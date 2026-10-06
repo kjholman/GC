@@ -539,6 +539,7 @@ Keep it to about 1,200 words.
 
 export const FINGERPRINT_PROMPT = `
 Classify the life-science opportunity in the attached materials so it can be matched with similar past deals. Use the materials only.
+- **companyName:** the company's legal or trading name exactly as the materials give it (e.g. "Northbridge Therapeutics"), not a product, programme or file name. Null if the materials do not name the company.
 - **sector:** one of Therapeutics, Medical Devices, Diagnostics, Platform / Tools, Digital Health, Other.
 - **modality:** be specific, e.g. "Small molecule", "Monoclonal antibody", "AAV gene therapy", "Radiopharmaceutical", "Implantable neuromodulation device".
 - **indication:** the lead indication.

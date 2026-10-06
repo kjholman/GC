@@ -4,7 +4,6 @@ import { redeemSignInLinkAction } from "@/lib/auth/actions";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui";
 
-export const metadata = { title: "Sign in" };
 
 /** Landing page for administrator-issued sign-in links. Signing in needs a click,
  *  so link previews in Teams or Outlook cannot use up the link. */
@@ -24,7 +23,7 @@ export default async function SignInLinkPage({ searchParams }: PageProps<"/login
           <form action={redeemSignInLinkAction.bind(null, token)} className="space-y-6">
             <div>
               <div className="eyebrow mb-2 text-brand-600">Secure sign-in</div>
-              <h1 className="font-display font-semibold text-[30px] leading-tight text-navy-900">Continue to Genesys Analyst</h1>
+              <h1 className="font-display font-semibold text-[30px] leading-tight text-navy-900">Continue to the Sharminator</h1>
               <p className="mt-2 text-[14px] text-ink-soft">
                 Signing in as <span className="font-medium text-ink">{link!.user.email}</span>. This link works once.
               </p>

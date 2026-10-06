@@ -22,8 +22,8 @@ export function FollowUpPanel({ dealId, disabled, openRequests }: { dealId: stri
       <div className="eyebrow mb-1 text-brand-600">Reopen with new information</div>
       <h3 className="font-display font-semibold text-[20px] text-navy-900">Founders replied?</h3>
       <p className="mt-1.5 mb-5 text-[13px] leading-relaxed text-ink-soft">
-        Upload what they sent{openRequests ? ` against the ${openRequests} outstanding request${openRequests === 1 ? "" : "s"}` : ""}. The analyst
-        re-underwrites the deal using every document received so far and records what changed.
+        Upload what they sent{openRequests ? ` against the ${openRequests} outstanding request${openRequests === 1 ? "" : "s"}` : ""}. The Sharminator
+        re-analyses the deal using every document received so far and notes what changed.
       </p>
       <form
         key={key}
@@ -73,7 +73,7 @@ export function StatusPanel({ dealId, status, canPartner }: { dealId: string; st
             </option>
           ))}
         </select>
-        <input name="note" placeholder="Rationale (recorded in the deal log)" className={inputCls} />
+        <input name="note" placeholder="Reason (saved to the deal log)" className={inputCls} />
         {state.error && <p className="text-[13px] text-neg">{state.error}</p>}
         <Button type="submit" variant="secondary" disabled={pending} className="w-full">
           Update stage
@@ -138,10 +138,10 @@ export function FeedbackPanel({ analysisId, version, reviews }: { analysisId: st
   const [verdict, setVerdict] = useState("AGREE");
   return (
     <Card>
-      <div className="eyebrow mb-1">Calibrate the analyst</div>
-      <h3 className="font-display font-semibold text-[19px] text-navy-900">Review memo v{version}</h3>
+      <div className="eyebrow mb-1">Teach the Sharminator</div>
+      <h3 className="font-display font-semibold text-[19px] text-navy-900">Review this memo (version {version})</h3>
       <p className="mt-1.5 mb-4 text-[12.5px] leading-relaxed text-ink-soft">
-        Your critique is added to the analyst&apos;s calibration set and shapes every future analysis.
+        Your feedback is saved and shapes every future analysis.
       </p>
       {reviews.length > 0 && (
         <ul className="mb-4 space-y-2">
@@ -204,7 +204,7 @@ export function SignOffPanel({ analysisId, version, status, signedOff }: { analy
       <form action={action} className="space-y-3">
         <label className="flex items-start gap-2 text-[12.5px] text-ink-soft">
           <input type="checkbox" name="acknowledge" className="mt-0.5 accent-navy-900" />
-          I have reviewed this memo, its evidence ledger and the fact-check, and it is accurate to the best of my knowledge.
+          I have reviewed this memo, its sources and the fact-check, and it is accurate to the best of my knowledge.
         </label>
         <textarea
           name="note"
@@ -213,7 +213,7 @@ export function SignOffPanel({ analysisId, version, status, signedOff }: { analy
           className={inputCls}
         />
         {state.error && <p className="text-[13px] text-neg">{state.error}</p>}
-        <Button type="submit" disabled={pending} className="w-full">Sign off memo v{version}</Button>
+        <Button type="submit" disabled={pending} className="w-full">Sign off this memo</Button>
       </form>
     </Card>
   );

@@ -27,7 +27,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
         <GenesysMark size={420} className="pointer-events-none absolute -right-28 bottom-16 opacity-[0.09]" />
         <div className="relative px-6 pt-7 pb-8">
           <Logo on="dark" />
-          <div className="mt-4 text-[10.5px] font-medium uppercase tracking-[0.22em] text-brand-300/80">Analyst Platform</div>
+          <div className="mt-4 text-[10.5px] font-medium uppercase tracking-[0.22em] text-brand-300/80">The Sharminator</div>
         </div>
         <div className="relative"><Nav items={items} /></div>
         <div className="relative mt-auto border-t border-white/10 px-5 py-5">
@@ -48,7 +48,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
       <main className="min-w-0 flex-1 px-10 py-10 xl:px-14">
         {env.adminBypassEnabled && (
           <div className="no-print mx-auto mb-6 max-w-[1280px] rounded-lg border border-[#e3c3be] bg-neg-bg px-4 py-2 text-[12.5px] text-neg">
-            Testing mode: the sign-in bypass is on. Anyone with this link can enter as an administrator. Set ENABLE_ADMIN_BYPASS=false before real use.
+            Testing mode: anyone with this web address can get in without signing in. Ask your developer to switch this off before uploading confidential material.
           </div>
         )}
         <div className="mx-auto max-w-[1280px]">{children}</div>

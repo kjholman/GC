@@ -14,7 +14,7 @@ export function ExemplarEditor({ analysisId, companyName, version, memo }: { ana
           <div className="eyebrow mb-1 text-brand-600">Correcting memo v{version}</div>
           <h2 className="mb-5 font-display font-semibold text-[24px] text-navy-900">{companyName}</h2>
           <div className="grid gap-4 md:grid-cols-3">
-            <Field label="Exemplar title"><input name="title" defaultValue={companyName} className={inputCls} /></Field>
+            <Field label="Name for this example"><input name="title" defaultValue={companyName} className={inputCls} /></Field>
             <Field label="Correct decision">
               <select name="recommendation" defaultValue={memo.recommendation} className={inputCls}>
                 <option value="REJECT">Decline</option>
@@ -49,14 +49,14 @@ export function ExemplarEditor({ analysisId, companyName, version, memo }: { ana
             <div className="eyebrow mb-1 text-brand-600">Required</div>
             <h3 className="mb-3 font-display font-semibold text-[19px] text-navy-900">Partner commentary</h3>
             <p className="mb-3 text-[12.5px] leading-relaxed text-ink-soft">
-              What makes this the right analysis, and what did the AI get wrong? The analyst reads this whenever it sees a similar deal.
+              What makes this the right analysis, and what did the Sharminator get wrong? It reads this whenever it sees a similar deal.
             </p>
             <textarea name="partnerCommentary" rows={7} className={inputCls} placeholder="e.g. The AI underweighted the human genetic validation; for peripherally restricted mechanisms we accept single-species tox at seed if…" />
           </Card>
           {state.error && <p className="text-[13px] text-neg">{state.error}</p>}
-          <Button type="submit" disabled={pending} className="w-full py-3">{pending ? "Saving…" : "Endorse as exemplar"}</Button>
+          <Button type="submit" disabled={pending} className="w-full py-3">{pending ? "Saving…" : "Save as example memo"}</Button>
           <p className="text-[11.5px] leading-relaxed text-muted">
-            If you change the decision or move the score by 10 or more points, a calibration review is also recorded.
+            If you change the decision or move the score by 10 points or more, this also counts as partner feedback.
           </p>
         </div>
       </div>

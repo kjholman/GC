@@ -6,27 +6,26 @@ import { VERIFIER_PROMPT } from "@/lib/ai/verify";
 import { Card, SectionTitle } from "@/components/ui";
 import { SettingsForm } from "./SettingsForm";
 
-export const metadata = { title: "Prompt & parameters" };
 
 export default async function PromptPage() {
   const user = await requireUser();
   const [settings, firmContext] = await Promise.all([getFirmSettings(), buildFirmContext()]);
   const sections = [
-    { title: "1 · Analyst profile and toolkit", body: ANALYST_PROFILE, note: "Fixed in code (src/lib/ai/prompts.ts). Defines who the analyst is and how it reasons." },
-    { title: "2 · Method, decision rules and rubric", body: METHODOLOGY, note: "Fixed in code. Decision thresholds, scoring anchors, evidence and writing standards." },
-    { title: "3 · Firm context (live)", body: firmContext, note: "Built from what you maintain here, in the Knowledge base and in Calibration. It changes as you train the analyst." },
-    { title: "4 · Independent fact-checker", body: VERIFIER_PROMPT, note: "A separate pass that checks every claim in a memo against the source materials before anyone sees it." },
+    { title: "1 · Who the Sharminator is", body: ANALYST_PROFILE, note: "Who the Sharminator is and how it reasons. Changes to this part are made by your developer." },
+    { title: "2 · How it decides and scores", body: METHODOLOGY, note: "Decision rules, scoring guide, sourcing rules and writing standards. Changes are made by your developer." },
+    { title: "3 · What it knows about Genesys (live)", body: firmContext, note: "Built from the firm settings above, the Knowledge base and partner feedback. It changes as you train the Sharminator." },
+    { title: "4 · Fact-checking instructions", body: VERIFIER_PROMPT, note: "A second, independent review that checks every claim in a memo against the sources before anyone sees it." },
   ];
   return (
     <div className="space-y-8">
       <Card>
-        <SectionTitle eyebrow="Firm parameters" title="What every memo is measured against" />
+        <SectionTitle eyebrow="Firm settings" title="What every memo is measured against" />
         <SettingsForm settings={settings.map((s) => ({ key: s.key, label: s.label, help: s.help, value: s.value, confirmed: s.confirmed }))} canEdit={hasRole(user.role, "PARTNER")} />
       </Card>
       <Card>
-        <SectionTitle eyebrow="Full transparency" title="Exactly what the analyst is told" />
+        <SectionTitle eyebrow="Full transparency" title="Exactly what the Sharminator is told" />
         <p className="-mt-2 mb-6 max-w-3xl text-[13.5px] leading-relaxed text-ink-soft">
-          These are the complete instructions sent with every analysis, ahead of the deal&apos;s documents, its precedents and the research brief. Nothing is hidden.
+          These are the complete instructions it receives with every analysis, before the deal&apos;s documents, precedents and research. Nothing is hidden.
         </p>
         <div className="space-y-3">
           {sections.map((s) => (

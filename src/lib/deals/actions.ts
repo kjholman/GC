@@ -107,6 +107,7 @@ export async function createDealAction(_: ActionState, formData: FormData): Prom
   const deal = await db.deal.create({
     data: {
       companyName: fields.companyName || `Untitled: ${files[0].name.replace(/\.[^.]+$/, "")}`,
+      autoNamed: !fields.companyName,
       contactName: fields.contactName,
       contactEmail: fields.contactEmail,
       source: fields.source,

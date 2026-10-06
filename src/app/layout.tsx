@@ -7,8 +7,11 @@ const poppins = Poppins({ variable: "--font-poppins", subsets: ["latin"], weight
 const figtree = Figtree({ variable: "--font-figtree", subsets: ["latin"], weight: ["400", "500", "600", "700"] });
 
 export const metadata: Metadata = {
-  title: { default: "Genesys Capital | Analyst Platform", template: "%s | Genesys Capital" },
-  description: "Genesys Capital investment analysis platform. Authorised personnel only.",
+  // The browser tab always reads "The Sharminator", whichever page is open.
+  title: { absolute: "The Sharminator" },
+  applicationName: "The Sharminator",
+  appleWebApp: { title: "The Sharminator" },
+  description: "The Sharminator: Genesys Capital investment analysis. Authorised personnel only.",
   robots: { index: false, follow: false },
 };
 

@@ -20,13 +20,13 @@ export function ImportCsvForm() {
   return (
     <Card>
       <div className="eyebrow mb-1 text-brand-600">Bulk import</div>
-      <h3 className="font-display font-semibold text-[20px] text-navy-900">Import deal history</h3>
+      <h3 className="font-display font-semibold text-[20px] text-navy-900">Import past deals</h3>
       <p className="mt-1.5 mb-4 text-[12.5px] leading-relaxed text-ink-soft">
-        Upload a CSV with one row per deal, plus the original decks. Decks are matched to rows by the <code className="text-[11.5px]">deck_filename</code> column.{" "}
-        <a href="/templates/deal-archive-template.csv" className="text-navy-700 underline">Download template</a>
+        Upload a spreadsheet (saved as CSV) with one row per deal, plus the original decks. Each deck is matched to its row by the file name you put in the “deck_filename” column.{" "}
+        <a href="/templates/deal-archive-template.csv" className="text-navy-700 underline">Download the template</a>
       </p>
       <form action={action} className="space-y-3">
-        <Field label="CSV file"><input type="file" name="csv" accept=".csv" className="text-[13px]" /></Field>
+        <Field label="Spreadsheet (CSV)"><input type="file" name="csv" accept=".csv" className="text-[13px]" /></Field>
         <Field label="Original decks (optional, multiple)"><input type="file" name="decks" multiple accept=".pdf,.pptx,.docx" className="text-[13px]" /></Field>
         <Status s={state} />
         <Button type="submit" disabled={pending} className="w-full">{pending ? "Importing…" : "Import"}</Button>
@@ -70,11 +70,11 @@ export function AddHistoricalForm() {
         </Field>
         <Field label="What happened next"><input name="outcomeNotes" className={inputCls} placeholder="e.g. Raised Series B from X; failed Phase 2 in 2021" /></Field>
         <Field label="Original deck"><input type="file" name="deck" accept=".pdf,.pptx,.docx,.png,.jpg" className="text-[13px]" /></Field>
-        <Field label="Internal memo text (optional)" hint="Never shown to the analyst during backtests.">
+        <Field label="Internal memo text (optional)" hint="Never shown to the Sharminator during accuracy tests.">
           <textarea name="icMemoText" rows={3} className={inputCls} />
         </Field>
         <Status s={state} />
-        <Button type="submit" disabled={pending} className="w-full">{pending ? "Saving…" : "Add to archive"}</Button>
+        <Button type="submit" disabled={pending} className="w-full">{pending ? "Saving…" : "Add past deal"}</Button>
       </form>
     </Card>
   );
@@ -83,9 +83,9 @@ export function AddHistoricalForm() {
 export function ArchiveRowActions({ id, name, failed }: { id: string; name: string; failed: boolean }) {
   return (
     <div className="flex gap-4 text-[12.5px]">
-      {failed && <button onClick={() => retryIngestAction(id)} className="text-navy-700 hover:underline">Retry reading</button>}
+      {failed && <button onClick={() => retryIngestAction(id)} className="text-navy-700 hover:underline">Try reading again</button>}
       <button
-        onClick={async () => { if (confirm(`Remove ${name} from the archive?`)) await deleteHistoricalDealAction(id); }}
+        onClick={async () => { if (confirm(`Remove ${name} from past deals?`)) await deleteHistoricalDealAction(id); }}
         className="text-neg hover:underline"
       >
         Remove

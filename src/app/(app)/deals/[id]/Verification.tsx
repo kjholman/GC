@@ -3,16 +3,35 @@ import type { VerificationReport } from "@/lib/ai/verify";
 import { Card, SectionTitle, cx } from "@/components/ui";
 
 const STATUS: Record<string, { label: string; cls: string; dot: string; blurb: string }> = {
-  PASSED: { label: "Fact-check passed", cls: "border-[#c9e2d9] bg-pos-bg", dot: "bg-pos", blurb: "Every material claim traced to a source; no issues found." },
-  WARNINGS: { label: "Fact-check: review warnings", cls: "border-[#efdcb4] bg-warn-bg", dot: "bg-warn", blurb: "No fabricated or contradicted facts, but some claims are unsupported or overstated." },
-  FAILED: { label: "Fact-check: unresolved issues", cls: "border-[#efd2ce] bg-neg-bg", dot: "bg-neg", blurb: "Serious issues remain after automatic correction. Verify these points before relying on the memo." },
+  PASSED: { label: "Fact-check passed", cls: "border-[#c9e2d9] bg-pos-bg", dot: "bg-pos", blurb: "Every important claim was traced to a source. Nothing to fix." },
+  WARNINGS: { label: "Fact-check: a few points to review", cls: "border-[#efdcb4] bg-warn-bg", dot: "bg-warn", blurb: "Nothing made up or contradicted, but some claims lack a source or are stated too strongly." },
+  FAILED: { label: "Fact-check: problems remain", cls: "border-[#efd2ce] bg-neg-bg", dot: "bg-neg", blurb: "Some serious problems remain after the Sharminator's own correction. Check these points before relying on the memo." },
 };
+
+const SEVERITY: Record<string, string> = { HIGH: "Serious", MEDIUM: "Check", LOW: "Minor" };
+const PROBLEM: Record<string, string> = {
+  FABRICATED_ENTITY: "Not found in any source",
+  MISQUOTED: "Quote doesn't match the document",
+  CONTRADICTED: "Sources say otherwise",
+  UNSUPPORTED: "No source given",
+  OVERSTATED_CERTAINTY: "Stated too strongly",
+  INTERNAL_INCONSISTENCY: "Numbers or sections don't agree",
+  RULE_VIOLATION: "Breaks a Genesys rule",
+};
+const SECTIONS: [string, string][] = [
+  ["evidence", "Sources"], ["portfolioFit", "Portfolio fit"], ["team", "Team"], ["intellectualProperty", "IP"],
+  ["market", "Market"], ["financials", "Financials"], ["scorecard", "Scores"], ["overallScore", "Scores"],
+  ["recommendation", "Recommendation"], ["founderEmail", "Founder email"], ["competit", "Competitive landscape"],
+];
+function whereLabel(loc: string) {
+  return SECTIONS.find(([k]) => loc.startsWith(k))?.[1] ?? "";
+}
 
 export function VerificationBanner({ report, signedOff }: { report: VerificationReport | null; signedOff: { by: string; at: string } | null }) {
   if (!report) {
     return (
       <div className="rounded-lg border border-line bg-paper px-6 py-4 text-[13px] text-muted">
-        This memo predates automated fact-checking. Re-run the analysis to verify it.
+        This memo was written before fact-checking was added. Run the analysis again to have it checked.
       </div>
     );
   }
@@ -26,7 +45,7 @@ export function VerificationBanner({ report, signedOff }: { report: Verification
           <span className="text-[14px] font-medium text-ink">{s.label}</span>
         </div>
         <span className="text-[12.5px] text-ink-soft tabular">
-          {report.evidenceCount} claims in ledger · {report.quotesVerified} quotes matched to source · {report.claimsChecked} checked independently
+          {report.evidenceCount} claims sourced · {report.quotesVerified} quotes matched to the documents · {report.claimsChecked} double-checked
           {report.revisions ? " · corrected once" : ""}
         </span>
         <span className={cx("ml-auto text-[12.5px] font-medium", signedOff ? "text-pos" : "text-warn")}>
@@ -37,18 +56,18 @@ export function VerificationBanner({ report, signedOff }: { report: Verification
       {open.length > 0 && (
         <details className="mt-3">
           <summary className="cursor-pointer text-[13px] font-medium text-navy-800">
-            {open.length} issue{open.length === 1 ? "" : "s"} to review
+            {open.length} point{open.length === 1 ? "" : "s"} to review
           </summary>
           <ul className="mt-3 space-y-3">
             {open.map((i, n) => (
               <li key={n} className="rounded-lg bg-paper/80 px-4 py-3 text-[13px]">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className={cx("rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]", i.severity === "HIGH" ? "bg-neg text-white" : "bg-warn-bg text-warn")}>{i.severity}</span>
-                  <span className="text-[11.5px] uppercase tracking-[0.08em] text-muted">{i.problem.replaceAll("_", " ").toLowerCase()} · {i.location} · {i.origin}</span>
+                  <span className={cx("rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]", i.severity === "HIGH" ? "bg-neg text-white" : "bg-warn-bg text-warn")}>{SEVERITY[i.severity] ?? i.severity}</span>
+                  <span className="text-[12px] text-muted">{PROBLEM[i.problem] ?? "Needs a look"}{whereLabel(i.location) ? ` · ${whereLabel(i.location)}` : ""}</span>
                 </div>
                 <p className="mt-1.5 text-ink">&ldquo;{i.excerpt}&rdquo;</p>
                 <p className="mt-1 text-ink-soft">{i.explanation}</p>
-                <p className="mt-1 text-ink-soft"><span className="text-muted">Correction: </span>{i.correction}</p>
+                <p className="mt-1 text-ink-soft"><span className="text-muted">Fix: </span>{i.correction}</p>
               </li>
             ))}
           </ul>
@@ -59,13 +78,19 @@ export function VerificationBanner({ report, signedOff }: { report: Verification
 }
 
 const SRC: Record<string, string> = {
-  DECK_OR_MATERIALS: "Materials",
-  RESEARCH_BRIEF: "Research",
-  PRECEDENT: "Precedent",
-  FIRM_CONTEXT: "Firm",
-  BENCHMARK: "Benchmark",
-  GENERAL_KNOWLEDGE: "Background",
-  ANALYST_INFERENCE: "Inference",
+  DECK_OR_MATERIALS: "Company materials",
+  RESEARCH_BRIEF: "Web research",
+  PRECEDENT: "Past Genesys deal",
+  FIRM_CONTEXT: "Genesys records",
+  BENCHMARK: "Industry benchmark",
+  GENERAL_KNOWLEDGE: "General knowledge",
+  ANALYST_INFERENCE: "Sharminator's judgement",
+};
+const STATUS_LABEL: Record<string, string> = {
+  VERIFIED_IN_SOURCE: "Confirmed in source",
+  COMPANY_CLAIM: "Company's claim",
+  INFERENCE: "Judgement",
+  NEEDS_VERIFICATION: "Needs checking",
 };
 const ST: Record<string, string> = {
   VERIFIED_IN_SOURCE: "text-pos",
@@ -80,10 +105,10 @@ export function EvidenceLedger({ memo, report }: { memo: Memo; report: Verificat
   return (
     <Card pad={false}>
       <div className="px-6 pt-6">
-        <SectionTitle eyebrow="Evidence ledger" title="Every material claim and its source" />
+        <SectionTitle eyebrow="Sources" title="Every important claim and where it came from" />
         <div className="-mt-2 mb-5 flex flex-wrap gap-5 text-[12.5px]">
           {Object.entries(counts).map(([k, n]) => (
-            <span key={k} className={ST[k]}>{n} {k.replaceAll("_", " ").toLowerCase()}</span>
+            <span key={k} className={ST[k]}>{n} {STATUS_LABEL[k].toLowerCase()}</span>
           ))}
         </div>
       </div>
@@ -109,8 +134,8 @@ export function EvidenceLedger({ memo, report }: { memo: Memo; report: Verificat
                 <div className="text-muted [overflow-wrap:anywhere]">{e.sourceRef}</div>
               </td>
               <td className={cx("py-3 pr-6 pl-3 align-top text-[12px] font-medium", ST[e.status])}>
-                {e.status.replaceAll("_", " ").toLowerCase()}
-                {flagged.has(e.id) && <div className="text-neg">⚠ flagged</div>}
+                {STATUS_LABEL[e.status] ?? e.status}
+                {flagged.has(e.id) && <div className="text-neg">⚠ Needs a look</div>}
               </td>
             </tr>
           ))}

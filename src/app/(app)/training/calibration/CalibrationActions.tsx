@@ -19,7 +19,7 @@ export function GenerateSuggestions({ disabled }: { disabled: boolean }) {
           setPending(false);
         }}
       >
-        {pending ? "Analysing feedback…" : disabled ? "Needs 3+ reviews" : "Find patterns & suggest principles"}
+        {pending ? "Reading the feedback…" : disabled ? "Needs at least 3 reviews" : "Find patterns and suggest principles"}
       </Button>
       {(state.error || state.message) && <p className={cx("mt-2 text-[12.5px]", state.error ? "text-neg" : "text-pos")}>{state.error ?? state.message}</p>}
     </div>

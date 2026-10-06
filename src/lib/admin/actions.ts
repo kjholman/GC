@@ -31,7 +31,7 @@ export async function addUsersAction(_: AdminState, formData: FormData): Promise
   }
   await audit("admin.users_added", { userId: admin.id, meta: { emails, role } });
   revalidatePath("/admin");
-  return { ok: true, message: `${emails.length} user${emails.length === 1 ? "" : "s"} authorised.` };
+  return { ok: true, message: `Done. ${emails.length === 1 ? "They now have" : `${emails.length} people now have`} access.` };
 }
 
 export async function updateUserAction(userId: string, formData: FormData) {
@@ -100,7 +100,8 @@ export async function savePortfolioCompanyAction(id: string | null, _: AdminStat
     verified: formData.get("verified") === "on",
   });
   if (!parsed.success) return { ok: false, error: "Name, sector and description are required." };
-  const data = { ...parsed.data };
+  // A partner edit takes the record out of seed maintenance.
+  const data = { ...parsed.data, seeded: false };
   const saved = id
     ? await db.portfolioCompany.update({ where: { id }, data })
     : await db.portfolioCompany.create({ data });

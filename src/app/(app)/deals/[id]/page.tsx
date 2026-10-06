@@ -6,6 +6,7 @@ import { hasRole, requireUser } from "@/lib/auth/session";
 import type { CompetitorSweep, Memo } from "@/lib/ai/schema";
 import { Button, Card, REC_META, ScoreRing, SectionTitle, StatusBadge, cx, fmtDate, relTime } from "@/components/ui";
 import { AnalysisProgress } from "./AnalysisProgress";
+import { StepLog, asSteps } from "./StepLog";
 import { CopyButton } from "./CopyButton";
 import { FeedbackPanel, FollowUpPanel, NoteForm, RerunButton, SignOffPanel, StatusPanel } from "./DealActions";
 import { EvidenceProvider } from "./Evidence";
@@ -15,12 +16,6 @@ import type { VerificationReport } from "@/lib/ai/verify";
 import { DiligenceView, FinancialsView, FitView, IPView, MarketView, MemoView, Paras, RequestsView, TeamView } from "./Memo";
 import { PrintButton } from "./PrintButton";
 import { Tabs } from "./Tabs";
-
-export async function generateMetadata({ params }: PageProps<"/deals/[id]">) {
-  const { id } = await params;
-  const deal = await db.deal.findUnique({ where: { id }, select: { companyName: true } });
-  return { title: deal?.companyName ?? "Deal" };
-}
 
 const KIND_LABEL: Record<string, string> = {
   PITCH_DECK: "Pitch deck",
@@ -136,6 +131,8 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
             analysisId={inFlight.id}
             version={inFlight.version}
             initialProgress={inFlight.progress}
+            initialSteps={asSteps(inFlight.steps)}
+            companyName={deal.companyName}
             startedAt={inFlight.startedAt?.toISOString() ?? null}
           />
         </div>
@@ -143,8 +140,14 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
       {failed && (
         <div className="mb-8 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-[#efd2ce] bg-neg-bg px-6 py-4">
           <div>
-            <div className="text-[13.5px] font-medium text-neg">Analysis v{failed.version} did not complete</div>
+            <div className="text-[13.5px] font-medium text-neg">Analysis version {failed.version} did not finish</div>
             <div className="mt-0.5 text-[13px] text-ink-soft">{failed.error}</div>
+            {asSteps(failed.steps).length > 0 && (
+              <details className="mt-2">
+                <summary className="cursor-pointer text-[12.5px] font-medium text-navy-800">See how far it got</summary>
+                <StepLog steps={asSteps(failed.steps)} className="mt-3" />
+              </details>
+            )}
           </div>
           <RerunButton dealId={deal.id} disabled={false} />
         </div>
@@ -233,7 +236,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
                     </Card>
                   ),
                 },
-                { id: "evidence", label: "Evidence", badge: memo.evidence?.length ?? 0, content: memo.evidence ? <EvidenceLedger memo={memo} report={report} /> : <Card><p className="text-[14px] text-muted">This memo predates the evidence ledger.</p></Card> },
+                { id: "evidence", label: "Sources", badge: memo.evidence?.length ?? 0, content: memo.evidence ? <EvidenceLedger memo={memo} report={report} /> : <Card><p className="text-[14px] text-muted">This memo was written before source tracking was added.</p></Card> },
                 {
                   id: "research",
                   label: "Research brief",
@@ -255,7 +258,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
                   content: (
                     <div className="space-y-8">
                       <Card pad={false}>
-                        <div className="px-6 pt-6"><SectionTitle eyebrow="Data room" title="Materials received" /></div>
+                        <div className="px-6 pt-6"><SectionTitle eyebrow="Documents" title="Materials received" /></div>
                         {rounds.map((r) => (
                           <div key={r}>
                             <div className="border-y border-line bg-mist/60 px-6 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
@@ -274,8 +277,14 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
                           </div>
                         ))}
                       </Card>
+                      {asSteps(shown.steps).length > 0 && (
+                        <Card>
+                          <SectionTitle eyebrow={`Version ${shown.version}`} title="How the Sharminator did this analysis" />
+                          <StepLog steps={asSteps(shown.steps)} />
+                        </Card>
+                      )}
                       <Card pad={false}>
-                        <div className="px-6 pt-6"><SectionTitle eyebrow="Audit trail" title="Analysis versions" /></div>
+                        <div className="px-6 pt-6"><SectionTitle eyebrow="History" title="Analysis versions" /></div>
                         <table className="w-full text-left text-[13.5px]">
                           <tbody className="divide-y divide-line border-t border-line">
                             {deal.analyses.map((a) => (
@@ -285,7 +294,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
                                   {a.trigger === "INITIAL_SCREEN" ? "Initial screen" : a.trigger === "NEW_INFORMATION" ? "New information" : "Re-run"}
                                 </td>
                                 <td className={cx("px-4 py-3 font-medium", a.recommendation ? REC_META[a.recommendation]?.cls : "text-muted")}>
-                                  {a.recommendation ? REC_META[a.recommendation]?.label : a.status.toLowerCase()}
+                                  {a.recommendation ? REC_META[a.recommendation]?.label : ({ QUEUED: "Waiting to start", RUNNING: "In progress", FAILED: "Didn't finish", COMPLETE: "Finished" } as Record<string, string>)[a.status]}
                                 </td>
                                 <td className="px-4 py-3 tabular text-ink">{a.overallScore ?? "—"}</td>
                                 <td className="px-4 py-3 text-[12px] text-muted">{fmtDate(a.completedAt ?? a.createdAt, true)}</td>
@@ -318,7 +327,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
           {shown && canPartner && (
             <Link href={`/training/exemplars/new?analysis=${shown.id}`} className="block rounded-lg border border-line bg-paper px-5 py-4 text-[13px] text-navy-800 hover:border-navy-700">
               <span className="eyebrow block text-brand-600">Training Studio</span>
-              Correct &amp; endorse as exemplar →
+              Correct this memo and save as an example →
             </Link>
           )}
           {shown && (

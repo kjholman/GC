@@ -31,6 +31,12 @@ import {
 
 export { anthropic, structuredCall, type ContentBlock };
 
+const RECOMMENDATION_TEXT: Record<Memo["recommendation"], string> = {
+  REJECT: "recommends declining",
+  PENDING_INFO: "needs more information from the founders",
+  ADVANCE_TO_DILIGENCE: "recommends advancing to due diligence",
+};
+
 export const STATUS_FOR_RECOMMENDATION: Record<Memo["recommendation"], DealStatus> = {
   REJECT: "REJECTED",
   PENDING_INFO: "PENDING_INFO",
@@ -39,6 +45,29 @@ export const STATUS_FOR_RECOMMENDATION: Record<Memo["recommendation"], DealStatu
 
 async function setProgress(id: string, progress: string) {
   await db.analysis.update({ where: { id }, data: { progress } });
+}
+
+export type StepKind = "start" | "info" | "done" | "warn";
+export type Step = { at: string; text: string; kind: StepKind };
+
+/**
+ * Appends one line to the analysis's live log. Atomic in SQL so the parallel
+ * research passes can report as they finish without overwriting each other.
+ */
+async function logStep(id: string, text: string, kind: StepKind = "info") {
+  const entry = JSON.stringify([{ at: new Date().toISOString(), text: plainPunctuation(text), kind }]);
+  await db
+    .$executeRaw`UPDATE "Analysis" SET "steps" = COALESCE("steps", '[]'::jsonb) || ${entry}::jsonb WHERE "id" = ${id}`
+    .catch((err) => console.error("[analyst] could not record step", err));
+}
+
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+const listNames = (names: string[], max = 4) =>
+  names.length <= max ? names.join(", ") : `${names.slice(0, max).join(", ")} and ${names.length - max} more`;
+
+/** A deal still carries a placeholder name when nobody typed one at upload. */
+export function hasPlaceholderName(deal: { autoNamed: boolean; companyName: string }) {
+  return deal.autoNamed || deal.companyName.startsWith("Untitled");
 }
 
 /** Deal documents in priority order: newest round first, pitch deck first within a round. */
@@ -255,8 +284,10 @@ export async function runAnalysis(analysisId: string): Promise<void> {
 
   await db.analysis.update({
     where: { id: analysisId },
-    data: { status: "RUNNING", startedAt: new Date(), progress: "Reading submitted materials", error: null },
+    data: { status: "RUNNING", startedAt: new Date(), progress: "Reading submitted materials", error: null, steps: [] },
   });
+  await logStep(analysisId, analysis.version === 1 ? "Started the first analysis of this deal" : `Started analysis version ${analysis.version}`, "start");
+  let companyName = deal.companyName;
 
   let prepared: PreparedFiles | null = null;
   try {
@@ -265,28 +296,62 @@ export async function runAnalysis(analysisId: string): Promise<void> {
       orderBy: { version: "asc" },
     });
     await setProgress(analysisId, "Reading submitted materials");
+    const pages = deal.documents.reduce((n, d) => n + (d.pageCount ?? 0), 0);
+    await logStep(analysisId, `Reading ${plural(deal.documents.length, "document")}${pages ? ` (${plural(pages, "page")})` : ""}: ${listNames(deal.documents.map((d) => d.filename))}`, "start");
     prepared = await prepareFiles(dealFiles(deal.documents));
     const blocks = prepared.blocks;
-    if (!blocks.length) throw new Error("No readable documents are attached to this deal.");
+    if (!blocks.length) throw new Error("None of the attached documents could be read. Upload them again as PDF, Word, PowerPoint or Excel files.");
     const coverage = coverageNote(prepared);
+    const readIn = deal.documents.length - prepared.omitted.length;
+    await logStep(analysisId, `Read ${plural(readIn, "document")}`, "done");
+    if (prepared.textOnly.length) await logStep(analysisId, `Read as text only, so charts were not seen: ${listNames(prepared.textOnly)}`, "warn");
+    if (prepared.partial.length) await logStep(analysisId, `Only part of these fit in one analysis: ${listNames(prepared.partial)}`, "warn");
+    if (prepared.omitted.length) await logStep(analysisId, `Too much material to read everything; skipped: ${listNames(prepared.omitted)}`, "warn");
 
     // Fingerprint the deal (once, or again when new materials arrive) to find precedents.
     let probe: { sector: string | null; modality: string | null; indication: string | null; tags: string[] } = deal;
-    if (!deal.tags.length || analysis.trigger !== "INITIAL_SCREEN") {
+    const placeholder = hasPlaceholderName(deal);
+    if (!deal.tags.length || analysis.trigger !== "INITIAL_SCREEN" || placeholder) {
+      await logStep(analysisId, "Identifying the company, its technology and lead indication", "start");
       const fp = await fingerprint(blocks).catch((err) => {
         console.error("[analyst] fingerprint failed; continuing", err);
         return null;
       });
       if (fp) {
         probe = { sector: fp.sector, modality: fp.modality, indication: fp.indication, tags: fp.tags };
+        const foundName = fp.companyName?.trim();
+        const rename = placeholder && !!foundName;
+        if (rename) companyName = foundName;
         await db.deal.update({
           where: { id: deal.id },
-          data: { tags: fp.tags, indication: deal.indication ?? fp.indication, sector: deal.sector ?? fp.sector, modality: deal.modality ?? fp.modality },
+          data: {
+            tags: fp.tags,
+            indication: deal.indication ?? fp.indication,
+            sector: deal.sector ?? fp.sector,
+            modality: deal.modality ?? fp.modality,
+            ...(rename ? { companyName, autoNamed: false } : {}),
+          },
         });
+        await logStep(
+          analysisId,
+          `Identified ${rename ? companyName : "the company"}: ${[fp.modality, fp.indication].filter(Boolean).join(" for ").toLowerCase() || fp.sector}${rename ? ". Renamed the deal to match" : ""}`,
+          "done",
+        );
+      } else {
+        await logStep(analysisId, "Couldn't classify the company automatically; continuing with the documents alone", "warn");
       }
     }
-    await setProgress(analysisId, "Retrieving precedents from Genesys' deal history");
+    await setProgress(analysisId, "Looking up similar past Genesys deals");
+    await logStep(analysisId, "Looking for similar deals in Genesys's history", "start");
     const precedents = await findPrecedents(probe);
+    await logStep(
+      analysisId,
+      precedents.historical.length
+        ? `Found ${plural(precedents.historical.length, "similar past deal")}: ${listNames(precedents.historical.map((h) => h.companyName))}`
+        : "No closely similar past Genesys deals found",
+      "done",
+    );
+    if (precedents.exemplars.length) await logStep(analysisId, `Using ${plural(precedents.exemplars.length, "example memo")} the partners approved`, "info");
 
     // Web research: five passes in parallel. Re-used on follow-ups unless a re-run is requested.
     const priorResearch = [...prior].reverse().find((a) => a.research);
@@ -297,19 +362,42 @@ export async function runAnalysis(analysisId: string): Promise<void> {
     const refresh = analysis.trigger === "RERUN";
     if (env.webResearchEnabled && (!research || !competitors || refresh)) {
       await setProgress(analysisId, "Researching science, founders, patents, market and competitors");
-      const soft = <T,>(label: string, p: Promise<T>) =>
-        p.catch((err) => {
-          console.error(`[analyst] ${label} research failed; continuing without it`, err);
-          return null;
-        });
       const needResearch = !research || refresh;
       const needSweep = !competitors || refresh;
+      const passes = [
+        needResearch && "the science and regulatory path",
+        needResearch && "the founders and management team",
+        needResearch && "patents and IP",
+        needResearch && "the market",
+        needSweep && "competitors and their funding",
+      ].filter(Boolean) as string[];
+      await logStep(analysisId, `Searching the web in parallel: ${passes.join(", ")}`, "start");
+      // Each pass reports in the log as it finishes; a failed pass is skipped, not fatal.
+      const soft = <T,>(label: string, p: Promise<T | null>, done: (v: T) => string) =>
+        p.then(
+          async (v) => {
+            await logStep(analysisId, v ? done(v) : `Couldn't complete the ${label} research; continuing without it`, v ? "done" : "warn");
+            return v;
+          },
+          async (err) => {
+            console.error(`[analyst] ${label} research failed; continuing without it`, err);
+            await logStep(analysisId, `Couldn't complete the ${label} research; continuing without it`, "warn");
+            return null;
+          },
+        );
+      const sourcesIn = (t: string) => new Set(t.match(URL_RE) ?? []).size;
+      const finished = (what: string) => (t: string) => `Finished ${what}${sourcesIn(t) ? ` (${plural(sourcesIn(t), "source")})` : ""}`;
       const [science, founders, ip, market, swept] = await Promise.all([
-        needResearch ? soft("science", researchBrief(deal.companyName, blocks)) : null,
-        needResearch ? soft("founder", diligenceResearch(FOUNDER_RESEARCH_PROMPT, deal.companyName, blocks)) : null,
-        needResearch ? soft("ip", diligenceResearch(IP_RESEARCH_PROMPT, deal.companyName, blocks)) : null,
-        needResearch ? soft("market", diligenceResearch(MARKET_RESEARCH_PROMPT, deal.companyName, blocks)) : null,
-        needSweep ? soft("competitor", competitorSweep(deal.companyName, blocks)) : null,
+        needResearch ? soft("science", researchBrief(companyName, blocks), finished("the science and regulatory research")) : null,
+        needResearch ? soft("founder", diligenceResearch(FOUNDER_RESEARCH_PROMPT, companyName, blocks), finished("the founder and management research")) : null,
+        needResearch ? soft("patent", diligenceResearch(IP_RESEARCH_PROMPT, companyName, blocks), finished("the patent and IP research")) : null,
+        needResearch ? soft("market", diligenceResearch(MARKET_RESEARCH_PROMPT, companyName, blocks), finished("the market research")) : null,
+        needSweep
+          ? soft("competitor", competitorSweep(companyName, blocks), (r) => {
+              const names = r.sweep.competitors.map((c) => c.name);
+              return names.length ? `Found ${plural(names.length, "competitor")}: ${listNames(names, 5)}` : "Competitor search finished; no direct competitors could be confirmed";
+            })
+          : null,
       ]);
       if (needResearch) {
         const sections = [
@@ -325,13 +413,16 @@ export async function runAnalysis(analysisId: string): Promise<void> {
         competitorNotes = swept.notes;
       }
     }
+    else if (research || competitors) {
+      await logStep(analysisId, "Re-using the web research from the previous version", "info");
+    }
     // Everything retrieved from the web is a citable source for the fact-check.
     const webSources = [research, competitorNotes].filter(Boolean).join("\n\n") || null;
 
-    await setProgress(analysisId, prior.length ? "Underwriting the new information" : "Underwriting: science, financials and fit");
+    await setProgress(analysisId, prior.length ? "Writing the memo with the new information" : "Writing the memo");
     const firmContext = await buildFirmContext({ excludeDealId: deal.id });
     const underwriteArgs = {
-      companyName: deal.companyName,
+      companyName,
       docs: blocks,
       coverage,
       prior,
@@ -341,13 +432,16 @@ export async function runAnalysis(analysisId: string): Promise<void> {
       firmContext,
       analystContext: analysis.analystContext,
     };
+    await logStep(analysisId, prior.length ? "Writing the updated memo with the new information" : "Writing the memo: science, team, IP, market, financials and fit with Genesys", "start");
     const draft = await underwrite(underwriteArgs);
+    await logStep(analysisId, `Draft memo written: ${RECOMMENDATION_TEXT[draft.memo.recommendation]}, score ${draft.memo.overallScore}/100`, "done");
     let memo = draft.memo;
     const usage = { ...draft.usage };
     const model = draft.model;
 
     // ── Verification: deterministic checks + independent fact-check, one revision if needed.
     await setProgress(analysisId, "Fact-checking every claim against the sources");
+    await logStep(analysisId, `Fact-checking ${plural(memo.evidence?.length ?? 0, "claim")} against the documents and research`, "start");
     const portfolioNames = (await db.portfolioCompany.findMany({ select: { name: true } })).map((p) => p.name);
     const verifyCtx = {
       sources: await sourceTexts(deal.documents),
@@ -366,13 +460,27 @@ export async function runAnalysis(analysisId: string): Promise<void> {
     };
     let checked = await check(memo, 0);
     const serious = checked.report.issues.filter((i) => i.severity !== "LOW");
+    const removed = checked.report.issues.filter((i) => i.correction === "remove").length;
+    await logStep(
+      analysisId,
+      checked.report.issues.length
+        ? `Fact-check found ${plural(checked.report.issues.length, "point")} to fix${serious.length ? ` (${serious.length} serious)` : ""}${removed ? `; removed ${plural(removed, "unsourced item")}` : ""}`
+        : "Fact-check passed: every claim traced to a source",
+      checked.report.issues.length ? "warn" : "done",
+    );
     if (checked.report.status === "FAILED" && serious.length) {
-      await setProgress(analysisId, "Correcting issues flagged by the fact-checker");
+      await setProgress(analysisId, "Fixing the points the fact-check found");
+      await logStep(analysisId, "Rewriting the memo to fix the serious points", "start");
       const revised = await underwrite({ ...underwriteArgs, corrections: correctionsBlock(serious) });
       usage.input_tokens += revised.usage.input_tokens;
       usage.output_tokens += revised.usage.output_tokens;
       await setProgress(analysisId, "Re-checking the corrected memo");
       checked = await check(revised.memo, 1);
+      await logStep(
+        analysisId,
+        checked.report.status === "FAILED" ? "Some serious points remain after the correction; they are listed on the memo for review" : "Corrections made and re-checked",
+        checked.report.status === "FAILED" ? "warn" : "done",
+      );
     }
     memo = checked.memo;
     const report = checked.report;
@@ -416,26 +524,30 @@ export async function runAnalysis(analysisId: string): Promise<void> {
           website: deal.website ?? memo.company.website,
           contactName: deal.contactName ?? memo.company.founderContactName,
           contactEmail: deal.contactEmail ?? memo.company.founderContactEmail,
-          companyName: deal.companyName.startsWith("Untitled") ? memo.company.name : deal.companyName,
+          // The name the materials give wins over a placeholder taken from the uploaded file name.
+          companyName: companyName === deal.companyName && hasPlaceholderName(deal) ? memo.company.name?.trim() || companyName : companyName,
+          autoNamed: false,
         },
       }),
       db.activity.create({
         data: {
           dealId: deal.id,
           type: "analysis.complete",
-          message: `The Sharminator finished analysis v${analysis.version}: ${memo.recommendation.replaceAll("_", " ").toLowerCase()} (score ${memo.overallScore}); fact-check ${report.status.toLowerCase()}${report.revisions ? " after one correction round" : ""}. Awaiting analyst sign-off.`,
+          message: `The Sharminator finished version ${analysis.version}: it ${RECOMMENDATION_TEXT[memo.recommendation]} (score ${memo.overallScore}/100). ${report.status === "PASSED" ? "The fact-check passed." : "The fact-check left points to review."} Waiting for someone to review and sign off.`,
         },
       }),
     ]);
+    await logStep(analysisId, `Finished: ${RECOMMENDATION_TEXT[memo.recommendation]}. The memo is ready for review and sign-off`, "done");
   } catch (err) {
     const message = describeError(err);
     console.error("[analyst] analysis failed", analysisId, err);
+    await logStep(analysisId, `Stopped: ${message}`, "warn");
     await db.analysis.update({
       where: { id: analysisId },
       data: { status: "FAILED", progress: null, error: message.slice(0, 2000), completedAt: new Date() },
     });
     await db.activity.create({
-      data: { dealId: deal.id, type: "analysis.failed", message: `The Sharminator could not finish analysis v${analysis.version}: ${message.slice(0, 300)}` },
+      data: { dealId: deal.id, type: "analysis.failed", message: `The Sharminator could not finish version ${analysis.version}: ${message.slice(0, 300)}` },
     });
   } finally {
     // Remove any large files uploaded to the model provider for this analysis.
@@ -445,10 +557,18 @@ export async function runAnalysis(analysisId: string): Promise<void> {
 
 export function describeError(err: unknown): string {
   return err instanceof Anthropic.APIError
-    ? `Model API error (${err.status ?? "network"}): ${err.message}`
+    ? friendlyApiError(err.status)
     : err instanceof Error
       ? err.message
       : String(err);
+}
+
+function friendlyApiError(status: number | undefined): string {
+  if (status === 401 || status === 403) return "The Sharminator's AI service key was rejected. Ask your developer to check the Anthropic API key.";
+  if (status === 429) return "The AI service is busy or the account's usage limit was reached. Try again in a few minutes.";
+  if (status === 400 || status === 413) return "The AI service couldn't accept these files. Try again; if it repeats, upload fewer or smaller files.";
+  if (status && status >= 500) return "The AI service had a temporary problem. Try again in a few minutes.";
+  return "The Sharminator couldn't reach the AI service. Check the connection and try again.";
 }
 
 /** Mark work orphaned by a server restart as failed so it can be re-run. */
@@ -456,7 +576,7 @@ export async function recoverStaleAnalyses() {
   const cutoff = new Date(Date.now() - 45 * 60 * 1000);
   await db.analysis.updateMany({
     where: { status: { in: ["RUNNING", "QUEUED"] }, createdAt: { lt: cutoff } },
-    data: { status: "FAILED", error: "Interrupted by a server restart. Re-run the analysis.", progress: null },
+    data: { status: "FAILED", error: "The server restarted while this was running. Run the analysis again.", progress: null },
   });
   await db.backtestRun.updateMany({
     where: { status: { in: ["RUNNING", "QUEUED"] }, createdAt: { lt: cutoff } },

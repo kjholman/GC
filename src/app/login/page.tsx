@@ -7,7 +7,6 @@ import { adminBypassAction } from "@/lib/auth/actions";
 import { emailDeliveryConfigured } from "@/lib/mailer";
 import { LoginForm } from "./LoginForm";
 
-export const metadata = { title: "Sign in" };
 
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   if (await getCurrentUser()) redirect("/");
@@ -17,14 +16,14 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
     <div className="flex min-h-screen flex-col bg-paper">
       <header className="flex items-center justify-between px-6 py-4 lg:px-8">
         <Logo />
-        <span className="hidden text-[13px] text-ink-soft sm:block">Analyst Platform · Authorised personnel only</span>
+        <span className="hidden text-[13px] text-ink-soft sm:block">The Sharminator · Authorised personnel only</span>
       </header>
 
       <div className="relative mx-4 mb-4 flex flex-1 overflow-hidden rounded-2xl lg:mx-4">
         <DnaHelix className="absolute inset-0 h-full w-full" />
         <div className="relative grid w-full items-center gap-10 px-8 py-14 lg:grid-cols-[1.15fr_440px] lg:px-14">
           <div className="max-w-2xl text-white">
-            <div className="mb-5 text-[12px] font-medium uppercase tracking-[0.22em] text-brand-300">Genesys Capital · Analyst Platform</div>
+            <div className="mb-5 text-[12px] font-medium uppercase tracking-[0.22em] text-brand-300">Genesys Capital · The Sharminator</div>
             <h1 className="font-display font-semibold text-[46px] font-semibold leading-[1.08] tracking-[-0.015em] lg:text-[58px]">
               Catalysts for Medical Breakthroughs
             </h1>

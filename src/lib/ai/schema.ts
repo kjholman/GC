@@ -287,6 +287,7 @@ export function normaliseMemo(memo: Memo): Memo {
 }
 
 export const FingerprintSchema = z.object({
+  companyName: z.string().nullable(),
   sector: z.string(),
   modality: z.string(),
   indication: z.string().nullable(),
