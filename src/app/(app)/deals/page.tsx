@@ -5,15 +5,16 @@ import { formatUsd, spendByDeal } from "@/lib/ai/usage";
 import { Pagination, pageParam } from "@/components/Pagination";
 import { PipelineFilters } from "./PipelineFilters";
 import { DealLogo } from "@/components/DealLogo";
+import { DealStatusBadge } from "@/components/DealStatus";
 import { MemeScene } from "@/components/MemeScene";
-import { Button, Card, Empty, PageHeader, REC_META, STATUS_META, ScoreRing, StatusBadge, cx, fmtDate } from "@/components/ui";
+import { Button, Card, Empty, PageHeader, REC_META, STATUS_META, ScoreRing, cx, fmtDate } from "@/components/ui";
 
 
 const TABS: (DealStatus | "ALL" | "OPEN" | "PAUSED")[] = ["OPEN", "SCREENING", "PAUSED", "PENDING_INFO", "DILIGENCE", "IC_REVIEW", "INVESTED", "REJECTED", "ARCHIVED", "ALL"];
 
-/** A deal whose first analysis was stopped or paused before any memo existed. */
+/** A deal whose analyses stopped, paused or failed before any memo existed. */
 const PAUSED_WHERE: Prisma.DealWhereInput = {
-  analyses: { none: { status: { in: ["COMPLETE", "QUEUED", "RUNNING"] } }, some: { status: { in: ["STOPPED", "PAUSED"] } } },
+  analyses: { none: { status: { in: ["COMPLETE", "QUEUED", "RUNNING"] } }, some: { status: { in: ["STOPPED", "PAUSED", "FAILED"] } } },
 };
 
 export default async function DealsPage({ searchParams }: PageProps<"/deals">) {
@@ -100,12 +101,7 @@ export default async function DealsPage({ searchParams }: PageProps<"/deals">) {
   const label = (t: string) => (t === "ALL" ? "All" : t === "OPEN" ? "Open" : t === "PAUSED" ? "Paused" : STATUS_META[t as DealStatus].label);
   // Stopped or paused before any memo existed: shown as Paused rather than Screening.
   // Stopped on a later version: the deal keeps the stage from its last finished analysis.
-  const badgeFor = (d: (typeof deals)[number]) => {
-    const latest = d.analyses[0]?.status;
-    if (latest === "PAUSED") return <PausedBadge label="Paused: out of credit" />;
-    if (latest === "STOPPED" && d._count.analyses === 0) return <PausedBadge label="Paused" />;
-    return <StatusBadge status={d.status} />;
-  };
+  const badgeFor = (d: (typeof deals)[number]) => <DealStatusBadge status={d.status} latestAnalysis={d.analyses[0]?.status} finishedCount={d._count.analyses} />;
 
   return (
     <>
@@ -236,11 +232,3 @@ export default async function DealsPage({ searchParams }: PageProps<"/deals">) {
   );
 }
 
-function PausedBadge({ label }: { label: string }) {
-  return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-[#efdcb4] bg-warn-bg px-2.5 py-0.5 text-[11.5px] font-medium text-warn">
-      <span className="h-1.5 w-1.5 rounded-full bg-warn" />
-      {label}
-    </span>
-  );
-}

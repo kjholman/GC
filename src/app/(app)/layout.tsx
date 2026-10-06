@@ -8,6 +8,7 @@ import { getAiStatus, recheckCreditIfFlagged } from "@/lib/ai/credit";
 import { resumeAllPaused } from "@/lib/deals/scheduler";
 import { after } from "next/server";
 import Link from "next/link";
+import { SharminatorEasterEgg } from "@/components/SharminatorEasterEgg";
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const user = await requireUser();
@@ -75,6 +76,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
         )}
         <div className="mx-auto max-w-[1280px]">{children}</div>
       </main>
+      <SharminatorEasterEgg />
     </div>
   );
 }

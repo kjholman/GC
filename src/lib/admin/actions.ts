@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import type { PortfolioOutcome, Role } from "@prisma/client";
+import type { PortfolioOutcome } from "@prisma/client";
 import { db } from "../db";
 import { audit } from "../audit";
 import { diffFields } from "../changes";
@@ -11,6 +11,7 @@ const PORTFOLIO_LABELS = {
   name: "Company", sector: "Sector", modality: "Modality", indication: "Indication", description: "Description",
   yearInvested: "Year invested", stageAtEntry: "Entry stage", outcome: "Outcome", outcomeNotes: "Outcome detail",
   lessons: "Lessons", website: "Website", verified: "Verified",
+  checkSize: "Genesys investment", roundSize: "Round size at entry", entryValuation: "Valuation at entry", ownership: "Ownership", coInvestors: "Co-investors", exitValue: "Exit or current value", returnMultiple: "Return",
 };
 import { requireRole } from "../auth/session";
 import { headers } from "next/headers";
@@ -18,15 +19,12 @@ import { isAllowedDomain, normalizeEmail } from "../env";
 import { generateSessionToken, hashToken } from "../auth/crypto";
 import { checkCredit } from "../ai/credit";
 import { resumePausedAnalyses } from "../deals/actions";
+import { roleForEmail } from "../team";
 
 export type AdminState = { ok: boolean; error?: string; message?: string };
 
-const ROLES: Role[] = ["ANALYST", "PARTNER", "ADMIN"];
-
 export async function addUsersAction(_: AdminState, formData: FormData): Promise<AdminState> {
   const admin = await requireRole("ADMIN");
-  const role = String(formData.get("role") ?? "ANALYST") as Role;
-  if (!ROLES.includes(role)) return { ok: false, error: "Invalid role." };
   const raw = String(formData.get("emails") ?? "");
   const emails = [...new Set(raw.split(/[\s,;]+/).map(normalizeEmail).filter(Boolean))];
   if (!emails.length) return { ok: false, error: "Enter at least one email address." };
@@ -36,27 +34,25 @@ export async function addUsersAction(_: AdminState, formData: FormData): Promise
     return { ok: false, error: `Only Genesys Capital addresses can be added: ${invalid.join(", ")}` };
   }
   for (const email of emails) {
-    await db.user.upsert({ where: { email }, create: { email, role }, update: { active: true } });
+    await db.user.upsert({ where: { email }, create: { email, role: roleForEmail(email) }, update: { active: true } });
   }
-  await audit("admin.users_added", { userId: admin.id, meta: { emails, role } });
+  await audit("admin.users_added", { userId: admin.id, meta: { emails } });
   revalidatePath("/administration");
   return { ok: true, message: `Done. ${emails.length === 1 ? "They now have" : `${emails.length} people now have`} access.` };
 }
 
 export async function updateUserAction(userId: string, formData: FormData) {
   const admin = await requireRole("ADMIN");
-  const role = formData.get("role") as Role | null;
   const name = formData.get("name");
   const title = formData.get("title");
   await db.user.update({
     where: { id: userId },
     data: {
-      ...(role && ROLES.includes(role) && userId !== admin.id ? { role } : {}),
       ...(typeof name === "string" ? { name: name.trim() || null } : {}),
       ...(typeof title === "string" ? { title: title.trim() || null } : {}),
     },
   });
-  await audit("admin.user_updated", { userId: admin.id, entity: "User", entityId: userId, meta: { role } });
+  await audit("admin.user_updated", { userId: admin.id, entity: "User", entityId: userId, meta: {} });
   revalidatePath("/administration");
 }
 
@@ -85,6 +81,13 @@ const PortfolioInput = z.object({
   outcomeNotes: z.string().trim().max(2000).optional(),
   lessons: z.string().trim().max(3000).optional(),
   website: z.string().trim().max(300).optional(),
+  checkSize: z.string().trim().max(500).optional(),
+  roundSize: z.string().trim().max(500).optional(),
+  entryValuation: z.string().trim().max(500).optional(),
+  ownership: z.string().trim().max(500).optional(),
+  coInvestors: z.string().trim().max(500).optional(),
+  exitValue: z.string().trim().max(500).optional(),
+  returnMultiple: z.string().trim().max(500).optional(),
   verified: z.boolean(),
 });
 
@@ -106,6 +109,13 @@ export async function savePortfolioCompanyAction(id: string | null, _: AdminStat
     outcomeNotes: val("outcomeNotes"),
     lessons: val("lessons"),
     website: val("website"),
+    checkSize: val("checkSize"),
+    roundSize: val("roundSize"),
+    entryValuation: val("entryValuation"),
+    ownership: val("ownership"),
+    coInvestors: val("coInvestors"),
+    exitValue: val("exitValue"),
+    returnMultiple: val("returnMultiple"),
     verified: formData.get("verified") === "on",
   });
   if (!parsed.success) return { ok: false, error: "Name, sector and description are required." };

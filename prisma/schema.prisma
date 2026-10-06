@@ -208,6 +208,8 @@ model Analysis {
   /// Work saved as it finishes (each research pass, competitor sweep, draft memo) so a
   /// stopped, failed or resumed analysis never redoes it.
   checkpoint     Json?
+  /// What the analysis consulted in the knowledge base and Training Studio.
+  contextUsed    Json?
   /// Anthropic's exact error text when an analysis fails, for troubleshooting.
   errorDetail    String?
   /// The deal's stage before this version started, restored if the version is stopped.
@@ -292,6 +294,14 @@ model PortfolioCompany {
   outcomeNotes String?
   lessons      String?
   website      String?
+  /// Financials, free text so partners can write them as they think of them ("$3M across A and B").
+  checkSize    String?
+  roundSize    String?
+  entryValuation String?
+  ownership    String?
+  coInvestors  String?
+  exitValue    String?
+  returnMultiple String?
   /// false = imported from public sources and awaiting confirmation by the firm.
   verified     Boolean          @default(false)
   /// true = maintained by the seed (refreshed on deploy) until a partner edits it.

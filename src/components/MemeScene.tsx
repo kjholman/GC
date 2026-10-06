@@ -15,8 +15,26 @@ export type Scene = "mice" | "blot" | "pvalue" | "slide31" | "runway" | "petri" 
 const IMPACT = { fontFamily: "Impact, Anton, 'Arial Black', sans-serif", fontWeight: 900 } as const;
 const MONO = { fontFamily: "ui-monospace, Menlo, monospace" } as const;
 
-function Face({ x, y, w, filter }: { x: number; y: number; w: number; filter?: string }) {
-  return <image href={FACE} x={x} y={y + w * (LAYOUT_RATIO - FACE_RATIO)} width={w} height={w * FACE_RATIO} preserveAspectRatio="xMidYMid meet" filter={filter} />;
+/**
+ * The cut-out ends at the chin, so a neck is drawn behind it that runs down
+ * into the collar. Scenes draw the lab coat after the face, so the collar
+ * overlaps the neck and the head sits on the body instead of floating.
+ */
+function Face({ x, y, w, filter, neck = true }: { x: number; y: number; w: number; filter?: string; neck?: boolean }) {
+  const chin = y + w * 1.44;
+  const nx = x + w * 0.47;
+  const nw = w * 0.36;
+  return (
+    <g filter={filter}>
+      {neck && (
+        <>
+          <path d={`M${nx - nw / 2} ${chin - w * 0.16} L${nx - nw / 2 - w * 0.02} ${chin + w * 0.62} L${nx + nw / 2 + w * 0.02} ${chin + w * 0.62} L${nx + nw / 2} ${chin - w * 0.16} Z`} fill="#94705e" />
+          <ellipse cx={nx} cy={chin + w * 0.02} rx={nw / 2} ry={w * 0.06} fill="#6f5243" opacity="0.55" />
+        </>
+      )}
+      <image href={FACE} x={x} y={y + w * (LAYOUT_RATIO - FACE_RATIO)} width={w} height={w * FACE_RATIO} preserveAspectRatio="xMidYMid meet" />
+    </g>
+  );
 }
 
 /** Splits a caption into at most two balanced lines that fit the 300px frame. */
@@ -87,7 +105,7 @@ export function MemeScene({ scene, top, bottom, size = 240, className }: { scene
             <path d="M214 230 Q262 236 258 206" stroke="#e9a6a6" strokeWidth="4" fill="none" strokeLinecap="round" />
             <circle cx="112" cy="104" r="22" fill="#f2f2f2" stroke="#b9c2c6" strokeWidth="2" /><circle cx="112" cy="104" r="12" fill="#f4c2c2" />
             <circle cx="188" cy="104" r="22" fill="#f2f2f2" stroke="#b9c2c6" strokeWidth="2" /><circle cx="188" cy="104" r="12" fill="#f4c2c2" />
-            <Face x={116} y={98} w={68} />
+            <Face x={116} y={98} w={68} neck={false} />
             <rect x="28" y="78" width="56" height="20" rx="2" fill="#fff" stroke="#9aa8ae" />
             <text x="56" y="92" textAnchor="middle" style={{ ...MONO, fontSize: 9, fill: "#17374d" }}>n = 6</text>
             <Caption top={top ?? "It cured cancer"} bottom={bottom ?? "in mice"} />
@@ -99,8 +117,8 @@ export function MemeScene({ scene, top, bottom, size = 240, className }: { scene
           <g>
             <rect width="300" height="300" fill={`url(#${g("lab")})`} />
             <rect x="0" y="230" width="300" height="70" fill="#9aa8ae" />
+            <Face x={68} y={56} w={84} />
             <LabCoat cx={110} y={196} />
-            <Face x={68} y={52} w={84} />
             <rect x="168" y="104" width="118" height="92" rx="3" fill="#fff" stroke="#17374d" strokeWidth="2" />
             {[0, 1, 2, 3].map((r) => (
               <g key={r}>{[0, 1, 2, 3, 4].map((c) => <rect key={c} x={176 + c * 21} y={116 + r * 18} width="15" height="5" rx="2" fill="#17374d" opacity={r === 1 ? (c === 2 ? 0.95 : 0.12) : [0.6, 0.15, 0.85, 0.3][(c + r) % 4]} />)}</g>
@@ -115,8 +133,8 @@ export function MemeScene({ scene, top, bottom, size = 240, className }: { scene
           <g>
             <rect width="300" height="300" fill={`url(#${g("night")})`} />
             {Array.from({ length: 26 }, (_, i) => <rect key={i} x={(i * 47) % 290} y={(i * 83) % 240 + 20} width="6" height="3" transform={`rotate(${i * 37} ${(i * 47) % 290} ${(i * 83) % 240 + 20})`} fill={["#29a2b5", "#f6d77a", "#17b1a7", "#e9a6a6"][i % 4]} />)}
+            <Face x={108} y={60} w={84} />
             <LabCoat cx={150} y={200} />
-            <Face x={108} y={56} w={84} />
             <rect x="196" y="58" width="92" height="40" rx="6" fill="#fff" />
             <text x="242" y="84" textAnchor="middle" style={{ ...MONO, fontSize: 15, fill: "#1a7d5a", fontWeight: 700 }}>p = 0.049</text>
             <Caption top={top ?? "Statistically significant"} bottom={bottom ?? "(we stopped analysing at 0.049)"} size={18} />
@@ -132,8 +150,8 @@ export function MemeScene({ scene, top, bottom, size = 240, className }: { scene
             <text x="231" y="94" textAnchor="middle" style={{ fontSize: 8, fill: "#17374d", fontWeight: 700 }}>APPENDIX C (31/47)</text>
             <text x="174" y="152" style={{ fontSize: 5.5, fill: "#668296" }}>*14-day study, n = 3/arm, one species</text>
             <circle cx="210" cy="150" r="24" fill="none" stroke="#b4372b" strokeWidth="3" />
+            <Face x={56} y={72} w={80} />
             <LabCoat cx={96} y={206} />
-            <Face x={56} y={62} w={80} />
             <Caption top={top ?? "Found the tox data"} bottom={bottom ?? "It was a footnote on slide 31"} size={18} />
           </g>
         )}
@@ -147,8 +165,8 @@ export function MemeScene({ scene, top, bottom, size = 240, className }: { scene
             <path d="M172 92 L196 104 L220 128 L244 152 L268 170" stroke="#b4372b" strokeWidth="3" fill="none" />
             <line x1="170" y1="170" x2="276" y2="170" stroke="#17374d" />
             <text x="262" y="164" style={{ ...MONO, fontSize: 9, fill: "#b4372b", fontWeight: 700 }}>0</text>
+            <Face x={52} y={70} w={80} />
             <LabCoat cx={92} y={204} />
-            <Face x={52} y={60} w={80} />
             <Caption top={top ?? "Out of runway"} bottom={bottom ?? "Should have raised the extension"} size={19} />
           </g>
         )}
@@ -160,8 +178,8 @@ export function MemeScene({ scene, top, bottom, size = 240, className }: { scene
             <ellipse cx="196" cy="170" rx="84" ry="38" fill="#f4d9a4" stroke="#c9b27a" strokeWidth="3" />
             <ellipse cx="196" cy="166" rx="84" ry="38" fill="none" stroke="#fff" strokeWidth="2" opacity="0.7" />
             <text x="196" y="174" textAnchor="middle" style={{ ...MONO, fontSize: 9, fill: "#8a6a2b" }}>0 colonies</text>
+            <Face x={40} y={82} w={76} />
             <LabCoat cx={78} y={210} />
-            <Face x={40} y={64} w={76} />
             <Caption top={top ?? "Deal pipeline"} bottom={bottom ?? "Nothing has grown yet"} />
           </g>
         )}
@@ -176,8 +194,8 @@ export function MemeScene({ scene, top, bottom, size = 240, className }: { scene
               <rect x="160" y="118" width="110" height="34" fill="none" stroke="#b4372b" strokeWidth="4" />
               <text x="215" y="143" textAnchor="middle" style={{ ...IMPACT, fontSize: 20, fill: "#b4372b", letterSpacing: 2 }}>RETRACTED</text>
             </g>
+            <Face x={46} y={74} w={80} filter={`url(#${g("grey")})`} />
             <LabCoat cx={86} y={208} />
-            <Face x={46} y={62} w={80} filter={`url(#${g("grey")})`} />
             <Caption top={top ?? "This page"} bottom={bottom ?? "Failed to replicate"} />
           </g>
         )}
@@ -191,8 +209,8 @@ export function MemeScene({ scene, top, bottom, size = 240, className }: { scene
             <foreignObject x="24" y="68" width="252" height="90">
               <div style={{ fontFamily: "Poppins, Helvetica, sans-serif", fontSize: 15, fontWeight: 700, color: "#17374d", lineHeight: 1.25 }}>{top}</div>
             </foreignObject>
-            <LabCoat cx={150} y={236} />
             <Face x={114} y={150} w={72} />
+            <LabCoat cx={150} y={270} />
             <Caption bottom={bottom} size={17} />
           </g>
         )}

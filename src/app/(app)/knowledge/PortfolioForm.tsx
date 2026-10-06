@@ -46,6 +46,18 @@ export function PortfolioForm({ company, onSaved }: { company: PortfolioCompany 
             </select>
           </Field>
         </div>
+        <div>
+          <div className="mb-2 text-[12.5px] font-medium text-ink-soft">Financials <span className="font-normal text-muted">(optional, write them however is natural)</span></div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Genesys investment"><input name="checkSize" defaultValue={company?.checkSize ?? ""} placeholder="e.g. $3M across Series A and B" className={inputCls} /></Field>
+            <Field label="Round size at entry"><input name="roundSize" defaultValue={company?.roundSize ?? ""} placeholder="e.g. $12M Series A" className={inputCls} /></Field>
+            <Field label="Valuation at entry"><input name="entryValuation" defaultValue={company?.entryValuation ?? ""} placeholder="e.g. $25M pre-money" className={inputCls} /></Field>
+            <Field label="Ownership"><input name="ownership" defaultValue={company?.ownership ?? ""} placeholder="e.g. 14% fully diluted" className={inputCls} /></Field>
+            <Field label="Co-investors"><input name="coInvestors" defaultValue={company?.coInvestors ?? ""} placeholder="e.g. Lumira, BDC" className={inputCls} /></Field>
+            <Field label="Exit or current value"><input name="exitValue" defaultValue={company?.exitValue ?? ""} placeholder="e.g. acquired for $310M" className={inputCls} /></Field>
+            <Field label="Return"><input name="returnMultiple" defaultValue={company?.returnMultiple ?? ""} placeholder="e.g. 4.2x gross, 38% IRR" className={inputCls} /></Field>
+          </div>
+        </div>
         <Field label="Description"><textarea name="description" required rows={3} defaultValue={company?.description} className={inputCls} /></Field>
         <Field label="Outcome detail"><textarea name="outcomeNotes" rows={2} defaultValue={company?.outcomeNotes ?? ""} className={inputCls} /></Field>
         <Field label="Lessons learned" hint="What the partnership would do the same or differently. The analyst cites these directly.">

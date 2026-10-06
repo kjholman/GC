@@ -58,7 +58,20 @@ export type VersionRow = {
   by: string | null;
   costUsd: number | null;
   newFiles: string[];
+  /** Every file the analysis had at the time it ran. */
+  files: string[];
+  startedAt: Date | null;
+  error: string | null;
+  errorDetail: string | null;
+  context: { portfolioCompanies?: number; principles?: string[]; firmDocuments?: string[]; pastDeals?: string[]; exampleMemos?: string[]; lessons?: number; dealReviews?: number } | null;
+  steps: { at: string; text: string; kind: "start" | "info" | "done" | "warn" }[];
 };
+
+function duration(a: Date | null, b: Date | null) {
+  if (!a || !b) return null;
+  const s = Math.max(0, Math.round((b.getTime() - a.getTime()) / 1000));
+  return s >= 3600 ? `${Math.floor(s / 3600)} h ${Math.round((s % 3600) / 60)} min` : s >= 60 ? `${Math.round(s / 60)} min` : `${s} s`;
+}
 
 const TRIGGER: Record<string, string> = { INITIAL_SCREEN: "First screen", NEW_INFORMATION: "New information received", RERUN: "Re-run" };
 const STATUS: Record<string, string> = { QUEUED: "Waiting to start", RUNNING: "In progress", FAILED: "Didn't finish", STOPPED: "Stopped", PAUSED: "Paused (out of credit)", COMPLETE: "Finished" };
@@ -102,11 +115,43 @@ export function VersionHistory({ dealPath, rows, shownId }: { dealPath: string; 
                   </span>
                 )}
                 {recChanged && <span className="text-[12px] text-warn">Decision changed from {REC_META[prev!.recommendation!]?.label}</span>}
-                {r.costUsd != null && <span className="text-[12px] text-muted">AI cost about US${r.costUsd.toFixed(2)}</span>}
+                {r.costUsd != null && <span className="text-[12px] text-muted">AI cost US${r.costUsd.toFixed(2)}</span>}
+                {duration(r.startedAt, r.completedAt) && <span className="text-[12px] text-muted">took {duration(r.startedAt, r.completedAt)}</span>}
               </div>
+              {r.error && r.status !== "COMPLETE" && (
+                <p className="mt-1.5 text-[12.5px] text-neg">{r.error}{r.errorDetail && <span className="block text-[11.5px] text-muted">Anthropic said: {r.errorDetail}</span>}</p>
+              )}
               {r.newFiles.length > 0 && (
                 <p className="mt-1.5 text-[12.5px] text-ink-soft"><span className="text-muted">New materials: </span>{r.newFiles.join(", ")}</p>
               )}
+              <details className="mt-1.5">
+                <summary className="cursor-pointer text-[12.5px] font-medium text-navy-700">Materials, knowledge used and step-by-step log</summary>
+                <div className="mt-2 space-y-2 rounded-lg border border-line px-3.5 py-3 text-[12.5px]">
+                  <p><span className="text-muted">Materials used ({r.files.length}): </span>{r.files.join(", ") || "none"}</p>
+                  {r.context && (
+                    <>
+                      <p>
+                        <span className="text-muted">Knowledge base: </span>
+                        {r.context.portfolioCompanies ?? 0} portfolio companies; principles: {r.context.principles?.length ? r.context.principles.join("; ") : "none yet"}; firm documents: {r.context.firmDocuments?.length ? r.context.firmDocuments.join(", ") : "none yet"}
+                      </p>
+                      <p>
+                        <span className="text-muted">Training Studio: </span>
+                        similar past deals: {r.context.pastDeals?.length ? r.context.pastDeals.join(", ") : "none"}; example memos: {r.context.exampleMemos?.length ? r.context.exampleMemos.join(", ") : "none"}; {r.context.lessons ?? 0} lessons from partner feedback{r.context.dealReviews ? `; ${r.context.dealReviews} reviews of earlier versions` : ""}
+                      </p>
+                    </>
+                  )}
+                  {r.steps.length > 0 && (
+                    <ol className="max-h-72 space-y-1 overflow-y-auto border-t border-line pt-2 font-mono text-[11.5px]">
+                      {r.steps.map((s, i) => (
+                        <li key={i} className={s.kind === "warn" ? "text-warn" : "text-ink-soft"}>
+                          <span className="text-muted">{new Date(s.at).toLocaleTimeString("en-CA", { hour12: false, timeZone: "America/Toronto" })} </span>
+                          {s.text}
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                </div>
+              </details>
               {r.analystContext && <p className="mt-1 text-[12.5px] text-ink-soft"><span className="text-muted">Team note: </span>{r.analystContext}</p>}
               {r.status === "COMPLETE" && (
                 <div className="mt-2 rounded-lg bg-mist px-3.5 py-2.5 text-[13px] leading-relaxed text-ink">

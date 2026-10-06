@@ -37,15 +37,15 @@ export const MemoSchema = z.object({
   company: z.object({
     name: z.string(),
     oneLiner: z.string().describe("One sentence a partner could repeat in IC."),
-    sector: z.string().describe("e.g. Therapeutics, Medical Devices, Diagnostics, Digital Health, Platform/Tools"),
+    sector: z.string().describe("One of Therapeutics, Medical Devices, Diagnostics, Platform / Tools, Digital Health. Pick the closest; use Other only if none fits at all."),
     modality: z.string().describe("e.g. Small molecule, Antibody, Radiopharmaceutical, Gene therapy, Class II device"),
-    leadIndication: z.string().nullable(),
+    leadIndication: z.string().describe("Empty string if not stated."),
     developmentStage: z.string().describe("e.g. Discovery, Preclinical (IND-enabling), Phase 1, 510(k) cleared"),
-    headquarters: z.string().nullable(),
-    roundSought: z.string().nullable().describe("Round type and amount, e.g. 'Series A, US$25M'"),
-    website: z.string().nullable(),
-    founderContactName: z.string().nullable(),
-    founderContactEmail: z.string().nullable(),
+    headquarters: z.string().describe("Empty string if not stated."),
+    roundSought: z.string().describe("Round type and amount, e.g. 'Series A, US$25M' Empty string if not stated."),
+    website: z.string().describe("Empty string if not stated."),
+    founderContactName: z.string().describe("Empty string if not stated."),
+    founderContactEmail: z.string().describe("Empty string if not stated."),
   }),
 
   recommendation: z.enum(RECOMMENDATIONS),
@@ -97,7 +97,7 @@ export const MemoSchema = z.object({
       z.object({
         milestone: z.string(),
         expectedTiming: z.string(),
-        capitalRequired: z.string().nullable(),
+        capitalRequired: z.string().describe("Empty string if not stated."),
         valueInflection: z.boolean(),
       }),
     ),
@@ -114,9 +114,9 @@ export const MemoSchema = z.object({
           title: z.string(),
           type: z.enum(["COMPOSITION_OF_MATTER", "METHOD_OF_USE", "DEVICE", "FORMULATION", "PROCESS", "PLATFORM", "OTHER"]),
           status: z.enum(["GRANTED", "PENDING", "PCT", "PROVISIONAL", "LAPSED", "UNKNOWN"]),
-          jurisdictions: z.string().nullable(),
-          ownerOrAssignee: z.string().nullable(),
-          estimatedExpiry: z.string().nullable().describe("Typically 20 years from priority/filing; note PTE/SPC possibilities."),
+          jurisdictions: z.string().describe("Empty string if not stated."),
+          ownerOrAssignee: z.string().describe("Empty string if not stated."),
+          estimatedExpiry: z.string().describe("Typically 20 years from priority/filing; note PTE/SPC possibilities. Empty string if not stated."),
           source: z.string().describe("Deck page or URL from the research."),
         }),
       )
@@ -175,7 +175,7 @@ export const MemoSchema = z.object({
         priorVentures: z.string().describe("Prior companies founded or led, and their outcomes. 'None identified' if none."),
         commitment: z.string().describe("Full-time, part-time, still in an academic post, or unknown."),
         verification: z.enum(["VERIFIED", "PARTIALLY_VERIFIED", "UNVERIFIED"]).describe("Whether the research independently confirms this person's background."),
-        concerns: z.string().nullable(),
+        concerns: z.string().describe("Empty string if not stated."),
       }),
     ),
     founderMarketFit: z.string(),
@@ -223,7 +223,7 @@ export const MemoSchema = z.object({
         }),
       )
       .describe("Past Genesys decisions from the precedents section that bear on this deal. Empty if none were provided."),
-    portfolioConflicts: z.string().nullable(),
+    portfolioConflicts: z.string().describe("Empty string if not stated."),
     canadianNexus: z.string().describe("Canadian HQ, IP, team or development footprint."),
     syndicateView: z.string().describe("Likely co-investors and Genesys' role (lead / co-lead / follow)."),
   }),
@@ -260,10 +260,7 @@ export const MemoSchema = z.object({
     body: z.string().describe("Plain text, ready to paste. Signed with [Your name] placeholder."),
   }),
 
-  versionDelta: z
-    .string()
-    .nullable()
-    .describe("For follow-up analyses: what the new information changed and why. Null on the first screen."),
+  versionDelta: z.string().describe("For follow-up analyses: what the new information changed and why. Empty string on the first screen."),
   analystCaveats: z.string().describe("What the analysis could not assess and any assumptions made."),
 
   gaps: z
@@ -286,7 +283,7 @@ export const MemoSchema = z.object({
         claim: z.string(),
         sourceType: z.enum(EVIDENCE_SOURCES),
         sourceRef: z.string().describe("Filename + page/slide, URL from the research brief, company name, or the evidence ids an inference rests on."),
-        quote: z.string().nullable().describe("Verbatim excerpt (5-40 words) copied exactly from the source, or null."),
+        quote: z.string().describe("Verbatim excerpt (5-40 words) copied exactly from the source, or null. Empty string if not stated."),
         status: z.enum(EVIDENCE_STATUSES),
       }),
     )
@@ -297,7 +294,26 @@ export type Memo = z.infer<typeof MemoSchema>;
 export type Recommendation = (typeof RECOMMENDATIONS)[number];
 
 /** Clamp and normalise model output that structured outputs can't constrain. */
-export function normaliseMemo(memo: Memo): Memo {
+/**
+ * Fields that are optional in meaning. Structured output allows few nullable
+ * fields, so the model returns "" for "not stated" and we store null.
+ */
+const BLANK_TO_NULL = new Set([
+  "leadIndication", "headquarters", "roundSought", "website", "founderContactName", "founderContactEmail",
+  "capitalRequired", "jurisdictions", "ownerOrAssignee", "estimatedExpiry", "concerns", "portfolioConflicts", "versionDelta", "quote",
+]);
+function blanksToNull<T>(v: T): T {
+  if (Array.isArray(v)) return v.map(blanksToNull) as T;
+  if (v && typeof v === "object") {
+    return Object.fromEntries(
+      Object.entries(v as Record<string, unknown>).map(([k, x]) => [k, BLANK_TO_NULL.has(k) && typeof x === "string" && !x.trim() ? null : blanksToNull(x)]),
+    ) as T;
+  }
+  return v;
+}
+
+export function normaliseMemo(raw: Memo): Memo {
+  const memo = blanksToNull(raw);
   const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, Math.round(n)));
   return {
     ...memo,

@@ -42,6 +42,13 @@ export default async function AdminPage({ searchParams }: PageProps<"/administra
         title="Team access"
         subtitle={<>Only people you add here can sign in, and they must use a <span className="font-medium">{env.allowedDomains.map((d) => `@${d}`).join(" or ")}</span> email address. Removing someone&apos;s access signs them out straight away.</>}
       />
+      <a href="/administration/costs" className="mb-8 flex items-center justify-between gap-4 rounded-lg border border-line bg-paper px-5 py-4 transition-colors hover:border-navy-700">
+        <span>
+          <span className="block font-display text-[17px] font-semibold text-navy-900">AI spend and transactions</span>
+          <span className="block text-[12.5px] text-muted">Every analysis with its deal, date, result and cost. Filter by month; break down by deal, purpose, model and day.</span>
+        </span>
+        <span className="text-navy-700">→</span>
+      </a>
       <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_360px]">
         <Card pad={false}>
           <div className="px-6 pt-6"><SectionTitle eyebrow="Team" title={`People with access (${users.filter((u) => u.active).length})`} /></div>
@@ -50,7 +57,6 @@ export default async function AdminPage({ searchParams }: PageProps<"/administra
             <thead>
               <tr className="border-y border-line text-[11px] uppercase tracking-[0.12em] text-muted">
                 <th className="py-3 pr-4 pl-6 font-semibold">Person</th>
-                <th className="px-4 py-3 font-semibold">Access level</th>
                 <th className="px-4 py-3 font-semibold">Last signed in</th>
                 <th className="py-3 pr-6 pl-4" />
               </tr>

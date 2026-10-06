@@ -44,6 +44,7 @@ export function CreditPanel({
           <dd className="text-muted">{usd(allTimeUsd)} in total</dd>
         </div>
       </dl>
+      <a href="/administration/costs" className="mt-3 inline-block text-[12.5px] font-medium text-navy-700 hover:underline">Full breakdown by month, deal and day →</a>
       {byPurpose.length > 0 && (
         <ul className="mt-3 space-y-1 text-[12px]">
           {byPurpose.map((p) => (

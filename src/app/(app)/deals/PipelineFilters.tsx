@@ -2,9 +2,10 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { inputCls } from "@/components/ui";
+import { cx } from "@/components/ui";
 
-const sel = `${inputCls} !py-2 text-[13px] min-w-[170px] flex-[1_1_170px]`;
+/** Compact control style shared by every filter. */
+const ctl = "h-9 rounded-lg border border-line-strong bg-paper px-3 text-[12.5px] text-ink focus:border-brand-500 focus:outline-none";
 
 /** Filters for the pipeline. Every change updates the URL, so a filtered view can be bookmarked or shared. */
 export function PipelineFilters({ sectors, stages }: { sectors: string[]; stages: string[] }) {
@@ -19,62 +20,35 @@ export function PipelineFilters({ sectors, stages }: { sectors: string[]; stages
     router.push(`/deals?${next.toString()}`);
   };
   const active = ["rec", "sector", "stage", "from", "to", "minScore", "runs", "q"].some((k) => sp.get(k));
+  const pick = (key: string, label: string, options: [string, string][]) => (
+    <select aria-label={label} value={sp.get(key) ?? ""} onChange={(e) => set(key, e.target.value)} className={cx(ctl, "w-auto max-w-[190px]", sp.get(key) && "border-brand-500 bg-brand-100/40")}>
+      <option value="">{label}</option>
+      {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+    </select>
+  );
   return (
-    <div className="mb-6 flex flex-wrap gap-2">
+    <div className="mb-5 flex flex-wrap items-center gap-2">
       <form
-        className="min-w-[240px] flex-[2_1_280px]"
+        className="w-full sm:w-64"
         onSubmit={(e) => {
           e.preventDefault();
           set("q", q.trim());
         }}
       >
-        <input value={q} onChange={(e) => setQ(e.target.value)} onBlur={() => q.trim() !== (sp.get("q") ?? "") && set("q", q.trim())} placeholder="Search company, sector, modality…" className={sel} aria-label="Search" />
+        <input value={q} onChange={(e) => setQ(e.target.value)} onBlur={() => q.trim() !== (sp.get("q") ?? "") && set("q", q.trim())} placeholder="Search company, sector…" className={cx(ctl, "w-full")} aria-label="Search" />
       </form>
-      <select aria-label="Recommendation" value={sp.get("rec") ?? ""} onChange={(e) => set("rec", e.target.value)} className={sel}>
-        <option value="">Any recommendation</option>
-        <option value="ADVANCE_TO_DILIGENCE">Advance to diligence</option>
-        <option value="PENDING_INFO">Request information</option>
-        <option value="REJECT">Decline</option>
-        <option value="NONE">Not analysed yet</option>
-      </select>
-      <select aria-label="Sector" value={sp.get("sector") ?? ""} onChange={(e) => set("sector", e.target.value)} className={sel}>
-        <option value="">Any sector</option>
-        {sectors.map((s) => <option key={s} value={s}>{s}</option>)}
-      </select>
-      <select aria-label="Development stage" value={sp.get("stage") ?? ""} onChange={(e) => set("stage", e.target.value)} className={sel}>
-        <option value="">Any development stage</option>
-        {stages.map((s) => <option key={s} value={s}>{s}</option>)}
-      </select>
-      <select aria-label="Number of analyses" value={sp.get("runs") ?? ""} onChange={(e) => set("runs", e.target.value)} className={sel}>
-        <option value="">Any number of analyses</option>
-        <option value="0">Not analysed yet</option>
-        <option value="1">1 analysis</option>
-        <option value="2">2 analyses</option>
-        <option value="3">3 or more</option>
-      </select>
-      <select aria-label="Minimum score" value={sp.get("minScore") ?? ""} onChange={(e) => set("minScore", e.target.value)} className={sel}>
-        <option value="">Any score</option>
-        {[80, 70, 60, 50].map((n) => <option key={n} value={n}>Score {n}+</option>)}
-      </select>
-      <label className="flex min-w-[170px] flex-[1_1_170px] flex-col">
-        <span className="sr-only">Submitted from</span>
-        <input type="date" aria-label="Submitted from" value={sp.get("from") ?? ""} onChange={(e) => set("from", e.target.value)} className={sel} title="Submitted from" />
-      </label>
-      <label className="flex min-w-[170px] flex-[1_1_170px] flex-col">
-        <span className="sr-only">Submitted to</span>
-        <input type="date" aria-label="Submitted to" value={sp.get("to") ?? ""} onChange={(e) => set("to", e.target.value)} className={sel} title="Submitted to" />
-      </label>
-      <div className="flex basis-full flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-[12.5px] text-muted">
-          Sort by
-          <select aria-label="Sort" value={sp.get("sort") ?? "updated"} onChange={(e) => set("sort", e.target.value === "updated" ? "" : e.target.value)} className={`${inputCls} !w-auto !py-2 text-[13px]`}>
-            <option value="updated">Recently updated</option>
-            <option value="newest">Newest submitted</option>
-            <option value="oldest">Oldest submitted</option>
-            <option value="score">Highest score</option>
-            <option value="name">Company name</option>
-          </select>
-        </div>
+      {pick("rec", "Recommendation", [["ADVANCE_TO_DILIGENCE", "Advance to diligence"], ["PENDING_INFO", "Request information"], ["REJECT", "Decline"], ["NONE", "Not analysed yet"]])}
+      {pick("sector", "Sector", sectors.map((s) => [s, s]))}
+      {pick("stage", "Stage", stages.map((s) => [s, s]))}
+      {pick("runs", "Analyses", [["0", "None yet"], ["1", "1"], ["2", "2"], ["3", "3 or more"]])}
+      {pick("minScore", "Score", [80, 70, 60, 50].map((n) => [String(n), `${n}+`]))}
+      <span className="flex items-center gap-1.5 text-[12px] text-muted">
+        Submitted
+        <input type="date" aria-label="Submitted from" value={sp.get("from") ?? ""} onChange={(e) => set("from", e.target.value)} className={cx(ctl, "w-[138px] px-2")} />
+        to
+        <input type="date" aria-label="Submitted to" value={sp.get("to") ?? ""} onChange={(e) => set("to", e.target.value)} className={cx(ctl, "w-[138px] px-2")} />
+      </span>
+      <span className="ml-auto flex items-center gap-2 text-[12px] text-muted">
         {active && (
           <button
             type="button"
@@ -82,12 +56,20 @@ export function PipelineFilters({ sectors, stages }: { sectors: string[]; stages
               setQ("");
               router.push(`/deals${sp.get("status") ? `?status=${sp.get("status")}` : ""}`);
             }}
-            className="text-[12.5px] font-medium text-navy-700 hover:underline"
+            className="font-medium text-navy-700 hover:underline"
           >
             Clear filters
           </button>
         )}
-      </div>
+        Sort
+        <select aria-label="Sort" value={sp.get("sort") ?? "updated"} onChange={(e) => set("sort", e.target.value === "updated" ? "" : e.target.value)} className={cx(ctl, "w-auto")}>
+          <option value="updated">Recently updated</option>
+          <option value="newest">Newest submitted</option>
+          <option value="oldest">Oldest submitted</option>
+          <option value="score">Highest score</option>
+          <option value="name">Company name</option>
+        </select>
+      </span>
     </div>
   );
 }

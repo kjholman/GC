@@ -72,11 +72,88 @@ export async function structuredCall<S extends z.ZodType>(args: {
     throw new Error("The response exceeded the maximum output length. Try again.");
   }
   const text = textOf(response.content);
-  const raw = (json
-    ? args.schema.parse(JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1)))
-    : (response.parsed_output ?? args.schema.parse(JSON.parse(text)))) as z.infer<S>;
+  let raw: z.infer<S>;
+  if (!json && response.parsed_output) raw = response.parsed_output as z.infer<S>;
+  else {
+    try {
+      raw = parseLenient(args.schema, looseJson(text));
+    } catch (err) {
+      // A long answer with a stray comma or bad escape should not cost the whole analysis: have it repaired.
+      console.error(`[ai] ${args.step}: answer was not valid JSON, repairing`, err);
+      raw = await repairJson(args.schema, text, err, args.step);
+    }
+  }
   // House style: no em/en dashes or typographic tells in anything we store or show.
   const data = sanitizeStrings(raw);
   return { data, usage: response.usage, model: response.model };
 }
 
+
+/**
+ * Parses a model's JSON answer, forgiving the slips long outputs sometimes
+ * contain: code fences, text around the object, trailing commas, raw line
+ * breaks inside strings.
+ */
+export function looseJson(text: string): unknown {
+  const body = text.replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "");
+  const start = body.indexOf("{");
+  const end = body.lastIndexOf("}");
+  const slice = start >= 0 && end > start ? body.slice(start, end + 1) : body;
+  try {
+    return JSON.parse(slice);
+  } catch {
+    let out = "";
+    let inStr = false;
+    for (let i = 0; i < slice.length; i++) {
+      const ch = slice[i];
+      if (inStr) {
+        if (ch === "\\") { out += ch + (slice[i + 1] ?? ""); i++; continue; }
+        if (ch === '"') inStr = false;
+        out += ch === "\n" ? "\\n" : ch === "\r" ? "" : ch === "\t" ? "\\t" : ch;
+        continue;
+      }
+      if (ch === '"') { inStr = true; out += ch; continue; }
+      if (ch === ",") {
+        // Drop a trailing comma before } or ].
+        let j = i + 1;
+        while (j < slice.length && /\s/.test(slice[j])) j++;
+        if (slice[j] === "}" || slice[j] === "]") continue;
+      }
+      out += ch;
+    }
+    return JSON.parse(out);
+  }
+}
+
+/** Asks the fast model to return the same answer as valid JSON matching the schema. */
+async function repairJson<S extends z.ZodType>(schema: S, broken: string, err: unknown, step: string): Promise<z.infer<S>> {
+  const response = await anthropic().beta.messages.stream({
+    model: env.anthropicFastModel,
+    max_tokens: 64000,
+    output_config: { effort: "low" },
+    messages: [
+      {
+        role: "user",
+        content: `The JSON below could not be used: ${err instanceof Error ? err.message.slice(0, 600) : String(err)}\n\nReturn the same content as one valid JSON object that matches this JSON Schema, changing nothing except what is needed to make it valid. Return only the JSON.\n\nSchema:\n${JSON.stringify(z.toJSONSchema(schema))}\n\nJSON to fix:\n${broken}`,
+      },
+    ],
+  }).finalMessage();
+  recordUsage(response.model, response.usage, `${step} (repair)`);
+  return parseLenient(schema, looseJson(textOf(response.content)));
+}
+
+/** Validates, first turning null into "" wherever the schema wants text (it asks for "" when unknown). */
+function parseLenient<S extends z.ZodType>(schema: S, value: unknown): z.infer<S> {
+  const first = schema.safeParse(value);
+  if (first.success) return first.data as z.infer<S>;
+  let fixed = false;
+  for (const issue of first.error.issues) {
+    if (issue.code !== "invalid_type" || issue.expected !== "string" || !issue.path.length) continue;
+    let node = value as Record<PropertyKey, unknown>;
+    for (const key of issue.path.slice(0, -1)) node = node?.[key as PropertyKey] as Record<PropertyKey, unknown>;
+    const last = issue.path[issue.path.length - 1] as PropertyKey;
+    if (node && node[last] == null) { node[last] = ""; fixed = true; }
+  }
+  if (!fixed) throw first.error;
+  return schema.parse(value) as z.infer<S>;
+}

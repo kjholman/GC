@@ -3,7 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { Analysis, DealStatus, Document, Prisma } from "@prisma/client";
 import { db } from "../db";
 import { env } from "../env";
-import { getFirmSettings } from "../training/settings";
+import { FIRM_SETTINGS, getFirmSettings } from "../training/settings";
 import { findPrecedents } from "../training/retrieval";
 import { coverageNote, prepareFiles, type InputFile, type PreparedFiles } from "./files";
 import { FALLBACK_BETA, anthropic, structuredCall, textOf, type ContentBlock } from "./client";
@@ -179,13 +179,14 @@ export async function findCompanyWebsite(companyName: string, about: string | nu
 export async function ensureDealLogo(dealId: string): Promise<void> {
   const d = await db.deal.findUnique({ where: { id: dealId }, select: { website: true, logoMime: true, logoCheckedAt: true, companyName: true, oneLiner: true, autoNamed: true } });
   if (!d || d.logoMime || d.autoNamed || d.companyName.startsWith("Untitled")) return;
-  if (d.logoCheckedAt && Date.now() - d.logoCheckedAt.getTime() < 7 * 24 * 3600 * 1000) return;
+  // Retry hourly while no logo is found: a site that was down or a website added later should not wait a week.
+  if (d.logoCheckedAt && Date.now() - d.logoCheckedAt.getTime() < 3600 * 1000) return;
   await db.deal.update({ where: { id: dealId }, data: { logoCheckedAt: new Date() } });
-  if (!d.website) {
-    const site = await withMeter({ purpose: "logo lookup" }, () => findCompanyWebsite(d.companyName, d.oneLiner));
-    if (!site) return;
-    await db.deal.update({ where: { id: dealId }, data: { website: site } });
-  }
+  if (d.website && (await fetchCompanyLogo(dealId))) return;
+  // No website yet, or the one we have gave nothing usable: look the company up online.
+  const site = await withMeter({ purpose: "logo lookup" }, () => findCompanyWebsite(d.companyName, d.oneLiner));
+  if (!site || cleanDomain(site) === cleanDomain(d.website)) return;
+  await db.deal.update({ where: { id: dealId }, data: { website: site } });
   await fetchCompanyLogo(dealId);
 }
 
@@ -549,7 +550,7 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
             website: deal.website ?? fp.website ?? undefined,
             tags: fp.tags,
             indication: deal.indication ?? fp.indication,
-            sector: deal.sector ?? fp.sector,
+            sector: pickSector(deal.sector, fp.sector),
             modality: deal.modality ?? fp.modality,
             ...(rename ? { companyName, autoNamed: false } : {}),
           },
@@ -586,11 +587,44 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
         : "No closely similar past Genesys deals found",
       "done",
     );
-    const lessons = await db.analysisFeedback.count({ where: { lesson: { not: null } } });
-    if (lessons) await logStep(analysisId, `Applying ${plural(Math.min(lessons, 40), "lesson")} from the team's feedback on earlier memos`, "info");
+    // Say exactly what was consulted, and keep a record of it on this version.
+    const [kbCompanies, kbPrinciples, kbDocs, kbCompanyFiles, settingsConfirmed, lessons, reviewsTotal] = await Promise.all([
+      db.portfolioCompany.count(),
+      db.investmentPrinciple.findMany({ where: { active: true }, select: { title: true } }),
+      db.knowledgeFile.findMany({ where: { scope: "FIRM", status: "READY" }, select: { filename: true }, take: 30, orderBy: { createdAt: "desc" } }),
+      db.knowledgeFile.count({ where: { scope: "PORTFOLIO", status: "READY" } }),
+      db.firmSetting.count({ where: { key: { in: FIRM_SETTINGS.map((s) => s.key) } } }),
+      db.analysisFeedback.count({ where: { lesson: { not: null } } }),
+      db.analysisFeedback.count(),
+    ]);
     const dealReviews = prior.reduce((n, a) => n + a.feedback.length, 0);
-    if (dealReviews) await logStep(analysisId, `Addressing ${plural(dealReviews, "review")} of earlier versions of this memo`, "info");
-    if (precedents.exemplars.length) await logStep(analysisId, `Using ${plural(precedents.exemplars.length, "example memo")} the partners approved`, "info");
+    await logStep(
+      analysisId,
+      `Checked the knowledge base: ${plural(kbCompanies, "portfolio company", "portfolio companies")}${kbCompanyFiles ? ` (with ${plural(kbCompanyFiles, "attached file")})` : ""}, ${plural(kbPrinciples.length, "investment principle")}, ${plural(kbDocs.length, "firm document")}, and the firm settings (${settingsConfirmed} of ${FIRM_SETTINGS.length} confirmed by a partner)`,
+      "done",
+    );
+    await logStep(
+      analysisId,
+      `Checked the Training Studio: ${plural(precedents.historical.length, "similar past deal")}, ${plural(precedents.exemplars.length, "example memo")}, ${plural(Math.min(lessons, 40), "lesson")} from ${plural(reviewsTotal, "partner review")}${dealReviews ? `, and ${plural(dealReviews, "review")} of earlier versions of this deal` : ""}`,
+      "done",
+    );
+    await db.analysis.update({
+      where: { id: analysisId },
+      data: {
+        contextUsed: {
+          portfolioCompanies: kbCompanies,
+          portfolioFiles: kbCompanyFiles,
+          principles: kbPrinciples.map((p) => p.title),
+          firmDocuments: kbDocs.map((d) => d.filename),
+          settingsConfirmed,
+          settingsTotal: FIRM_SETTINGS.length,
+          pastDeals: precedents.historical.map((h) => h.companyName),
+          exampleMemos: precedents.exemplars.map((e) => e.title),
+          lessons: Math.min(lessons, 40),
+          dealReviews,
+        },
+      },
+    });
 
     // Web research: five passes in parallel. Anything already done (by this run before an
     // interruption, or by an earlier version) is reused; only missing passes run.
@@ -837,7 +871,7 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
           keyReason: memo.recommendation === "ADVANCE_TO_DILIGENCE" ? null : (memo.passReasons?.[0]?.reason ?? (memo.recommendation === "REJECT" ? memo.worthOurTime.headline : null)),
           recommendation: memo.recommendation,
           oneLiner: deal.oneLiner ?? memo.company.oneLiner,
-          sector: deal.sector ?? memo.company.sector,
+          sector: pickSector(deal.sector, memo.company.sector),
           modality: deal.modality ?? memo.company.modality,
           indication: deal.indication ?? memo.company.leadIndication,
           stage: deal.stage ?? memo.company.developmentStage,
@@ -903,6 +937,8 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
       where: { id: analysisId },
       data: { status: "FAILED", progress: null, error: message.slice(0, 2000), errorDetail: detail.slice(0, 4000), completedAt: new Date() },
     });
+    // A later version that fails leaves the deal at the stage its last finished analysis gave it.
+    if (analysis.priorDealStatus) await db.deal.update({ where: { id: deal.id }, data: { status: analysis.priorDealStatus } }).catch(() => {});
     await db.activity.create({
       data: { dealId: deal.id, type: "analysis.failed", message: `The Sharminator could not finish version ${analysis.version}: ${message.slice(0, 300)}` },
     });
@@ -957,4 +993,11 @@ export async function recoverStaleAnalyses() {
     where: { ingestStatus: "PROCESSING", updatedAt: { lt: cutoff } },
     data: { ingestStatus: "FAILED", ingestError: "Interrupted by a server restart. Retry ingestion." },
   });
+}
+
+/** Keep a real sector once known, but never let a placeholder like "Other" block a specific one found later. */
+function pickSector(current: string | null, found: string | null | undefined): string | null {
+  const vague = (v: string | null | undefined) => !v || /^(other|unknown|n\/?a|tbd|unclear)$/i.test(v.trim());
+  if (!vague(current)) return current;
+  return vague(found) ? (current ?? found ?? null) : found!;
 }

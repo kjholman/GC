@@ -16,13 +16,6 @@ export function AddUsersForm() {
         <Field label="Their Genesys Capital email" hint="You can add several at once: one per line, or separated by commas.">
           <textarea name="emails" rows={5} placeholder={"jane.doe@genesyscapital.com\njohn.smith@genesyscapital.com"} className={inputCls} />
         </Field>
-        <Field label="Access level">
-          <select name="role" className={inputCls} defaultValue="ANALYST">
-            <option value="ANALYST">Analyst: screen decks and work on deals</option>
-            <option value="PARTNER">Partner: also approves IC decisions and trains the Sharminator</option>
-            <option value="ADMIN">Administrator: also manages who has access</option>
-          </select>
-        </Field>
         {state.error && <p className="text-[13px] text-neg">{state.error}</p>}
         {state.message && <p className="text-[13px] text-pos">{state.message}</p>}
         <Button type="submit" disabled={pending} className="w-full">Give access</Button>
@@ -45,21 +38,6 @@ export function UserRow({ user, isSelf }: { user: RowUser; isSelf: boolean }) {
             <input name="title" defaultValue={user.title ?? ""} placeholder="Title" className="w-40 border-b border-transparent bg-transparent text-[12.5px] text-ink-soft hover:border-line focus:border-navy-700 focus:outline-none" />
             <button className="text-[11.5px] text-navy-700 hover:underline">Save</button>
           </div>
-        </form>
-      </td>
-      <td className="px-4 py-3">
-        <form action={updateUserAction.bind(null, user.id)}>
-          <select
-            name="role"
-            defaultValue={user.role}
-            disabled={isSelf}
-            onChange={(e) => e.currentTarget.form?.requestSubmit()}
-            className="rounded-lg border border-line bg-paper px-2 py-1 text-[12.5px]"
-          >
-            <option value="ANALYST">Analyst</option>
-            <option value="PARTNER">Partner</option>
-            <option value="ADMIN">Administrator</option>
-          </select>
         </form>
       </td>
       <td className="px-4 py-3 text-[12.5px] text-muted">{user.lastLoginAt}</td>

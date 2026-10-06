@@ -4,8 +4,9 @@ import type { DealStatus } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/session";
 import { Greeting } from "@/components/Greeting";
+import { DealStatusBadge } from "@/components/DealStatus";
 import { DECK_CLAIMS, MemeScene } from "@/components/MemeScene";
-import { Button, Card, Empty, PageHeader, SectionTitle, STATUS_META, ScoreRing, StatusBadge, cx, relTime } from "@/components/ui";
+import { Button, Card, Empty, PageHeader, SectionTitle, STATUS_META, ScoreRing, cx, relTime } from "@/components/ui";
 
 
 const FUNNEL: DealStatus[] = ["SCREENING", "PENDING_INFO", "DILIGENCE", "IC_REVIEW", "INVESTED", "REJECTED"];
@@ -19,7 +20,12 @@ export default async function Overview() {
   const since = daysAgo(90);
   const [counts, recent, running, activity, screened90, advanced90] = await Promise.all([
     db.deal.groupBy({ by: ["status"], _count: true }),
-    db.deal.findMany({ orderBy: { updatedAt: "desc" }, take: 8 }),
+    db.deal.findMany({
+      orderBy: { updatedAt: "desc" },
+      take: 8,
+      omit: { logo: true, researchDossier: true },
+      include: { analyses: { orderBy: { version: "desc" }, take: 1, select: { status: true } } },
+    }),
     db.analysis.findMany({
       where: { status: { in: ["QUEUED", "RUNNING", "PAUSED"] } },
       include: { deal: { select: { id: true, slug: true, companyName: true } } },
@@ -125,9 +131,9 @@ export default async function Overview() {
                         <div className="truncate text-[12.5px] text-muted">
                           {[d.sector, d.modality, d.stage].filter(Boolean).join(" · ") || "Awaiting analysis"}
                         </div>
-                        <div className="mt-1.5 sm:hidden"><StatusBadge status={d.status} /></div>
+                        <div className="mt-1.5 sm:hidden"><DealStatusBadge status={d.status} latestAnalysis={d.analyses[0]?.status} finishedCount={d.analysisCount} /></div>
                       </div>
-                      <div className="hidden sm:block"><StatusBadge status={d.status} /></div>
+                      <div className="hidden sm:block"><DealStatusBadge status={d.status} latestAnalysis={d.analyses[0]?.status} finishedCount={d.analysisCount} /></div>
                       <div className="hidden w-20 text-right text-[12px] text-muted md:block">{relTime(d.updatedAt)}</div>
                     </Link>
                   </li>

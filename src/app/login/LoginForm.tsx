@@ -66,9 +66,19 @@ export function LoginForm({ people }: { people: LoginPerson[] }) {
           {requesting ? "Sending code…" : byEmail ? "Email me a sign-in code" : pickedPerson ? `Log in as ${pickedPerson.name}` : "Choose your name"}
         </Button>
         {people.length > 0 && (
-          <button type="button" onClick={() => setByEmail((v) => !v)} className="block w-full text-center text-[12.5px] text-navy-700 hover:underline">
-            {byEmail ? "Choose from the team instead" : "Sign in with a different email"}
-          </button>
+          <>
+            <div className="flex items-center gap-3 text-[11.5px] uppercase tracking-[0.14em] text-muted">
+              <span className="h-px flex-1 bg-line" />or<span className="h-px flex-1 bg-line" />
+            </div>
+            <button
+              type="button"
+              onClick={() => { setByEmail((v) => !v); setPicked(null); }}
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-line bg-paper px-4 py-3 text-[13.5px] font-medium text-navy-900 transition-colors hover:border-navy-700"
+            >
+              <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden><rect x="2.5" y="4.5" width="15" height="11" rx="2" /><path d="m3 5.5 7 5 7-5" /></svg>
+              {byEmail ? "Choose from the team instead" : "Sign in with a different email"}
+            </button>
+          </>
         )}
       </form>
     );

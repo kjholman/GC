@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/session";
 import { Logo } from "@/components/Logo";
 import { DnaHelix } from "@/components/DnaHelix";
-import { AnalystAvatar } from "@/components/Analyst";
 import { env } from "@/lib/env";
 import { adminBypassAction } from "@/lib/auth/actions";
 import { LoginForm, type LoginPerson } from "./LoginForm";
@@ -35,26 +34,19 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
         <DnaHelix className="absolute inset-0 h-full w-full" />
         <div className="relative grid w-full grid-cols-1 items-center gap-10 px-5 py-10 sm:px-8 sm:py-14 lg:grid-cols-[1.15fr_440px] lg:px-14">
           <div className="max-w-2xl text-white">
-            <div className="mb-5 text-[12px] font-medium uppercase tracking-[0.22em] text-brand-300">Genesys Capital · The Sharminator</div>
+            <div className="mb-5 text-[12px] font-medium uppercase tracking-[0.22em] text-brand-300">Genesys Capital</div>
             <h1 className="font-display text-[36px] font-semibold leading-[1.08] tracking-[-0.015em] sm:text-[46px] lg:text-[58px]">
               Catalysts for Medical Breakthroughs
             </h1>
             <p className="mt-6 max-w-xl text-[16px] leading-relaxed text-white/75">
               Scientific and financial underwriting for life sciences ventures, informed by more than 25 years of Genesys Capital investment experience.
             </p>
-            <div className="mt-10 flex items-center gap-4 rounded-2xl border border-white/15 bg-white/5 p-4 backdrop-blur-sm sm:max-w-md">
-              <AnalystAvatar size={64} />
-              <div>
-                <div className="text-[13px] font-semibold text-white">The Sharminator</div>
-                <div className="text-[13px] italic text-white/70">&ldquo;I&apos;ll be back. With a term sheet, if the science holds up.&rdquo;</div>
-              </div>
-            </div>
           </div>
 
           <div className="w-full rounded-2xl bg-paper p-6 sm:p-8 shadow-[0_30px_60px_-20px_rgba(0,0,0,0.5)]">
           {sp.link === "invalid" && (
             <p className="mb-6 rounded-lg border border-[#efd2ce] bg-neg-bg px-4 py-3 text-[13px] text-neg">
-              That sign-in link has expired or was already used. Ask an administrator for a new one.
+              That sign-in link has expired or was already used. Request a new code below.
             </p>
           )}
           <LoginForm people={people} />
@@ -69,10 +61,6 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
               </button>
             </form>
           )}
-          <p className="mt-8 text-[11.5px] leading-relaxed text-muted">
-            Access is restricted to authorised Genesys Capital personnel. All activity, including sign-in attempts, is
-            recorded. Need access? Contact your platform administrator.
-          </p>
           </div>
         </div>
       </div>

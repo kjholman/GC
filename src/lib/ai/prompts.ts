@@ -405,6 +405,13 @@ export function firmContextBlock(ctx: FirmContext): string {
       const facts = [
         p.yearInvested ? `invested ${p.yearInvested}` : null,
         p.stageAtEntry ? `entry: ${p.stageAtEntry}` : null,
+        p.checkSize ? `genesys investment: ${p.checkSize}` : null,
+        p.roundSize ? `round size at entry: ${p.roundSize}` : null,
+        p.entryValuation ? `valuation at entry: ${p.entryValuation}` : null,
+        p.ownership ? `ownership: ${p.ownership}` : null,
+        p.coInvestors ? `co-investors: ${p.coInvestors}` : null,
+        p.exitValue ? `exit or current value: ${p.exitValue}` : null,
+        p.returnMultiple ? `return: ${p.returnMultiple}` : null,
         `outcome: ${p.outcome}${p.outcomeNotes ? ` (${p.outcomeNotes})` : ""}`,
       ].filter(Boolean);
       const files = (ctx.portfolioFiles?.[p.id] ?? []).map((f) => `\n  From "${f.filename}": ${f.summary}`).join("");
@@ -430,7 +437,7 @@ These are the partners' corrections to your earlier judgements, each with the le
 ${calibration}
 
 ${ctx.firmDocs?.length ? `## Firm documents (uploaded by the partners)\nSummaries of the firm's own documents. Treat them as authoritative on Genesys's strategy, mandate and history.\n${ctx.firmDocs.map((d) => `- **${d.filename}:** ${d.summary}`).join("\n")}\n\n` : ""}## Genesys portfolio history
-Benchmark each new deal against these companies. In portfolioFit.comparableGenesysInvestments, cite only companies from this list.
+Benchmark each new deal against these companies, including on terms where financials are given: compare the proposed round size, valuation and Genesys cheque with what the firm paid before and how those investments returned. In portfolioFit.comparableGenesysInvestments, cite only companies from this list.
 ${portfolio || "(none recorded)"}
 
 ## Recent screening decisions on this platform
@@ -560,7 +567,7 @@ export const FINGERPRINT_PROMPT = `
 Classify the life-science opportunity in the attached materials so it can be matched with similar past deals. Use the materials only.
 - **companyName:** the company's legal or trading name exactly as the materials give it (e.g. "Northbridge Therapeutics"), not a product, programme or file name. Null if the materials do not name the company.
 - **website:** the company's own website if the materials give it, else null.
-- **sector:** one of Therapeutics, Medical Devices, Diagnostics, Platform / Tools, Digital Health, Other.
+- **sector:** one of Therapeutics, Medical Devices, Diagnostics, Platform / Tools, Digital Health. Always pick the closest fit; use Other only for a company that is genuinely outside life sciences.
 - **modality:** be specific, e.g. "Small molecule", "Monoclonal antibody", "AAV gene therapy", "Radiopharmaceutical", "Implantable neuromodulation device".
 - **indication:** the lead indication.
 - **stage:** development stage.

@@ -3,7 +3,7 @@ import { lookup } from "node:dns/promises";
 import net from "node:net";
 import { db } from "../db";
 
-const MAX_BYTES = 1024 * 1024;
+const MAX_BYTES = 3 * 1024 * 1024;
 const TIMEOUT_MS = 8000;
 
 /** Blocks requests to private or internal addresses (the website comes from a founder's deck). */
@@ -27,7 +27,7 @@ async function safeFetch(url: string, accept: string): Promise<Response | null> 
     const res = await fetch(u, {
       redirect: "manual",
       signal: AbortSignal.timeout(TIMEOUT_MS),
-      headers: { accept, "user-agent": "Mozilla/5.0 (compatible; GenesysSharminator/1.0)" },
+      headers: { accept, "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36" },
     }).catch(() => null);
     if (!res) return null;
     if (res.status >= 300 && res.status < 400 && res.headers.get("location")) {
@@ -47,13 +47,25 @@ function candidates(html: string, base: URL): string[] {
   };
   // schema.org Organization logo in JSON-LD
   for (const m of html.matchAll(/"logo"\s*:\s*(?:\{[^}]*?"url"\s*:\s*)?"([^"]+)"/g)) { const u = abs(m[1]); if (u) out.push(u); }
+  const attr = (tag: string, name: string) => tag.match(new RegExp(`\\b${name}\\s*=\\s*["']([^"']+)["']`, "i"))?.[1];
+  // <img> tags that are plainly the site logo (src, alt, class or id mentions "logo"), header ones first.
+  const imgs = [...html.matchAll(/<img\b[^>]*>/gi)].map((m) => m[0]);
+  for (const t of imgs) {
+    const src = attr(t, "src") ?? attr(t, "data-src") ?? attr(t, "srcset")?.split(/\s+/)[0];
+    if (!src || src.startsWith("data:")) continue;
+    if (/logo/i.test([src, attr(t, "alt"), attr(t, "class"), attr(t, "id")].join(" "))) { const u = abs(src); if (u) out.push(u); }
+  }
   const links = [...html.matchAll(/<link\b[^>]*>/gi)].map((m) => m[0]);
-  const attr = (tag: string, name: string) => tag.match(new RegExp(`${name}\\s*=\\s*["']([^"']+)["']`, "i"))?.[1];
   const icons = links
     .map((t) => ({ rel: (attr(t, "rel") ?? "").toLowerCase(), href: attr(t, "href"), size: Number((attr(t, "sizes") ?? "").split("x")[0]) || 0 }))
     .filter((l) => l.href && /icon/.test(l.rel));
   icons.sort((a, b) => Number(b.rel.includes("apple")) - Number(a.rel.includes("apple")) || b.size - a.size);
   for (const l of icons) { const u = abs(l.href!); if (u) out.push(u); }
+  // Social preview image: often the logo itself for small companies.
+  for (const m of html.matchAll(/<meta\b[^>]*>/gi)) {
+    const t = m[0];
+    if (/(og:image|twitter:image)["']/i.test(t)) { const c = attr(t, "content"); const u = c && abs(c); if (u) out.push(u); }
+  }
   const fav = abs("/favicon.ico");
   if (fav) out.push(fav);
   // Public logo services, for sites that block automated requests or offer no icon.

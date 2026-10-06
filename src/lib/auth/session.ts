@@ -6,6 +6,7 @@ import type { Role } from "@prisma/client";
 import { db } from "../db";
 import { env } from "../env";
 import { generateSessionToken, hashToken } from "./crypto";
+import { roleForEmail } from "../team";
 
 export const SESSION_COOKIE = "ga_session";
 
@@ -50,7 +51,11 @@ async function loadUser(touch: boolean) {
   if (touch && Date.now() - session.lastSeenAt.getTime() > 5 * 60 * 1000) {
     await db.session.update({ where: { id: session.id }, data: { lastSeenAt: new Date() } });
   }
-  return session.user;
+  // Access level comes from the team list; keep the stored role in step with it.
+  // (The testing-only bypass account keeps its role while the bypass is on.)
+  const role = env.adminBypassEnabled && session.user.role === "ADMIN" ? "ADMIN" : roleForEmail(session.user.email);
+  if (role !== session.user.role) await db.user.update({ where: { id: session.user.id }, data: { role } }).catch(() => {});
+  return { ...session.user, role };
 }
 
 /** The signed-in user; counts as activity for the idle timeout. */

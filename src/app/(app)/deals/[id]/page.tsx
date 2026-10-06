@@ -4,9 +4,10 @@ import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { hasRole, requireUser } from "@/lib/auth/session";
 import type { CompetitorSweep, Memo } from "@/lib/ai/schema";
-import { Button, Card, REC_META, ScoreRing, SectionTitle, StatusBadge, cx, fmtDate, relTime } from "@/components/ui";
+import { Button, Card, REC_META, ScoreRing, SectionTitle, cx, fmtDate, relTime } from "@/components/ui";
 import { AnalysisProgress } from "./AnalysisProgress";
 import { DealLogo } from "@/components/DealLogo";
+import { DealStatusBadge } from "@/components/DealStatus";
 import { AnalystAvatar } from "@/components/Analyst";
 import { MemeScene } from "@/components/MemeScene";
 import { refreshSlug } from "@/lib/deals/slug";
@@ -93,6 +94,12 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
       recommendation: a.recommendation, overallScore: a.overallScore, versionDelta: (a.memo as Memo | null)?.versionDelta ?? null,
       analystContext: a.analystContext, by: who ? who.name ?? who.email.split("@")[0] : null, costUsd: a.costUsd,
       newFiles: deal.documents.filter((d) => d.createdAt > prevStart && d.createdAt <= a.createdAt).map((d) => d.filename),
+      files: deal.documents.filter((d) => d.createdAt <= a.createdAt).map((d) => d.filename),
+      startedAt: a.startedAt,
+      error: a.error,
+      errorDetail: a.errorDetail,
+      context: (a.contextUsed as VersionRow["context"]) ?? null,
+      steps: asSteps(a.steps),
     };
   });
   const webSources = shown
@@ -123,7 +130,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
       <header className="mb-8 grid grid-cols-1 gap-8 border-b border-line pb-8 lg:grid-cols-[minmax(0,1fr)_auto]">
         <div className="min-w-0">
           <div className="mb-3 flex flex-wrap items-center gap-3">
-            <StatusBadge status={deal.status} />
+            <DealStatusBadge status={deal.status} latestAnalysis={latest?.status} finishedCount={completed.length} />
             {deal.sector && <span className="text-[12.5px] text-muted">{deal.sector}</span>}
             {deal.modality && <span className="text-[12.5px] text-muted">· {deal.modality}</span>}
           </div>
@@ -255,6 +262,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
       <div className="grid grid-cols-1 gap-10 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="min-w-0">
           {!memo ? (
+            <>
             <Card className="py-16 text-center">
               <div className="mx-auto max-w-md">
                 <div className="font-display font-semibold text-[22px] text-navy-900">{inFlight ? "The Sharminator is working on this deal." : "No completed analysis yet."}</div>
@@ -265,6 +273,8 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
                 </p>
               </div>
             </Card>
+            {versionRows.length > 0 && <div className="mt-8"><VersionHistory dealPath={`/deals/${slug}`} rows={versionRows} shownId={null} /></div>}
+            </>
           ) : (
             <EvidenceProvider evidence={ledger}>
             <div className="mb-8">
