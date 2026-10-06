@@ -3,12 +3,15 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { Logo } from "@/components/Logo";
 import { env } from "@/lib/env";
 import { adminBypassAction } from "@/lib/auth/actions";
+import { emailDeliveryConfigured } from "@/lib/mailer";
 import { LoginForm } from "./LoginForm";
 
 export const metadata = { title: "Sign in" };
 
-export default async function LoginPage() {
+export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   if (await getCurrentUser()) redirect("/");
+  const sp = await searchParams;
+  const emailEnabled = emailDeliveryConfigured();
   return (
     <div className="grid min-h-screen lg:grid-cols-[1.05fr_1fr]">
       <div className="relative hidden overflow-hidden bg-navy-950 px-14 py-12 text-white lg:flex lg:flex-col">
@@ -46,7 +49,22 @@ export default async function LoginPage() {
           <div className="mb-10 lg:hidden">
             <Logo tone="dark" />
           </div>
-          <LoginForm />
+          {sp.link === "invalid" && (
+            <p className="mb-6 rounded-[3px] border border-[#efd2ce] bg-neg-bg px-4 py-3 text-[13px] text-neg">
+              That sign-in link has expired or was already used. Ask an administrator for a new one.
+            </p>
+          )}
+          {emailEnabled ? (
+            <LoginForm />
+          ) : (
+            <div>
+              <div className="eyebrow mb-2 text-gold-600">Secure sign-in</div>
+              <h2 className="font-serif text-[30px] leading-tight text-navy-900">Sign in with your link</h2>
+              <p className="mt-3 text-[14px] leading-relaxed text-ink-soft">
+                Access is by personal sign-in link. Ask a platform administrator to send you one. Each link works once and expires after 24 hours; your session then lasts several days.
+              </p>
+            </div>
+          )}
           {env.adminBypassEnabled && (
             <form action={adminBypassAction} className="mt-8 rounded-[3px] border border-dashed border-[#e3c3be] bg-neg-bg/60 p-4">
               <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-neg">Testing only</div>

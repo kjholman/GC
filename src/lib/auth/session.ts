@@ -4,15 +4,15 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import type { Role } from "@prisma/client";
 import { db } from "../db";
+import { env } from "../env";
 import { generateSessionToken, hashToken } from "./crypto";
 
 export const SESSION_COOKIE = "ga_session";
-const SESSION_TTL_MS = 1000 * 60 * 60 * 12; // 12 hours: a working day
 
 export async function createSession(userId: string) {
   const token = generateSessionToken();
   const h = await headers();
-  const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+  const expiresAt = new Date(Date.now() + env.sessionTtlHours * 3600 * 1000);
   await db.session.create({
     data: {
       userId,

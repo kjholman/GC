@@ -97,12 +97,12 @@ Choose one:
 
 ## Deploying on Render
 1. In Render: **New → Blueprint**, select this repository. `render.yaml` creates the web service and a Postgres database.
-2. When prompted, enter `ANTHROPIC_API_KEY`, `SEED_ADMIN_EMAILS` (your email) and `APP_URL` (the Render URL). Leave SMTP blank for now.
+2. When prompted, enter `ANTHROPIC_API_KEY` and `SEED_ADMIN_EMAILS` (your email).
 3. Deploy. Migrations and seeding run automatically on every start.
 4. **Testing mode:** `ENABLE_ADMIN_BYPASS=true` shows a "Continue as administrator" button on the sign-in page, and a red banner reminds everyone it is on.
    - Set `ADMIN_BYPASS_UNTIL` (YYYY-MM-DD) so it switches itself off.
    - Set the flag to `false` before uploading confidential decks.
-   - Until SMTP is configured, sign-in codes appear in the Render logs.
+5. **Sign-in without an email server:** an admin opens Administration → **Sign-in link** next to a user and sends the link by any channel. Links are single-use and expire after 24 hours, and sessions last `SESSION_TTL_HOURS` (default 7 days). To email codes automatically instead, add `RESEND_API_KEY` and `EMAIL_FROM` on a domain verified in Resend; no SMTP server is needed.
 
 ## Production checklist
 1. **Hosting.** Use Canadian data residency, for example Azure Canada Central or AWS ca-central-1, with managed Postgres (encrypted, with point-in-time recovery).

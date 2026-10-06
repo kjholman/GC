@@ -20,9 +20,6 @@ export const env = {
       .map((d) => d.trim().toLowerCase())
       .filter(Boolean);
   },
-  get appUrl() {
-    return process.env.APP_URL ?? "http://localhost:3000";
-  },
   get anthropicModel() {
     return process.env.ANTHROPIC_MODEL ?? "claude-opus-5-5";
   },
@@ -44,6 +41,15 @@ export const env = {
     const until = process.env.ADMIN_BYPASS_UNTIL;
     if (until && !Number.isNaN(Date.parse(until)) && Date.now() > Date.parse(until) + 24 * 3600 * 1000) return false;
     return true;
+  },
+  /** Session length in hours (default 7 days, so sign-in links are rarely needed). */
+  get sessionTtlHours() {
+    const h = Number(process.env.SESSION_TTL_HOURS ?? 168);
+    return Number.isFinite(h) && h > 0 ? Math.min(h, 24 * 90) : 168;
+  },
+  /** Resend (https://resend.com) API key: sends sign-in codes over HTTPS, no SMTP server. */
+  get resendApiKey() {
+    return process.env.RESEND_API_KEY || null;
   },
   smtp: {
     get host() { return process.env.SMTP_HOST; },

@@ -26,8 +26,6 @@ services:
         value: genesyscapital.com
       - key: SEED_ADMIN_EMAILS
         sync: false
-      - key: APP_URL
-        sync: false
       - key: ANTHROPIC_API_KEY
         sync: false
       - key: ANTHROPIC_MODEL
@@ -41,19 +39,11 @@ services:
         value: "true"
       - key: ADMIN_BYPASS_UNTIL
         sync: false
-      # Until SMTP is configured, sign-in codes are printed to the Render log.
-      - key: MAIL_TRANSPORT
-        value: console
-      - key: SMTP_HOST
-        sync: false
-      - key: SMTP_PORT
-        value: "587"
-      - key: SMTP_USER
-        sync: false
-      - key: SMTP_PASS
-        sync: false
-      - key: EMAIL_FROM
-        sync: false
+      # Sign-in: without an email service, admins issue single-use sign-in
+      # links from Administration. To email codes instead, add RESEND_API_KEY
+      # (and EMAIL_FROM on a domain verified in Resend) in the dashboard.
+      - key: SESSION_TTL_HOURS
+        value: "168"
 
 databases:
   - name: genesys-analyst-db

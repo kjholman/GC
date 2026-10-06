@@ -4,9 +4,9 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "../db";
 import { env, isAllowedDomain, normalizeEmail } from "../env";
-import { sendLoginCode } from "../mailer";
+import { emailDeliveryConfigured, sendLoginCode } from "../mailer";
 import { audit, clientIp } from "../audit";
-import { generateCode, hashCode, safeEqualHex } from "./crypto";
+import { generateCode, hashCode, hashToken, safeEqualHex } from "./crypto";
 import { createSession, destroySession, getCurrentUser } from "./session";
 
 const CODE_TTL_MS = 10 * 60 * 1000;
@@ -20,6 +20,9 @@ export async function requestCodeAction(_: RequestCodeState, formData: FormData)
   const parsed = z.string().email().safeParse(String(formData.get("email") ?? ""));
   if (!parsed.success) return { ok: false, error: "Enter a valid email address." };
   const email = normalizeEmail(parsed.data);
+  if (!emailDeliveryConfigured()) {
+    return { ok: false, error: "Sign-in by email is not set up. Ask a platform administrator for a sign-in link." };
+  }
 
   if (!isAllowedDomain(email)) {
     await audit("auth.code_rejected_domain", { meta: { email } });
@@ -117,5 +120,20 @@ export async function adminBypassAction() {
   await db.user.update({ where: { id: admin.id }, data: { lastLoginAt: new Date() } });
   await createSession(admin.id);
   await audit("auth.admin_bypass_used", { userId: admin.id });
+  redirect("/");
+}
+
+/** Redeems an administrator-issued sign-in link. Requires a click, so link previews can't consume it. */
+export async function redeemSignInLinkAction(token: string) {
+  const link = await db.signInLink.findUnique({ where: { tokenHash: hashToken(token) }, include: { user: true } });
+  if (!link || link.usedAt || link.expiresAt < new Date() || !link.user.active) {
+    await audit("auth.link_invalid", { meta: { reason: !link ? "unknown" : link.usedAt ? "used" : "expired_or_inactive" } });
+    redirect("/login?link=invalid");
+  }
+  const claimed = await db.signInLink.updateMany({ where: { id: link.id, usedAt: null }, data: { usedAt: new Date() } });
+  if (claimed.count !== 1) redirect("/login?link=invalid");
+  await db.user.update({ where: { id: link.userId }, data: { lastLoginAt: new Date() } });
+  await createSession(link.userId);
+  await audit("auth.signed_in_with_link", { userId: link.userId });
   redirect("/");
 }

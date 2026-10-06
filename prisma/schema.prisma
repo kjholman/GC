@@ -33,6 +33,7 @@ model User {
 
   sessions      Session[]
   feedback      AnalysisFeedback[]
+  signInLinks   SignInLink[]
   dealsOwned    Deal[]       @relation("DealOwner")
   documents     Document[]
   analyses      Analysis[]
@@ -51,6 +52,21 @@ model LoginCode {
   createdAt  DateTime  @default(now())
 
   @@index([email, createdAt])
+}
+
+/// Single-use sign-in link issued by an administrator (no email server needed).
+model SignInLink {
+  id          String    @id @default(cuid())
+  userId      String
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  usedAt      DateTime?
+  createdById String?
+  createdAt   DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Session {

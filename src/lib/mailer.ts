@@ -14,6 +14,21 @@ function getTransport() {
   return transporter;
 }
 
+/** Whether sign-in codes can be emailed. Without it, admins issue sign-in links instead. */
+export function emailDeliveryConfigured(): boolean {
+  return !!env.resendApiKey || !!env.smtp.host || process.env.NODE_ENV !== "production" || process.env.MAIL_TRANSPORT === "console";
+}
+
+/** Resend's HTTPS API: no mail server to run, just an API key and a verified sending domain. */
+async function sendViaResend(msg: { to: string; subject: string; text: string; html: string }) {
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${env.resendApiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ from: env.smtp.from, to: [msg.to], subject: msg.subject, text: msg.text, html: msg.html }),
+  });
+  if (!res.ok) throw new Error(`Resend rejected the email (${res.status}): ${(await res.text()).slice(0, 300)}`);
+}
+
 export async function sendLoginCode(to: string, code: string) {
   const subject = `${code} is your Genesys Analyst sign-in code`;
   const text = [
@@ -39,6 +54,11 @@ export async function sendLoginCode(to: string, code: string) {
       </td></tr>
     </table>
   </td></tr></table></body></html>`;
+
+  if (env.resendApiKey) {
+    await sendViaResend({ to, subject, text, html });
+    return;
+  }
 
   const transport = getTransport();
   if (!transport) {

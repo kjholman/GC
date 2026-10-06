@@ -6,7 +6,9 @@ import type { PortfolioOutcome, Role } from "@prisma/client";
 import { db } from "../db";
 import { audit } from "../audit";
 import { requireRole } from "../auth/session";
+import { headers } from "next/headers";
 import { isAllowedDomain, normalizeEmail } from "../env";
+import { generateSessionToken, hashToken } from "../auth/crypto";
 
 export type AdminState = { ok: boolean; error?: string; message?: string };
 
@@ -132,4 +134,27 @@ export async function togglePrincipleAction(id: string, active: boolean) {
   await db.investmentPrinciple.update({ where: { id }, data: { active } });
   await audit("principle.toggled", { userId: user.id, entity: "InvestmentPrinciple", entityId: id, meta: { active } });
   revalidatePath("/knowledge");
+}
+
+const LINK_TTL_HOURS = 24;
+
+/** Issues a single-use sign-in link for a user, to share by any channel. */
+export async function createSignInLinkAction(userId: string): Promise<{ ok: boolean; url?: string; expires?: string; error?: string }> {
+  const admin = await requireRole("ADMIN");
+  const user = await db.user.findUnique({ where: { id: userId } });
+  if (!user?.active) return { ok: false, error: "User is not active." };
+  // Only one live link per user at a time.
+  await db.signInLink.updateMany({ where: { userId, usedAt: null, expiresAt: { gt: new Date() } }, data: { expiresAt: new Date() } });
+  const token = generateSessionToken();
+  const expiresAt = new Date(Date.now() + LINK_TTL_HOURS * 3600 * 1000);
+  await db.signInLink.create({ data: { userId, tokenHash: hashToken(token), expiresAt, createdById: admin.id } });
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  const proto = h.get("x-forwarded-proto") ?? (host?.startsWith("localhost") ? "http" : "https");
+  await audit("admin.sign_in_link_created", { userId: admin.id, entity: "User", entityId: userId });
+  return {
+    ok: true,
+    url: `${proto}://${host}/login/link?token=${token}`,
+    expires: expiresAt.toLocaleString("en-CA", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Toronto" }),
+  };
 }
