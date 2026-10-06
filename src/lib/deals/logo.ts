@@ -111,3 +111,29 @@ export function cleanDomain(raw: string | null | undefined): string | null {
     return null;
   }
 }
+
+const NOT_COMPANY = /(^|\.)(gmail|googlemail|outlook|hotmail|live|yahoo|icloud|me|aol|proton|protonmail|linkedin|twitter|x|facebook|instagram|youtube|google|apple|microsoft|github|medium|wikipedia|nih|ncbi|nlm|fda|ema|clinicaltrials|doi|sciencedirect|nature|springer|wiley|elsevier|pubmed|bit|tinyurl|calendly|zoom|docsend|dropbox|box|sharepoint|genesyscapital|mba27|w3|schema|adobe|canva|gov|gc)\.[a-z.]+$/i;
+
+/**
+ * The company's own domain, read straight from its materials: email addresses
+ * and web links in the deck. Domains that mention the company's name win.
+ */
+export function websiteFromText(text: string | null | undefined, companyName: string): string | null {
+  if (!text) return null;
+  const counts = new Map<string, number>();
+  const add = (raw: string, weight: number) => {
+    const d = cleanDomain(raw);
+    if (!d || NOT_COMPANY.test(d) || /\.(pdf|png|jpe?g|pptx?|docx?|xlsx?)$/i.test(d)) return;
+    counts.set(d, (counts.get(d) ?? 0) + weight);
+  };
+  for (const m of text.matchAll(/[a-z0-9._%+-]+@([a-z0-9-]+(?:\.[a-z0-9-]+)+)/gi)) add(m[1], 3);
+  for (const m of text.matchAll(/\b(?:https?:\/\/)?(?:www\.)?([a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|bio|io|ai|co|health|care|ca|org|net|tech|med|life|science|us|uk|de|fr|ch|eu|com\.au|co\.uk))\b/gi)) add(m[1], 1);
+  const token = companyName.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 12);
+  let best: string | null = null;
+  let bestScore = 0;
+  for (const [d, n] of counts) {
+    const score = n + (token.length >= 3 && d.replace(/[^a-z0-9]/g, "").includes(token) ? 10 : 0);
+    if (score > bestScore) { best = d; bestScore = score; }
+  }
+  return best ? `https://${best}` : null;
+}

@@ -42,6 +42,28 @@ export async function structuredCall<S extends z.ZodType>(args: {
    */
   mode?: "structured" | "json";
 }): Promise<{ data: z.infer<S>; usage: Anthropic.Beta.BetaUsage; model: string }> {
+  // Formats Anthropic can't compile into a strict grammar go straight to JSON mode
+  // (validated and repaired here), and are remembered so later calls skip the failed attempt.
+  if (args.mode !== "json" && TOO_COMPLEX.has(args.schema)) return structuredCall({ ...args, mode: "json" });
+  try {
+    return await structuredCallOnce(args);
+  } catch (err) {
+    if (args.mode === "json" || !isSchemaTooComplex(err)) throw err;
+    console.warn(`[ai] ${args.step}: format too complex for strict output; using JSON mode`);
+    TOO_COMPLEX.add(args.schema);
+    return structuredCallOnce({ ...args, mode: "json" });
+  }
+}
+
+const TOO_COMPLEX = new WeakSet<z.ZodType>();
+
+/** Anthropic's 400s for output formats it can't compile ("grammar is too large", "too many union types"...). */
+export function isSchemaTooComplex(err: unknown): boolean {
+  if (!(err instanceof Anthropic.APIError) || err.status !== 400) return false;
+  return /grammar|union types|schema.*(too|complex|large)|too many (parameters|properties)|output_config|output_format/i.test(err.message);
+}
+
+async function structuredCallOnce<S extends z.ZodType>(args: Parameters<typeof structuredCall<S>>[0]): Promise<{ data: z.infer<S>; usage: Anthropic.Beta.BetaUsage; model: string }> {
   const json = args.mode === "json";
   const content: ContentBlock[] = json
     ? [
