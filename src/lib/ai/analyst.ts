@@ -14,7 +14,7 @@ import { cleanDomain, logoFromDeckPdf, logoFromWebsite, websiteFromText } from "
 import { refreshSlug } from "../deals/slug";
 import { sendAnalysisProblem, sendAnalysisReady } from "../mailer";
 import { FEEDBACK_AREA_LABEL } from "../feedback/options";
-import { automatedChecks, correctionsBlock, modelFactCheck, sourceTexts, summarise } from "./verify";
+import { automatedChecks, correctionsBlock, modelFactCheck, sourceTexts, summarise, type VerificationReport } from "./verify";
 import { CompetitorSweepSchema, FingerprintSchema, MemoSchema, normaliseMemo, type CompetitorSweep, type Fingerprint, type Memo } from "./schema";
 
 import {
@@ -557,6 +557,8 @@ export type Checkpoint = {
   research?: Partial<Record<Pass, string>>;
   sweep?: { notes: string; sweep: CompetitorSweep };
   draft?: { memo: Memo; model: string; docsKey: string };
+  /** The fact-checked memo; final = corrections (if any) done and re-checked. */
+  checked?: { memo: Memo; report: VerificationReport; docsKey: string; final: boolean };
 };
 
 /** Merges one piece of finished work into the analysis's saved progress (atomic, safe in parallel). */
@@ -621,22 +623,34 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
     include: { deal: { include: { documents: true } } },
   });
   if (!analysis || analysis.status === "COMPLETE" || analysis.status === "STOPPED") return;
-  const resumedFromPause = analysis.status === "PAUSED";
   const { deal } = analysis;
+  // A run that already did some work (paused for credit, interrupted by a server update):
+  // its log is kept and everything it finished is reused, so it carries on rather than restarts.
+  const done = (analysis.checkpoint ?? {}) as Checkpoint;
+  const carriedOver = [
+    ...(["science", "founders", "ip", "market"] as Pass[]).filter((k) => done.research?.[k]).map((k) => PASS_LABEL[k] + " research"),
+    ...(done.sweep ? ["competitor sweep"] : []),
+    ...(done.draft ? ["draft memo"] : []),
+    ...(done.checked ? [done.checked.final ? "fact-checked memo" : "fact-check"] : []),
+  ];
+  const continuing = Array.isArray(analysis.steps) && analysis.steps.length > 0;
+  const why =
+    analysis.status === "PAUSED" || analysis.progress === "Resuming"
+      ? "Resumed after the Anthropic account was topped up"
+      : analysis.progress?.startsWith("Restarting")
+        ? "Picked up again after a server update"
+        : "Started again";
 
   await db.analysis.update({
     where: { id: analysisId },
-    data: { status: "RUNNING", startedAt: new Date(), progress: "Reading submitted materials", error: null, steps: [] },
+    data: { status: "RUNNING", startedAt: new Date(), progress: "Reading submitted materials", error: null },
   });
-  const resumed = analysis.status === "QUEUED" && analysis.progress?.startsWith("Restarting");
   await logStep(
     analysisId,
-    resumedFromPause
-      ? "Resumed after the Anthropic account was topped up; starting again from the beginning"
-      : resumed
-      ? "The server was updated while this was running, so the Sharminator started it again from the beginning"
+    continuing
+      ? `${why}. Carrying on where it left off${carriedOver.length ? `; already done and reused: ${carriedOver.join(", ")}` : ""}`
       : analysis.version === 1 ? "Started the first analysis of this deal" : `Started analysis version ${analysis.version}`,
-    resumed || resumedFromPause ? "warn" : "start",
+    continuing ? "info" : "start",
   );
   let companyName = deal.companyName;
 
@@ -667,7 +681,15 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
     const placeholder = hasPlaceholderName(deal);
     const failedResearch: string[] = [];
     let dossier: string | null = deal.researchDossier;
-    if (!deal.tags.length || analysis.trigger !== "INITIAL_SCREEN" || placeholder || !dossier) {
+    // The company profile is rebuilt only when the materials changed since it was made.
+    const profileKey = [...deal.documents.map((d) => d.id)].sort().join(",");
+    const newestDoc = Math.max(0, ...deal.documents.map((d) => d.createdAt.getTime()));
+    const profileCurrent =
+      deal.dossierDocsKey != null
+        ? deal.dossierDocsKey === profileKey
+        : // Profiles from before this was tracked: current if a run started after the newest file.
+          [...prior, analysis].some((a) => a.createdAt.getTime() >= newestDoc && a.id !== analysisId) || analysis.trigger === "INITIAL_SCREEN";
+    if (!deal.tags.length || placeholder || !dossier || !profileCurrent) {
       const tId = Date.now();
       await logStep(analysisId, "Identifying the company, its technology and lead indication", "start");
       const fp = await fingerprint(blocks).catch((err) => {
@@ -685,6 +707,7 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
           where: { id: deal.id },
           data: {
             researchDossier: dossier,
+            dossierDocsKey: profileKey,
             website: deal.website ?? fp.website ?? undefined,
             tags: fp.tags,
             indication: deal.indication ?? fp.indication,
@@ -703,6 +726,9 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
       } else {
         await logStep(analysisId, "Couldn't classify the company automatically; continuing with the documents alone", "warn");
       }
+    } else {
+      await logStep(analysisId, "Re-using the company profile built earlier (no new materials since)", "info");
+      if (deal.dossierDocsKey == null) await db.deal.update({ where: { id: deal.id }, data: { dossierDocsKey: profileKey } });
     }
     // Company logo (website on file, website in the deck, web search, then the deck's title slide).
     void findDealLogo(deal.id, { force: true, analysisId });
@@ -900,7 +926,9 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
     await logStep(analysisId, prior.length ? "Writing the updated memo with the new information" : "Writing the memo: science, team, IP, market, financials and fit with Genesys", "start");
     // A draft written before an interruption, for the same documents and note, is reused.
     const docsKey = docsKeyFor(deal.documents.map((d) => d.id), [analysis.analystContext, analysis.instructions].filter(Boolean).join("\n") || null);
-    const savedDraft = [own.draft, ...usable.filter((a) => a.status !== "COMPLETE").map((a) => (a.checkpoint as Checkpoint | null)?.draft)].find((d) => d?.docsKey === docsKey);
+    // The saved work (draft, then its fact-check) comes from one interrupted run, so they belong together.
+    const draftSource = [own, ...usable.filter((a) => a.status !== "COMPLETE").map((a) => (a.checkpoint ?? {}) as Checkpoint)].find((c) => c.draft?.docsKey === docsKey);
+    const savedDraft = draftSource?.draft;
     const textDocs = textOnlyDocs(deal.documents);
     // Live progress: each part of the memo is logged as it starts being written.
     // Each part's time runs until the next part starts; the last part ends with the memo.
@@ -968,34 +996,50 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
       });
       return { memo: auto.sanitized, report: summarise(auto, fact, auto.sanitized, revisions) };
     };
-    let checked = await check(memo, 0);
-    const serious = checked.report.issues.filter((i) => i.severity !== "LOW");
-    const removed = checked.report.issues.filter((i) => i.correction === "remove").length;
-    await logStep(
-      analysisId,
-      `${checked.report.issues.length
-        ? `Fact-check found ${plural(checked.report.issues.length, "point")} to fix${serious.length ? ` (${serious.length} serious)` : ""}${removed ? `; removed ${plural(removed, "unsourced item")}` : ""}`
-        : "Fact-check passed: every claim traced to a source"} (${fmtElapsed(Date.now() - tFc)})`,
-      checked.report.issues.length ? "warn" : "done",
-    );
-    await saveTiming(analysisId, "Fact-checking", Date.now() - tFc);
-    if (checked.report.status === "FAILED" && serious.length) {
-      await setProgress(analysisId, "Fixing the points the fact-check found");
-      const tFix = Date.now();
-      await logStep(analysisId, "Rewriting the memo to fix the serious points", "start");
-      const fixSections = sectionLogger("Correcting the memo");
-      const revised = await writeMemo({ corrections: correctionsBlock(serious), onSection: fixSections }, "memo-correction");
-      await fixSections.end();
-      usage.input_tokens += revised.usage.input_tokens;
-      usage.output_tokens += revised.usage.output_tokens;
-      await setProgress(analysisId, "Re-checking the corrected memo");
-      checked = await check(revised.memo, 1);
+    // A fact-check (and correction) finished before an interruption, for the same draft, is reused.
+    const savedChecked = draftSource?.checked?.docsKey === docsKey ? draftSource.checked : undefined;
+    let checked: { memo: Memo; report: VerificationReport };
+    if (savedChecked?.final) {
+      checked = { memo: savedChecked.memo, report: savedChecked.report };
+      await logStep(analysisId, "Re-using the fact-checked memo finished before the interruption", "info");
+    } else {
+      if (savedChecked) {
+        checked = { memo: savedChecked.memo, report: savedChecked.report };
+        await logStep(analysisId, "Re-using the fact-check finished before the interruption", "info");
+      } else {
+        checked = await check(memo, 0);
+      }
+      const serious = checked.report.issues.filter((i) => i.severity !== "LOW");
+      const needsFix = checked.report.status === "FAILED" && serious.length > 0;
+      if (!savedChecked) await saveCheckpoint(analysisId, { checked: { ...checked, docsKey, final: !needsFix } });
+      const removed = checked.report.issues.filter((i) => i.correction === "remove").length;
       await logStep(
         analysisId,
-        `${checked.report.status === "FAILED" ? "Some serious points remain after the correction; they are listed on the memo for review" : "Corrections made and re-checked"} (${fmtElapsed(Date.now() - tFix)})`,
-        checked.report.status === "FAILED" ? "warn" : "done",
+        `${checked.report.issues.length
+          ? `Fact-check found ${plural(checked.report.issues.length, "point")} to fix${serious.length ? ` (${serious.length} serious)` : ""}${removed ? `; removed ${plural(removed, "unsourced item")}` : ""}`
+          : "Fact-check passed: every claim traced to a source"} (${fmtElapsed(Date.now() - tFc)})`,
+        checked.report.issues.length ? "warn" : "done",
       );
-      await saveTiming(analysisId, "Correcting and re-checking", Date.now() - tFix);
+      await saveTiming(analysisId, "Fact-checking", Date.now() - tFc);
+      if (needsFix) {
+        await setProgress(analysisId, "Fixing the points the fact-check found");
+        const tFix = Date.now();
+        await logStep(analysisId, "Rewriting the memo to fix the serious points", "start");
+        const fixSections = sectionLogger("Correcting the memo");
+        const revised = await writeMemo({ corrections: correctionsBlock(serious), onSection: fixSections }, "memo-correction");
+        await fixSections.end();
+        usage.input_tokens += revised.usage.input_tokens;
+        usage.output_tokens += revised.usage.output_tokens;
+        await setProgress(analysisId, "Re-checking the corrected memo");
+        checked = await check(revised.memo, 1);
+        await logStep(
+          analysisId,
+          `${checked.report.status === "FAILED" ? "Some serious points remain after the correction; they are listed on the memo for review" : "Corrections made and re-checked"} (${fmtElapsed(Date.now() - tFix)})`,
+          checked.report.status === "FAILED" ? "warn" : "done",
+        );
+        await saveTiming(analysisId, "Correcting and re-checking", Date.now() - tFix);
+        await saveCheckpoint(analysisId, { checked: { ...checked, docsKey, final: true } });
+      }
     }
     memo = { ...checked.memo, meme: checked.memo.meme ?? draft.memo.meme };
     const report = checked.report;

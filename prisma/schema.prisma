@@ -115,6 +115,8 @@ model Deal {
   /// What the automatic logo lookup found or why it found nothing, shown on the deal.
   logoNote        String?
   researchDossier String?
+  /// The documents the research dossier was built from (sorted ids), so it is rebuilt only when they change.
+  dossierDocsKey  String?
   /// Every piece of AI web research done for this deal, kept so later analyses reuse it:
   /// { passes: { science|founders|ip|market: { text, at } }, sweep: { notes, sweep, at } }.
   researchStore   Json?

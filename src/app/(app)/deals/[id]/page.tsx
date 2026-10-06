@@ -202,7 +202,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
             <div className="min-w-0 flex-1">
               <div className="text-[13.5px] font-medium text-warn">Analysis version {paused.version} is paused: the Anthropic account is out of credit</div>
               <p className="mt-0.5 text-[13px] text-ink-soft">
-                Nothing is lost. Once credit is added to the Anthropic account, press Resume and the Sharminator starts this analysis again. An administrator can also check credit on the Administration page, which resumes every paused analysis.
+                Nothing is lost. Once credit is added to the Anthropic account, press Resume and the Sharminator carries on where it stopped, reusing everything it already finished. An administrator can also check credit on the Administration page, which resumes every paused analysis.
               </p>
               {asSteps(paused.steps).length > 0 && (
                 <details className="mt-2">

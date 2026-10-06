@@ -248,6 +248,12 @@ export async function stopAnalysisAction(analysisId: string): Promise<ActionStat
 
 export async function rerunAnalysisAction(dealId: string, opts: { instructions?: string; refreshResearch?: boolean } = {}): Promise<ActionState> {
   const user = await requireUser();
+  // A version paused for credit is continued, not replaced, so nothing it finished is redone.
+  // (New instructions or fresh research need a new version; it still reuses the saved research.)
+  if (!opts.instructions?.trim() && !opts.refreshResearch) {
+    const latest = await db.analysis.findFirst({ where: { dealId }, orderBy: { version: "desc" }, select: { id: true, status: true } });
+    if (latest?.status === "PAUSED") return resumeAnalysisAction(latest.id);
+  }
   try {
     const analysis = await queueNewVersion(dealId, user.id, "RERUN", undefined, opts);
     await db.activity.create({
