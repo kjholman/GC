@@ -8,6 +8,7 @@ import { Button, Card, REC_META, ScoreRing, SectionTitle, StatusBadge, cx, fmtDa
 import { AnalysisProgress } from "./AnalysisProgress";
 import { DealLogo } from "@/components/DealLogo";
 import { AnalystAvatar } from "@/components/Analyst";
+import { Meme } from "@/components/Meme";
 import { refreshSlug } from "@/lib/deals/slug";
 import { GapsView, SourcesList, VersionHistory, collectWebSources, type VersionRow } from "./History";
 import { LogoEditor } from "./LogoEditor";
@@ -193,7 +194,10 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
                 </details>
               )}
             </div>
-            <ResumeButton analysisId={paused.id} />
+            <div className="flex items-center gap-4">
+              <Meme kind="PAUSED" size={140} className="hidden sm:block" />
+              <ResumeButton analysisId={paused.id} />
+            </div>
           </div>
         </div>
       )}
@@ -220,6 +224,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
       )}
 
       {firstRun ? (
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-[minmax(0,1fr)_auto]">
         <Card pad={false}>
           <div className="px-6 pt-6"><SectionTitle eyebrow="While you wait" title="Materials received" /></div>
           <ul className="divide-y divide-line border-t border-line">
@@ -231,6 +236,8 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
             ))}
           </ul>
         </Card>
+        <Meme kind="RUNNING" size={240} className="mx-auto md:mx-0" />
+        </div>
       ) : (
       <div className="grid grid-cols-1 gap-10 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="min-w-0">
@@ -377,6 +384,12 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
         </div>
 
         <aside className="no-print space-y-6">
+          {memo && shown && (
+            <Card>
+              <div className="eyebrow mb-3">The Sharminator says</div>
+              <Meme kind={memo.recommendation} size={272} className="mx-auto" />
+            </Card>
+          )}
           <Card>
             <div className="mb-3 flex items-baseline justify-between">
               <div className="eyebrow">Materials ({deal.documents.length})</div>

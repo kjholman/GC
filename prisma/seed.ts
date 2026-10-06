@@ -393,7 +393,7 @@ async function main() {
   // People on the sign-in page who have an address get access (an existing role is never changed).
   for (const m of TEAM) {
     if (!m.email) continue;
-    await db.user.upsert({ where: { email: m.email }, create: { email: m.email, name: m.name }, update: { active: true } });
+    await db.user.upsert({ where: { email: m.email }, create: { email: m.email, name: m.fullName, title: m.title }, update: { active: true } });
   }
 
   let portfolioWritten = 0;

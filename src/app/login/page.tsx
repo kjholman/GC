@@ -26,7 +26,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   if (await getCurrentUser()) redirect("/");
   const sp = await searchParams;
   const emailEnabled = emailDeliveryConfigured();
-  const people: LoginPerson[] = TEAM.map((m) => ({ id: m.id, name: m.name, enabled: !!m.email, photo: teamPhoto(m.id) }));
+  const people: LoginPerson[] = TEAM.map((m) => ({ id: m.id, name: m.name, fullName: m.fullName, title: m.title, enabled: !!m.email, photo: teamPhoto(m.id) }));
   return (
     <div className="flex min-h-screen flex-col bg-paper">
       <header className="flex items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
