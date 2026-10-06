@@ -682,6 +682,7 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
           status,
           latestScore: memo.overallScore,
           analysisCount: { increment: 1 },
+          keyReason: memo.recommendation === "ADVANCE_TO_DILIGENCE" ? null : (memo.passReasons?.[0]?.reason ?? (memo.recommendation === "REJECT" ? memo.worthOurTime.headline : null)),
           recommendation: memo.recommendation,
           oneLiner: deal.oneLiner ?? memo.company.oneLiner,
           sector: deal.sector ?? memo.company.sector,

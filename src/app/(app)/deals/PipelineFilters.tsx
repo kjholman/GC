@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { inputCls } from "@/components/ui";
 
-const sel = `${inputCls} !py-2 text-[13px]`;
+const sel = `${inputCls} !py-2 text-[13px] min-w-[170px] flex-[1_1_170px]`;
 
 /** Filters for the pipeline. Every change updates the URL, so a filtered view can be bookmarked or shared. */
 export function PipelineFilters({ sectors, stages }: { sectors: string[]; stages: string[] }) {
@@ -20,9 +20,9 @@ export function PipelineFilters({ sectors, stages }: { sectors: string[]; stages
   };
   const active = ["rec", "sector", "stage", "from", "to", "minScore", "runs", "q"].some((k) => sp.get(k));
   return (
-    <div className="mb-6 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-[minmax(0,2fr)_repeat(7,minmax(0,1fr))]">
+    <div className="mb-6 flex flex-wrap gap-2">
       <form
-        className="col-span-2 sm:col-span-3 lg:col-span-4 xl:col-span-1"
+        className="min-w-[240px] flex-[2_1_280px]"
         onSubmit={(e) => {
           e.preventDefault();
           set("q", q.trim());
@@ -56,18 +56,18 @@ export function PipelineFilters({ sectors, stages }: { sectors: string[]; stages
         <option value="">Any score</option>
         {[80, 70, 60, 50].map((n) => <option key={n} value={n}>Score {n}+</option>)}
       </select>
-      <label className="flex flex-col">
+      <label className="flex min-w-[170px] flex-[1_1_170px] flex-col">
         <span className="sr-only">Submitted from</span>
         <input type="date" aria-label="Submitted from" value={sp.get("from") ?? ""} onChange={(e) => set("from", e.target.value)} className={sel} title="Submitted from" />
       </label>
-      <label className="flex flex-col">
+      <label className="flex min-w-[170px] flex-[1_1_170px] flex-col">
         <span className="sr-only">Submitted to</span>
         <input type="date" aria-label="Submitted to" value={sp.get("to") ?? ""} onChange={(e) => set("to", e.target.value)} className={sel} title="Submitted to" />
       </label>
-      <div className="col-span-2 flex flex-wrap items-center justify-between gap-3 sm:col-span-3 lg:col-span-4 xl:col-span-8">
+      <div className="flex basis-full flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-[12.5px] text-muted">
           Sort by
-          <select aria-label="Sort" value={sp.get("sort") ?? "updated"} onChange={(e) => set("sort", e.target.value === "updated" ? "" : e.target.value)} className={`${sel} !w-auto`}>
+          <select aria-label="Sort" value={sp.get("sort") ?? "updated"} onChange={(e) => set("sort", e.target.value === "updated" ? "" : e.target.value)} className={`${inputCls} !w-auto !py-2 text-[13px]`}>
             <option value="updated">Recently updated</option>
             <option value="newest">Newest submitted</option>
             <option value="oldest">Oldest submitted</option>

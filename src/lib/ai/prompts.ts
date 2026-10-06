@@ -270,6 +270,12 @@ The overall score is your weighted judgement, not an average. At Genesys' stage,
 - In versionDelta, explain what changed and why: name the new evidence and its effect on the score.
 - Never re-request information that has already been supplied.
 
+## 7e. Reasons not to pursue
+- When the recommendation is REJECT, list in passReasons every reason Genesys should not pursue the deal, most decisive first. Each needs the specific evidence (with [E#] tags) and what, if anything, would change the conclusion. Distinguish structural problems (mandate, market, science that cannot be fixed) from fixable ones (missing data, terms, team gaps).
+- When the recommendation is PENDING_INFO, list what currently stops an advance.
+- When the recommendation is ADVANCE_TO_DILIGENCE, leave passReasons empty; risks belong in keyRisks.
+- These reasons are internal. The founder email gives one genuine reason in plain terms, never the full list.
+
 ## 7d. Gaps needing manual follow-up
 - List in gaps every material question this analysis could not answer: anything the materials do not cover, anything not findable in public sources, anything that needs expert judgement or confidential documents, and any point where sources conflict.
 - For each gap, say plainly why it is a gap and the specific manual step that would close it, and who can close it (the founders, the Genesys team, or an external expert such as patent counsel, a KOL or a reimbursement consultant).

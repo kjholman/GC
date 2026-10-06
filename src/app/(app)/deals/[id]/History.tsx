@@ -171,3 +171,39 @@ export function SourcesList({ documents, web }: {
     </Card>
   );
 }
+
+// ─── Why not to pursue ──────────────────────────────────────────────────────
+
+/** The case against the deal, shown up front for declined (and on-hold) deals. */
+export function PassReasons({ memo }: { memo: Memo }) {
+  if (memo.recommendation === "ADVANCE_TO_DILIGENCE") return null;
+  const reject = memo.recommendation === "REJECT";
+  // Older memos predate passReasons: fall back to red flags, serious risks and the weakest scores.
+  const reasons =
+    memo.passReasons?.length
+      ? memo.passReasons
+      : [
+          ...memo.redFlags.map((r) => ({ reason: r, explanation: "", wouldChangeIf: "" })),
+          ...memo.keyRisks.filter((r) => r.severity === "HIGH").map((r) => ({ reason: r.risk, explanation: r.mitigation ? `Possible mitigation: ${r.mitigation}` : "", wouldChangeIf: "" })),
+          ...memo.scorecard.filter((s) => s.score <= 4).map((s) => ({ reason: `${s.dimension}: ${s.score}/10`, explanation: s.assessment, wouldChangeIf: "" })),
+        ];
+  if (!reasons.length) return null;
+  return (
+    <section className={cx("rounded-xl border px-5 py-5 sm:px-6", reject ? "border-[#efd2ce] bg-neg-bg/60" : "border-[#efdcb4] bg-warn-bg/60")}>
+      <div className={cx("eyebrow", reject ? "!text-neg" : "!text-warn")}>{reject ? "Why not to pursue" : "What's holding this back"}</div>
+      <p className="mt-1 text-[14.5px] font-medium text-ink">{memo.worthOurTime.headline.replace(/\s?\[E\d+\]/g, "")}</p>
+      <ol className="mt-4 space-y-3">
+        {reasons.map((r, i) => (
+          <li key={i} className="flex gap-3 text-[13.5px]">
+            <span className={cx("mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold text-white", reject ? "bg-neg" : "bg-warn")}>{i + 1}</span>
+            <div className="min-w-0">
+              <div className="font-medium text-ink">{r.reason}</div>
+              {r.explanation && <p className="mt-0.5 leading-relaxed text-ink-soft">{r.explanation.replace(/\s?\[E\d+\]/g, "")}</p>}
+              {r.wouldChangeIf && <p className="mt-0.5 text-[12.5px] text-muted"><span className="font-medium">Would change if: </span>{r.wouldChangeIf}</p>}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}

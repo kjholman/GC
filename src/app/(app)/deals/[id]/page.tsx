@@ -11,7 +11,7 @@ import { AnalystAvatar } from "@/components/Analyst";
 import { MemeScene } from "@/components/MemeScene";
 import { refreshSlug } from "@/lib/deals/slug";
 import { formatUsd, spendByDeal } from "@/lib/ai/usage";
-import { GapsView, SourcesList, VersionHistory, collectWebSources, type VersionRow } from "./History";
+import { GapsView, PassReasons, SourcesList, VersionHistory, collectWebSources, type VersionRow } from "./History";
 import { LogoEditor } from "./LogoEditor";
 import { fetchCompanyLogo } from "@/lib/deals/logo";
 import { after } from "next/server";
@@ -261,6 +261,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
             <div className="mb-8">
               <VerificationBanner report={report} signedOff={signedOff ? { by: signedOff.by, at: signedOff.at } : null} />
             </div>
+            {memo.recommendation !== "ADVANCE_TO_DILIGENCE" && <div className="mb-8"><PassReasons memo={memo} /></div>}
             <Tabs
               key={shown!.id}
               tabs={[

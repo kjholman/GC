@@ -125,6 +125,8 @@ model Deal {
   indication    String?
   tags          String[]   @default([])
   latestScore   Int?
+  /// The main reason not to pursue, from the latest memo (declined or on-hold deals).
+  keyReason     String?
   /// Number of finished analyses (versions) of this deal.
   analysisCount Int        @default(0)
   recommendation String?

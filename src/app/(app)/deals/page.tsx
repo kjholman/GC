@@ -155,6 +155,9 @@ export default async function DealsPage({ searchParams }: PageProps<"/deals">) {
                   <div className="min-w-0 flex-1">
                     <div className="font-medium text-navy-900">{d.companyName}</div>
                     <div className="mt-0.5 line-clamp-2 text-[12.5px] text-muted">{d.oneLiner ?? ([d.sector, d.modality].filter(Boolean).join(" · ") || "Awaiting analysis")}</div>
+                    {d.keyReason && d.recommendation !== "ADVANCE_TO_DILIGENCE" && (
+                      <div className="mt-1 line-clamp-2 text-[12px] text-neg">{d.recommendation === "REJECT" ? "Why not: " : "Holding back: "}{d.keyReason}</div>
+                    )}
                     <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
                       {badgeFor(d)}
                       {d.latestScore != null && <span className="text-[12px] tabular text-ink">Score {d.latestScore}</span>}
@@ -195,6 +198,11 @@ export default async function DealsPage({ searchParams }: PageProps<"/deals">) {
                           {d.companyName}
                         </Link>
                         <div className="mt-0.5 max-w-[320px] truncate text-[12px] text-muted">{d.oneLiner ?? "—"}</div>
+                        {d.keyReason && d.recommendation !== "ADVANCE_TO_DILIGENCE" && (
+                          <div className="mt-0.5 max-w-[360px] truncate text-[12px] text-neg" title={d.keyReason}>
+                            {d.recommendation === "REJECT" ? "Why not: " : "Holding back: "}{d.keyReason}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </td>

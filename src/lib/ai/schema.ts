@@ -64,6 +64,15 @@ export const MemoSchema = z.object({
     z.object({ risk: z.string(), severity: Severity, mitigation: z.string() }),
   ),
   redFlags: z.array(z.string()).describe("Deal-breakers or integrity concerns. Empty if none."),
+  passReasons: z
+    .array(
+      z.object({
+        reason: z.string().describe("The reason in a few words, e.g. 'No composition-of-matter IP'."),
+        explanation: z.string().describe("2-3 sentences with the specific evidence, citing [E#] tags."),
+        wouldChangeIf: z.string().describe("What new evidence or terms would change this, or 'Nothing realistic' if it is structural."),
+      }),
+    )
+    .describe("Why Genesys should not pursue this deal, most decisive first. Required for REJECT. For PENDING_INFO, what currently stops an advance. Empty for ADVANCE_TO_DILIGENCE."),
 
   scorecard: z.array(
     z.object({
@@ -296,6 +305,7 @@ export function normaliseMemo(memo: Memo): Memo {
     scorecard: memo.scorecard.map((s) => ({ ...s, score: clamp(s.score, 1, 10) })),
     // Diligence requirements are only issued for deals that pass screening.
     dueDiligencePlan: memo.recommendation === "ADVANCE_TO_DILIGENCE" ? memo.dueDiligencePlan : null,
+    passReasons: memo.recommendation === "ADVANCE_TO_DILIGENCE" ? [] : (memo.passReasons ?? []),
   };
 }
 
