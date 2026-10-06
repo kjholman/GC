@@ -3,6 +3,7 @@ import { ANALYST_NAME, AnalystAvatar } from "@/components/Analyst";
 import type { DealStatus } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/session";
+import { Greeting } from "@/components/Greeting";
 import { Button, Card, Empty, PageHeader, SectionTitle, STATUS_META, ScoreRing, StatusBadge, cx, relTime } from "@/components/ui";
 
 
@@ -33,15 +34,18 @@ export default async function Overview() {
   ]);
   const byStatus = Object.fromEntries(counts.map((c) => [c.status, c._count])) as Partial<Record<DealStatus, number>>;
   const total = FUNNEL.reduce((s, k) => s + (byStatus[k] ?? 0), 0);
-  const firstName = user.name?.split(" ")[0];
-  const hour = Number(new Date().toLocaleString("en-CA", { hour: "numeric", hour12: false, timeZone: "America/Toronto" }));
-  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  // First name from the profile, or from the email address (jane.doe@… → Jane) if no name is set.
+  const fromEmail = user.email.split("@")[0].split(/[._-]/)[0];
+  const raw = user.name?.trim().split(/\s+/)[0] || fromEmail;
+  const firstName = raw.charAt(0).toUpperCase() + raw.slice(1);
+  const torontoHour = Number(new Date().toLocaleString("en-CA", { hour: "numeric", hour12: false, timeZone: "America/Toronto" }));
+  const serverGreeting = torontoHour < 12 ? "Good morning" : torontoHour < 18 ? "Good afternoon" : "Good evening";
 
   return (
     <>
       <PageHeader
         eyebrow={new Date().toLocaleDateString("en-CA", { weekday: "long", month: "long", day: "numeric", timeZone: "America/Toronto" })}
-        title={`${greeting}${firstName ? `, ${firstName}` : ""}.`}
+        title={<Greeting name={firstName} serverGreeting={serverGreeting} />}
         subtitle="Your deal flow at a glance: what needs a decision, what is awaiting founders, and what the Sharminator is working on."
         actions={
           <Link href="/deals/new">

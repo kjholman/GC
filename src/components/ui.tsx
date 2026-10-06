@@ -25,7 +25,7 @@ export function SectionTitle({ eyebrow, title, action }: { eyebrow?: string; tit
   );
 }
 
-export function PageHeader({ eyebrow, title, subtitle, actions }: { eyebrow?: string; title: string; subtitle?: ReactNode; actions?: ReactNode }) {
+export function PageHeader({ eyebrow, title, subtitle, actions }: { eyebrow?: string; title: ReactNode; subtitle?: ReactNode; actions?: ReactNode }) {
   return (
     <header className="mb-8 flex flex-wrap items-end justify-between gap-6 border-b border-line pb-6">
       <div className="min-w-0">
