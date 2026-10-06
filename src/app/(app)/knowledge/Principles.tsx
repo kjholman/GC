@@ -3,12 +3,14 @@
 import { useActionState, useState } from "react";
 import { savePrincipleAction, togglePrincipleAction, type AdminState } from "@/lib/admin/actions";
 import { Button, Card, cx, inputCls } from "@/components/ui";
+import { useConfirm } from "@/components/Confirm";
 
 type P = { id: string; title: string; body: string; active: boolean };
 
 export function Principles({ principles, canEdit }: { principles: P[]; canEdit: boolean }) {
   const [state, action, pending] = useActionState<AdminState, FormData>(savePrincipleAction.bind(null, null), { ok: false });
   const [k, setK] = useState(0);
+  const confirm = useConfirm();
   return (
     <Card>
       <div className="eyebrow mb-1 text-brand-600">Applied to every analysis</div>
@@ -26,7 +28,15 @@ export function Principles({ principles, canEdit }: { principles: P[]; canEdit: 
               <p className="mt-0.5 text-[13.5px] leading-relaxed text-ink-soft">{p.body}</p>
             </div>
             {canEdit && (
-              <button onClick={() => togglePrincipleAction(p.id, !p.active)} className="self-start text-[12px] text-navy-700 hover:underline">
+              <button
+                onClick={async () => {
+                  const ok = await confirm(
+                    p.active
+                      ? { title: `Turn off “${p.title}”?`, body: "Analyses will stop applying this principle until it is turned back on.", confirmLabel: "Turn off", danger: true }
+                      : { title: `Turn on “${p.title}”?`, body: "Every analysis from now on will apply this principle.", confirmLabel: "Turn on" },
+                  );
+                  if (ok) await togglePrincipleAction(p.id, !p.active);
+                }} className="self-start text-[12px] text-navy-700 hover:underline">
                 {p.active ? "Disable" : "Enable"}
               </button>
             )}

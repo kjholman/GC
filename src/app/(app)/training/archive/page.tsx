@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { hasRole, requireUser } from "@/lib/auth/session";
 import { Card, Empty, cx } from "@/components/ui";
 import { AddHistoricalForm, ArchiveRowActions, ImportCsvForm } from "./ArchiveForms";
+import { Pagination, pageParam } from "@/components/Pagination";
 
 
 const DECISION: Record<string, { label: string; cls: string }> = {
@@ -10,7 +11,9 @@ const DECISION: Record<string, { label: string; cls: string }> = {
   PASSED_AT_SCREENING: { label: "Declined at screen", cls: "bg-neg-bg text-neg" },
 };
 
-export default async function ArchivePage() {
+export default async function ArchivePage({ searchParams }: PageProps<"/training/archive">) {
+  const page = pageParam((await searchParams).page);
+  const PAGE = 25;
   const user = await requireUser();
   const canEdit = hasRole(user.role, "PARTNER");
   const deals = await db.historicalDeal.findMany({
@@ -31,7 +34,7 @@ export default async function ArchivePage() {
         ) : (
           <Card pad={false}>
             <ul className="divide-y divide-line">
-              {deals.map((d) => (
+              {deals.slice((page - 1) * PAGE, page * PAGE).map((d) => (
                 <li key={d.id} className="px-6 py-4">
                   <details className="group">
                     <summary className="flex cursor-pointer list-none flex-wrap items-center gap-4">
@@ -68,6 +71,7 @@ export default async function ArchivePage() {
                 </li>
               ))}
             </ul>
+            <div className="border-t border-line px-5"><Pagination page={page} pageSize={PAGE} total={deals.length} href={(p) => `/training/archive?page=${p}`} /></div>
           </Card>
         )}
       </div>

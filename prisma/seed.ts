@@ -9,6 +9,7 @@
  * overwritten.
  */
 import { PrismaClient, type PortfolioOutcome } from "@prisma/client";
+import { TEAM } from "../src/lib/team";
 
 const db = new PrismaClient();
 
@@ -387,6 +388,12 @@ async function main() {
   const analysts = (process.env.SEED_ANALYST_EMAILS ?? "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
   for (const email of analysts) {
     await db.user.upsert({ where: { email }, create: { email }, update: { active: true } });
+  }
+
+  // People on the sign-in page who have an address get access (an existing role is never changed).
+  for (const m of TEAM) {
+    if (!m.email) continue;
+    await db.user.upsert({ where: { email: m.email }, create: { email: m.email, name: m.name }, update: { active: true } });
   }
 
   let portfolioWritten = 0;

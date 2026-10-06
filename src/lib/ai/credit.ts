@@ -91,6 +91,22 @@ export async function checkCredit(): Promise<{ ok: boolean; message: string }> {
   }
 }
 
+let lastAutoCheck = 0;
+/**
+ * While the account is flagged as out of credit, quietly re-check (at most every
+ * 3 minutes, triggered by page loads) so the warning clears and paused analyses
+ * resume on their own once credit is added. Each check costs a fraction of a cent.
+ */
+export async function recheckCreditIfFlagged(onRestored: () => Promise<unknown>): Promise<void> {
+  const status = await getAiStatus();
+  if (!status.creditLowSince) return;
+  const since = Math.max(lastAutoCheck, status.lastCheckedAt?.getTime() ?? 0);
+  if (Date.now() - since < 3 * 60 * 1000) return;
+  lastAutoCheck = Date.now();
+  const result = await checkCredit();
+  if (result.ok) await onRestored();
+}
+
 /** AI spend measured from every request this app has made (see AiUsage). */
 export async function measuredSpend(): Promise<{
   monthUsd: number; allTimeUsd: number; analysesThisMonth: number; perAnalysisUsd: number | null; byPurpose: { purpose: string; usd: number }[];

@@ -5,6 +5,13 @@ import { z } from "zod";
 import type { PortfolioOutcome, Role } from "@prisma/client";
 import { db } from "../db";
 import { audit } from "../audit";
+import { diffFields } from "../changes";
+
+const PORTFOLIO_LABELS = {
+  name: "Company", sector: "Sector", modality: "Modality", indication: "Indication", description: "Description",
+  yearInvested: "Year invested", stageAtEntry: "Entry stage", outcome: "Outcome", outcomeNotes: "Outcome detail",
+  lessons: "Lessons", website: "Website", verified: "Verified",
+};
 import { requireRole } from "../auth/session";
 import { headers } from "next/headers";
 import { isAllowedDomain, normalizeEmail } from "../env";
@@ -32,7 +39,7 @@ export async function addUsersAction(_: AdminState, formData: FormData): Promise
     await db.user.upsert({ where: { email }, create: { email, role }, update: { active: true } });
   }
   await audit("admin.users_added", { userId: admin.id, meta: { emails, role } });
-  revalidatePath("/admin");
+  revalidatePath("/administration");
   return { ok: true, message: `Done. ${emails.length === 1 ? "They now have" : `${emails.length} people now have`} access.` };
 }
 
@@ -50,7 +57,7 @@ export async function updateUserAction(userId: string, formData: FormData) {
     },
   });
   await audit("admin.user_updated", { userId: admin.id, entity: "User", entityId: userId, meta: { role } });
-  revalidatePath("/admin");
+  revalidatePath("/administration");
 }
 
 export async function setUserActiveAction(userId: string, active: boolean) {
@@ -61,7 +68,7 @@ export async function setUserActiveAction(userId: string, active: boolean) {
     await db.session.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
   }
   await audit(active ? "admin.user_reactivated" : "admin.user_revoked", { userId: admin.id, entity: "User", entityId: userId });
-  revalidatePath("/admin");
+  revalidatePath("/administration");
 }
 
 const OUTCOMES: PortfolioOutcome[] = ["ACTIVE", "IPO", "ACQUIRED", "MERGED", "WOUND_DOWN", "UNKNOWN"];
@@ -104,18 +111,20 @@ export async function savePortfolioCompanyAction(id: string | null, _: AdminStat
   if (!parsed.success) return { ok: false, error: "Name, sector and description are required." };
   // A partner edit takes the record out of seed maintenance.
   const data = { ...parsed.data, seeded: false };
+  const before = id ? await db.portfolioCompany.findUnique({ where: { id } }) : null;
   const saved = id
     ? await db.portfolioCompany.update({ where: { id }, data })
     : await db.portfolioCompany.create({ data });
-  await audit(id ? "portfolio.updated" : "portfolio.created", { userId: user.id, entity: "PortfolioCompany", entityId: saved.id });
+  const changes = diffFields(before, saved, PORTFOLIO_LABELS);
+  await audit(id ? "portfolio.updated" : "portfolio.created", { userId: user.id, entity: "PortfolioCompany", entityId: saved.id, meta: { name: saved.name, changes } });
   revalidatePath("/knowledge");
   return { ok: true, message: "Saved." };
 }
 
 export async function deletePortfolioCompanyAction(id: string) {
   const user = await requireRole("PARTNER");
-  await db.portfolioCompany.delete({ where: { id } });
-  await audit("portfolio.deleted", { userId: user.id, entity: "PortfolioCompany", entityId: id });
+  const removed = await db.portfolioCompany.delete({ where: { id } });
+  await audit("portfolio.deleted", { userId: user.id, entity: "PortfolioCompany", entityId: id, meta: { name: removed.name, changes: diffFields(removed, {}, PORTFOLIO_LABELS).map((c) => ({ ...c, to: "(removed)" })) } });
   revalidatePath("/knowledge");
 }
 
@@ -124,18 +133,22 @@ export async function savePrincipleAction(id: string | null, _: AdminState, form
   const title = String(formData.get("title") ?? "").trim().slice(0, 200);
   const body = String(formData.get("body") ?? "").trim().slice(0, 3000);
   if (!title || !body) return { ok: false, error: "Add a title and the principle itself." };
+  const before = id ? await db.investmentPrinciple.findUnique({ where: { id } }) : null;
   const saved = id
     ? await db.investmentPrinciple.update({ where: { id }, data: { title, body } })
     : await db.investmentPrinciple.create({ data: { title, body } });
-  await audit(id ? "principle.updated" : "principle.created", { userId: user.id, entity: "InvestmentPrinciple", entityId: saved.id });
+  await audit(id ? "principle.updated" : "principle.created", {
+    userId: user.id, entity: "InvestmentPrinciple", entityId: saved.id,
+    meta: { name: saved.title, changes: diffFields(before, saved, { title: "Title", body: "Principle" }) },
+  });
   revalidatePath("/knowledge");
   return { ok: true, message: "Principle saved. It applies to every analysis from now on." };
 }
 
 export async function togglePrincipleAction(id: string, active: boolean) {
   const user = await requireRole("PARTNER");
-  await db.investmentPrinciple.update({ where: { id }, data: { active } });
-  await audit("principle.toggled", { userId: user.id, entity: "InvestmentPrinciple", entityId: id, meta: { active } });
+  const p = await db.investmentPrinciple.update({ where: { id }, data: { active } });
+  await audit("principle.toggled", { userId: user.id, entity: "InvestmentPrinciple", entityId: id, meta: { active, name: p.title } });
   revalidatePath("/knowledge");
 }
 
@@ -171,6 +184,6 @@ export async function checkCreditAction(): Promise<{ ok: boolean; message: strin
     if (resumed) message += ` Resumed ${resumed} paused analys${resumed === 1 ? "is" : "es"}.`;
   }
   await audit("admin.credit_checked", { userId: user.id, meta: { ok: result.ok } });
-  revalidatePath("/admin");
+  revalidatePath("/administration");
   return { ok: result.ok, message };
 }

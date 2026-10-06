@@ -4,19 +4,22 @@ import { hasRole, requireUser } from "@/lib/auth/session";
 import { Card, Empty, SectionTitle, cx, relTime } from "@/components/ui";
 import { GenerateSuggestions, SuggestionActions } from "./CalibrationActions";
 import { FEEDBACK_AREA_LABEL } from "@/lib/feedback/options";
+import { Pagination, pageParam } from "@/components/Pagination";
 
 
 const VERDICTS = ["AGREE", "TOO_OPTIMISTIC", "TOO_PESSIMISTIC", "WRONG_DECISION"] as const;
 const VLABEL: Record<string, string> = { AGREE: "Agreed", TOO_OPTIMISTIC: "Too optimistic", TOO_PESSIMISTIC: "Too pessimistic", WRONG_DECISION: "Wrong decision" };
 const VCLS: Record<string, string> = { AGREE: "bg-pos", TOO_OPTIMISTIC: "bg-warn", TOO_PESSIMISTIC: "bg-info", WRONG_DECISION: "bg-neg" };
 
-export default async function CalibrationPage() {
+export default async function CalibrationPage({ searchParams }: PageProps<"/training/calibration">) {
+  const page = pageParam((await searchParams).page);
+  const PAGE = 20;
   const user = await requireUser();
   const canEdit = hasRole(user.role, "PARTNER");
   const [feedback, suggestions] = await Promise.all([
     db.analysisFeedback.findMany({
       orderBy: { createdAt: "desc" },
-      include: { user: { select: { name: true, email: true } }, analysis: { select: { version: true, recommendation: true, deal: { select: { id: true, companyName: true, sector: true } } } } },
+      include: { user: { select: { name: true, email: true } }, analysis: { select: { version: true, recommendation: true, deal: { select: { id: true, slug: true, companyName: true, sector: true } } } } },
     }),
     db.principleSuggestion.findMany({ where: { status: "PENDING" }, orderBy: { createdAt: "desc" } }),
   ]);
@@ -117,9 +120,9 @@ export default async function CalibrationPage() {
           <div className="px-6 pb-6"><Empty title="No reviews yet" /></div>
         ) : (
           <ul className="divide-y divide-line border-t border-line">
-            {feedback.map((f) => (
+            {feedback.slice((page - 1) * PAGE, page * PAGE).map((f) => (
               <li key={f.id} className="grid grid-cols-1 gap-2 px-6 py-4 md:grid-cols-[220px_160px_1fr_110px]">
-                <Link href={`/deals/${f.analysis.deal.id}?v=${f.analysis.version}`} className="text-[13.5px] font-medium text-navy-900 hover:underline">
+                <Link href={`/deals/${f.analysis.deal.slug ?? f.analysis.deal.id}?v=${f.analysis.version}`} className="text-[13.5px] font-medium text-navy-900 hover:underline">
                   {f.analysis.deal.companyName} <span className="text-[11.5px] font-normal text-muted">v{f.analysis.version}</span>
                 </Link>
                 <span className="text-[12.5px] text-ink-soft">
@@ -145,6 +148,9 @@ export default async function CalibrationPage() {
               </li>
             ))}
           </ul>
+        )}
+        {feedback.length > PAGE && (
+          <div className="border-t border-line px-5"><Pagination page={page} pageSize={PAGE} total={feedback.length} href={(p) => `/training/calibration?page=${p}`} /></div>
         )}
       </Card>
     </div>

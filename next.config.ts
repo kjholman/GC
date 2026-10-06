@@ -16,6 +16,10 @@ const nextConfig: NextConfig = {
     serverActions: { bodySizeLimit: "2gb" },
     proxyClientMaxBodySize: "2gb",
   },
+  async redirects() {
+    // The administration page used to live at /admin.
+    return [{ source: "/admin", destination: "/administration", permanent: true }];
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

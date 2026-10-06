@@ -10,6 +10,9 @@ import { FALLBACK_BETA, anthropic, structuredCall, textOf, type ContentBlock } f
 import { plainPunctuation } from "./style";
 import { isCreditError, recordCreditOk, recordCreditProblem } from "./credit";
 import { meteredUsd, recordUsage, withMeter } from "./usage";
+import { fetchCompanyLogo } from "../deals/logo";
+import { refreshSlug } from "../deals/slug";
+import { sendAnalysisProblem, sendAnalysisReady } from "../mailer";
 import { FEEDBACK_AREA_LABEL } from "../feedback/options";
 import { automatedChecks, correctionsBlock, modelFactCheck, sourceTexts, summarise } from "./verify";
 import { CompetitorSweepSchema, FingerprintSchema, MemoSchema, normaliseMemo, type CompetitorSweep, type Fingerprint, type Memo } from "./schema";
@@ -33,6 +36,23 @@ import {
 } from "./prompts";
 
 export { anthropic, structuredCall, type ContentBlock };
+
+const REC_LABEL: Record<Memo["recommendation"], string> = { REJECT: "Decline", PENDING_INFO: "Request information", ADVANCE_TO_DILIGENCE: "Advance to diligence" };
+const stripTags = (s: string) => s.replace(/\s?\[E\d+\]/g, "");
+const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, s.lastIndexOf(" ", n))}…` : s);
+
+/** Emails the person who started an analysis. Never fails the analysis. */
+async function notifyStarter(userId: string | null, send: (to: string, firstName: string) => Promise<void>) {
+  if (!userId) return;
+  try {
+    const u = await db.user.findUnique({ where: { id: userId }, select: { email: true, name: true, active: true } });
+    if (!u?.active) return;
+    const raw = u.name?.trim().split(/\s+/)[0] || u.email.split("@")[0].split(/[._-]/)[0];
+    await send(u.email, raw.charAt(0).toUpperCase() + raw.slice(1));
+  } catch (err) {
+    console.error("[analyst] could not send notification email", err);
+  }
+}
 
 const RECOMMENDATION_TEXT: Record<Memo["recommendation"], string> = {
   REJECT: "recommends declining",
@@ -392,6 +412,7 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
     // Fingerprint the deal (once, or again when new materials arrive) to find precedents.
     let probe: { sector: string | null; modality: string | null; indication: string | null; tags: string[] } = deal;
     const placeholder = hasPlaceholderName(deal);
+    const failedResearch: string[] = [];
     let dossier: string | null = deal.researchDossier;
     if (!deal.tags.length || analysis.trigger !== "INITIAL_SCREEN" || placeholder || !dossier) {
       await logStep(analysisId, "Identifying the company, its technology and lead indication", "start");
@@ -410,6 +431,7 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
           where: { id: deal.id },
           data: {
             researchDossier: dossier,
+            website: deal.website ?? fp.website ?? undefined,
             tags: fp.tags,
             indication: deal.indication ?? fp.indication,
             sector: deal.sector ?? fp.sector,
@@ -417,6 +439,7 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
             ...(rename ? { companyName, autoNamed: false } : {}),
           },
         });
+        if (rename) await refreshSlug(deal.id);
         await logStep(
           analysisId,
           `Identified ${rename ? companyName : "the company"}: ${[fp.modality, fp.indication].filter(Boolean).join(" for ").toLowerCase() || fp.sector}${rename ? ". Renamed the deal to match" : ""}`,
@@ -426,6 +449,8 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
         await logStep(analysisId, "Couldn't classify the company automatically; continuing with the documents alone", "warn");
       }
     }
+    // Fetch the company's logo from its website in the background (no AI cost).
+    void fetchCompanyLogo(deal.id);
     await setProgress(analysisId, "Looking up similar past Genesys deals");
     await logStep(analysisId, "Looking for similar deals in Genesys's history", "start");
     const precedents = await findPrecedents(probe);
@@ -467,6 +492,7 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
       const soft = <T,>(label: string, p: Promise<T | null>, done: (v: T) => string) =>
         p.then(
           async (v) => {
+            if (!v) failedResearch.push(label);
             await logStep(analysisId, v ? done(v) : `Couldn't complete the ${label} research; continuing without it`, v ? "done" : "warn");
             return v;
           },
@@ -474,6 +500,7 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
             // Out of credit: stop the whole analysis rather than carry on without research.
             if (isCreditError(err)) throw err;
             console.error(`[analyst] ${label} research failed; continuing without it`, err);
+            failedResearch.push(label);
             await logStep(analysisId, `Couldn't complete the ${label} research; continuing without it`, "warn");
             return null;
           },
@@ -579,6 +606,40 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
     memo = checked.memo;
     const report = checked.report;
 
+    // Gaps the app knows about for certain, added to the ones the memo identified.
+    const systemGaps: Memo["gaps"] = [
+      ...failedResearch.map((label) => ({
+        area: "Research",
+        gap: `The ${label} web research could not be completed.`,
+        whyItIsAGap: "The automated search failed or returned nothing usable, so this part of the memo relies on the materials alone.",
+        howToClose: "Re-run the analysis, or have someone on the team check this area by hand.",
+        whoCanClose: "GENESYS_TEAM" as const,
+        priority: "IMPORTANT" as const,
+      })),
+      ...(!env.webResearchEnabled
+        ? [{ area: "Research", gap: "No independent web research was done.", whyItIsAGap: "Web research is switched off for this installation.", howToClose: "Verify the company's claims, founders, patents and competitors by hand.", whoCanClose: "GENESYS_TEAM" as const, priority: "CRITICAL" as const }]
+        : []),
+      ...prepared.omitted.map((name) => ({
+        area: "Materials", gap: `${name} was not read.`, whyItIsAGap: "The submission was too large to read in one analysis.",
+        howToClose: "Review this file by hand, or re-submit it on its own as new information.", whoCanClose: "GENESYS_TEAM" as const, priority: "CRITICAL" as const,
+      })),
+      ...prepared.partial.map((name) => ({
+        area: "Materials", gap: `Only part of ${name} was read.`, whyItIsAGap: "The file is too long to read in full alongside the others.",
+        howToClose: "Review the rest by hand, or send the key sections as new information.", whoCanClose: "GENESYS_TEAM" as const, priority: "IMPORTANT" as const,
+      })),
+      ...prepared.textOnly.map((name) => ({
+        area: "Materials", gap: `Charts and figures in ${name} were not seen.`, whyItIsAGap: "The file was read as text only because of its size or format.",
+        howToClose: "Check its figures by hand, or upload the key pages as a PDF.", whoCanClose: "GENESYS_TEAM" as const, priority: "SUPPLEMENTARY" as const,
+      })),
+      ...report.issues
+        .filter((i) => i.severity === "HIGH" && i.correction !== "remove")
+        .map((i) => ({
+          area: "Fact-check", gap: `Unresolved: "${i.excerpt.slice(0, 160)}"`, whyItIsAGap: i.explanation,
+          howToClose: `Verify this against the source before relying on the memo. ${i.correction}`.trim(), whoCanClose: "GENESYS_TEAM" as const, priority: "CRITICAL" as const,
+        })),
+    ];
+    memo = { ...memo, gaps: [...(memo.gaps ?? []), ...systemGaps] };
+
     await ensureNotStopped(analysisId);
     const status = STATUS_FOR_RECOMMENDATION[memo.recommendation];
     await db.$transaction([
@@ -608,6 +669,7 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
         data: {
           status,
           latestScore: memo.overallScore,
+          analysisCount: { increment: 1 },
           recommendation: memo.recommendation,
           oneLiner: deal.oneLiner ?? memo.company.oneLiner,
           sector: deal.sector ?? memo.company.sector,
@@ -633,6 +695,19 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
       }),
     ]);
     await logStep(analysisId, `Finished: ${RECOMMENDATION_TEXT[memo.recommendation]}. The memo is ready for review and sign-off`, "done");
+    const slug = await refreshSlug(deal.id);
+    void fetchCompanyLogo(deal.id);
+    await notifyStarter(analysis.createdById, async (to, firstName) =>
+      sendAnalysisReady({
+        to, firstName, companyName: (await db.deal.findUnique({ where: { id: deal.id }, select: { companyName: true } }))?.companyName ?? deal.companyName,
+        version: analysis.version, url: `${env.appUrl}/deals/${slug}`,
+        recommendation: REC_LABEL[memo.recommendation], score: memo.overallScore,
+        headline: stripTags(memo.worthOurTime.headline),
+        summary: clip(stripTags(memo.executiveSummary), 700),
+        gaps: (memo.gaps ?? []).map((g) => ({ gap: g.gap, priority: g.priority })),
+        factCheck: report.status === "PASSED" ? "Passed" : report.status === "WARNINGS" ? "A few points to review" : "Problems remain; check before relying on it",
+      }),
+    );
   } catch (err) {
     // Someone pressed Stop: the stop action already recorded it, so just wind down.
     if (err instanceof AnalysisStopped) return;
@@ -646,11 +721,18 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
       await db.activity.create({
         data: { dealId: deal.id, type: "analysis.paused", message: `The Sharminator paused version ${analysis.version}: the Anthropic account is out of credit.` },
       });
+      await notifyStarter(analysis.createdById, (to, firstName) =>
+        sendAnalysisProblem(to, firstName, deal.companyName, `${env.appUrl}/deals/${deal.slug ?? deal.id}`,
+          "It is paused because the Anthropic account behind the Sharminator has run out of credit. It resumes once credit is added, and nothing is lost."),
+      );
       return;
     }
     const message = describeError(err);
     console.error("[analyst] analysis failed", analysisId, err);
     await logStep(analysisId, `Stopped: ${message}`, "warn");
+    await notifyStarter(analysis.createdById, (to, firstName) =>
+      sendAnalysisProblem(to, firstName, deal.companyName, `${env.appUrl}/deals/${deal.slug ?? deal.id}`, `${message} You can run it again from the deal page.`),
+    );
     await db.analysis.update({
       where: { id: analysisId },
       data: { status: "FAILED", progress: null, error: message.slice(0, 2000), completedAt: new Date() },

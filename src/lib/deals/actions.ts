@@ -11,6 +11,7 @@ import { FEEDBACK_AREA_IDS, FEEDBACK_AREA_LABEL } from "../feedback/options";
 import { interpretFeedback } from "../feedback/interpret";
 import { withMeter } from "../ai/usage";
 import { audit } from "../audit";
+import { refreshSlug } from "./slug";
 import { requireRole, requireUser } from "../auth/session";
 import { runAnalysis } from "../ai/analyst";
 import { MAX_FILE_BYTES, extractText, resolveMimeType } from "../ai/extract";
@@ -131,7 +132,7 @@ export async function createDealAction(_: ActionState, formData: FormData): Prom
   });
   await audit("deal.created", { userId: user.id, entity: "Deal", entityId: deal.id });
   scheduleAnalysis(deal.analyses[0].id);
-  redirect(`/deals/${deal.id}`);
+  redirect(`/deals/${await refreshSlug(deal.id)}`);
 }
 
 async function queueNewVersion(dealId: string, userId: string, trigger: AnalysisTrigger, analystContext?: string) {
@@ -141,8 +142,9 @@ async function queueNewVersion(dealId: string, userId: string, trigger: Analysis
   }
   // A newer version supersedes any paused one, so it doesn't run again later.
   await db.analysis.updateMany({ where: { dealId, status: "PAUSED" }, data: { status: "STOPPED", error: "Replaced by a newer version." } });
+  const deal = await db.deal.findUnique({ where: { id: dealId }, select: { status: true } });
   return db.analysis.create({
-    data: { dealId, version: (last?.version ?? 0) + 1, trigger, analystContext, createdById: userId },
+    data: { dealId, version: (last?.version ?? 0) + 1, trigger, analystContext, createdById: userId, priorDealStatus: deal?.status ?? null },
   });
 }
 
@@ -181,7 +183,7 @@ export async function submitFollowUpAction(dealId: string, _: ActionState, formD
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }
-  revalidatePath(`/deals/${dealId}`);
+  revalidatePath("/deals/[id]", "page");
   return { ok: true };
 }
 
@@ -203,13 +205,13 @@ export async function resumeAnalysisAction(analysisId: string): Promise<ActionSt
   await db.analysis.update({ where: { id: analysisId }, data: { status: "QUEUED", error: null, progress: "Resuming" } });
   await db.activity.create({ data: { dealId: a.dealId, userId: user.id, type: "analysis.resumed", message: `Resumed the Sharminator's analysis (version ${a.version}).` } });
   scheduleAnalysis(analysisId);
-  revalidatePath(`/deals/${a.dealId}`);
+  revalidatePath("/deals/[id]", "page");
   return { ok: true };
 }
 
 export async function stopAnalysisAction(analysisId: string): Promise<ActionState> {
   const user = await requireUser();
-  const a = await db.analysis.findUnique({ where: { id: analysisId }, select: { dealId: true, version: true, status: true } });
+  const a = await db.analysis.findUnique({ where: { id: analysisId }, select: { dealId: true, version: true, status: true, priorDealStatus: true } });
   if (!a) return { ok: false, error: "That analysis no longer exists." };
   if (a.status !== "RUNNING" && a.status !== "QUEUED" && a.status !== "PAUSED") return { ok: false, error: "This analysis has already finished." };
   const who = user.name ?? user.email.split("@")[0];
@@ -218,9 +220,11 @@ export async function stopAnalysisAction(analysisId: string): Promise<ActionStat
     db.analysis.update({ where: { id: analysisId }, data: { status: "STOPPED", progress: null, completedAt: new Date(), error: `Stopped by ${who}.` } }),
     db.$executeRaw`UPDATE "Analysis" SET "steps" = COALESCE("steps", '[]'::jsonb) || ${entry}::jsonb WHERE "id" = ${analysisId}`,
     db.activity.create({ data: { dealId: a.dealId, userId: user.id, type: "analysis.stopped", message: `Stopped the Sharminator's analysis (version ${a.version}) before it finished.` } }),
+    // A later version was stopped: the deal goes back to the stage it had from the previous analysis.
+    ...(a.priorDealStatus ? [db.deal.update({ where: { id: a.dealId }, data: { status: a.priorDealStatus } })] : []),
   ]);
   await audit("analysis.stopped", { userId: user.id, entity: "Deal", entityId: a.dealId });
-  revalidatePath(`/deals/${a.dealId}`);
+  revalidatePath("/deals/[id]", "page");
   return { ok: true };
 }
 
@@ -235,7 +239,7 @@ export async function rerunAnalysisAction(dealId: string): Promise<ActionState> 
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }
-  revalidatePath(`/deals/${dealId}`);
+  revalidatePath("/deals/[id]", "page");
   return { ok: true };
 }
 
@@ -262,7 +266,7 @@ export async function updateStatusAction(dealId: string, _: ActionState, formDat
     }),
   ]);
   await audit("deal.status_changed", { userId: user.id, entity: "Deal", entityId: dealId, meta: { from: deal.status, to: status } });
-  revalidatePath(`/deals/${dealId}`);
+  revalidatePath("/deals/[id]", "page");
   return { ok: true };
 }
 
@@ -271,7 +275,7 @@ export async function addNoteAction(dealId: string, _: ActionState, formData: Fo
   const note = String(formData.get("note") ?? "").trim().slice(0, 5000);
   if (!note) return { ok: false, error: "Write a note first." };
   await db.activity.create({ data: { dealId, userId: user.id, type: "note", message: note } });
-  revalidatePath(`/deals/${dealId}`);
+  revalidatePath("/deals/[id]", "page");
   return { ok: true };
 }
 
@@ -327,7 +331,7 @@ export async function submitFeedbackAction(analysisId: string, _: ActionState, f
     },
   });
   await audit("analysis.feedback", { userId: user.id, entity: "Analysis", entityId: analysisId, meta: { verdict } });
-  revalidatePath(`/deals/${analysis.dealId}`);
+  revalidatePath("/deals/[id]", "page");
   return { ok: true };
 }
 
@@ -348,6 +352,22 @@ export async function signOffAction(analysisId: string, _: ActionState, formData
     data: { dealId: analysis.dealId, userId: user.id, type: "analysis.signed_off", message: `Signed off memo v${analysis.version}${note ? `: “${note.slice(0, 200)}”` : "."}` },
   });
   await audit("analysis.signed_off", { userId: user.id, entity: "Analysis", entityId: analysisId, meta: { verification: analysis.verificationStatus } });
-  revalidatePath(`/deals/${analysis.dealId}`);
+  revalidatePath("/deals/[id]", "page");
+  return { ok: true };
+}
+
+/** Replace (or, with no file, remove) a deal's logo by hand. */
+export async function setLogoAction(dealId: string, formData: FormData): Promise<ActionState> {
+  const user = await requireUser();
+  const file = formData.get("logo");
+  if (file instanceof File && file.size > 0) {
+    if (!/^image\/(png|jpe?g|gif|webp|svg\+xml)$/.test(file.type)) return { ok: false, error: "Use a PNG, JPG, GIF, WEBP or SVG image." };
+    if (file.size > 1024 * 1024) return { ok: false, error: "Use an image under 1 MB." };
+    await db.deal.update({ where: { id: dealId }, data: { logo: Buffer.from(await file.arrayBuffer()), logoMime: file.type, logoCheckedAt: new Date() } });
+  } else {
+    await db.deal.update({ where: { id: dealId }, data: { logo: null, logoMime: null, logoCheckedAt: new Date() } });
+  }
+  await audit("deal.logo_changed", { userId: user.id, entity: "Deal", entityId: dealId });
+  revalidatePath("/deals/[id]", "page");
   return { ok: true };
 }

@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import type { Role } from "@prisma/client";
 import { addUsersAction, createSignInLinkAction, setUserActiveAction, updateUserAction, type AdminState } from "@/lib/admin/actions";
 import { Button, Card, Field, cx, inputCls } from "@/components/ui";
+import { useConfirm } from "@/components/Confirm";
 
 export function AddUsersForm() {
   const [state, action, pending] = useActionState<AdminState, FormData>(addUsersAction, { ok: false });
@@ -33,6 +34,7 @@ export function AddUsersForm() {
 type RowUser = { id: string; email: string; name: string | null; title: string | null; role: Role; active: boolean; lastLoginAt: string };
 
 export function UserRow({ user, isSelf }: { user: RowUser; isSelf: boolean }) {
+  const confirm = useConfirm();
   return (
     <tr className={cx(!user.active && "opacity-50")}>
       <td className="py-3 pr-4 pl-6">
@@ -66,7 +68,12 @@ export function UserRow({ user, isSelf }: { user: RowUser; isSelf: boolean }) {
         {!isSelf && (
           <button
             onClick={async () => {
-              if (user.active && !confirm(`Remove access for ${user.email}? They will be signed out straight away.`)) return;
+              const ok = await confirm(
+                user.active
+                  ? { title: `Remove access for ${user.email}?`, body: "They will be signed out straight away and can't sign in again until access is restored.", confirmLabel: "Remove access", danger: true }
+                  : { title: `Restore access for ${user.email}?`, confirmLabel: "Restore access" },
+              );
+              if (!ok) return;
               await setUserActiveAction(user.id, !user.active);
             }}
             className={cx("text-[12.5px] hover:underline", user.active ? "text-neg" : "text-pos")}

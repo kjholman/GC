@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FEEDBACK_AREAS, FEEDBACK_AREA_LABEL } from "@/lib/feedback/options";
+import { useConfirm, useConfirmSubmit } from "@/components/Confirm";
 import type { DealStatus } from "@prisma/client";
 import {
   addNoteAction,
@@ -16,16 +17,29 @@ import {
 import { Dropzone } from "@/components/Dropzone";
 import { Button, Card, Field, STATUS_META, cx, inputCls } from "@/components/ui";
 
-export function FollowUpPanel({ dealId, disabled, openRequests }: { dealId: string; disabled: boolean; openRequests: number }) {
+export function FollowUpPanel({ dealId, disabled, openRequests, awaitingFounders }: { dealId: string; disabled: boolean; openRequests: number; awaitingFounders: boolean }) {
   const [state, action, pending] = useActionState<ActionState, FormData>(submitFollowUpAction.bind(null, dealId), { ok: false });
   const [key, setKey] = useState(0);
+  // Without outstanding requests the uploader stays folded away behind one button.
+  const [open, setOpen] = useState(awaitingFounders);
+  if (!open) {
+    return (
+      <Card>
+        <div className="eyebrow mb-1">Add materials</div>
+        <p className="mb-4 text-[13px] leading-relaxed text-ink-soft">Received something new? Upload it and the Sharminator updates the analysis.</p>
+        <Button variant="secondary" className="w-full" disabled={disabled} onClick={() => setOpen(true)}>
+          {disabled ? "Available when the analysis finishes" : "Upload more files"}
+        </Button>
+      </Card>
+    );
+  }
   return (
     <Card className="!border-brand-300">
       <div className="eyebrow mb-1 text-brand-600">Reopen with new information</div>
-      <h3 className="font-display font-semibold text-[20px] text-navy-900">Founders replied?</h3>
+      <h3 className="font-display font-semibold text-[20px] text-navy-900">{awaitingFounders ? "Founders replied?" : "Add more materials"}</h3>
       <p className="mt-1.5 mb-5 text-[13px] leading-relaxed text-ink-soft">
-        Upload what they sent{openRequests ? ` against the ${openRequests} outstanding request${openRequests === 1 ? "" : "s"}` : ""}. The Sharminator
-        re-analyses the deal using every document received so far and notes what changed.
+        Upload what you received{openRequests ? ` against the ${openRequests} outstanding request${openRequests === 1 ? "" : "s"}` : ""}. The Sharminator
+        re-analyses the deal using every document received so far, building on the previous version, and notes what changed.
       </p>
       <form
         key={key}
@@ -63,11 +77,15 @@ const ORDER: DealStatus[] = ["SCREENING", "PENDING_INFO", "DILIGENCE", "IC_REVIE
 
 export function StatusPanel({ dealId, status, canPartner }: { dealId: string; status: DealStatus; canPartner: boolean }) {
   const [state, action, pending] = useActionState<ActionState, FormData>(updateStatusAction.bind(null, dealId), { ok: false });
+  const [next, setNext] = useState<DealStatus>(status);
+  const confirmMove = useConfirmSubmit(
+    next === status ? null : { title: `Move this deal to ${STATUS_META[next].label}?`, body: "The change and your reason are saved to the deal log.", confirmLabel: "Move deal", danger: next === "REJECTED" || next === "ARCHIVED" },
+  );
   return (
     <Card>
       <div className="eyebrow mb-4">Stage decision</div>
-      <form action={action} className="space-y-3">
-        <select name="status" defaultValue={status} className={inputCls}>
+      <form action={action} onSubmit={confirmMove} className="space-y-3">
+        <select name="status" value={next} onChange={(e) => setNext(e.target.value as DealStatus)} className={inputCls}>
           {ORDER.map((s) => (
             <option key={s} value={s} disabled={!canPartner && (s === "IC_REVIEW" || s === "INVESTED")}>
               {STATUS_META[s].label}
@@ -109,12 +127,14 @@ export function ResumeButton({ analysisId }: { analysisId: string }) {
 export function RerunButton({ dealId, disabled }: { dealId: string; disabled: boolean }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
+  const confirm = useConfirm();
   return (
     <div>
       <Button
         variant="ghost"
         disabled={disabled || pending}
         onClick={async () => {
+          if (!(await confirm({ title: "Run the analysis again?", body: "This starts a new version and uses Anthropic credit. Web research from the last 30 days is reused to save credit.", confirmLabel: "Run again" }))) return;
           setPending(true);
           const res = await rerunAnalysisAction(dealId);
           if (!res.ok) setError(res.error);

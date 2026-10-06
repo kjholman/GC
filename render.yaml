@@ -44,6 +44,8 @@ services:
       # Sign-in: without an email service, admins issue single-use sign-in
       # links from Administration. To email codes instead, add RESEND_API_KEY
       # (and EMAIL_FROM on a domain verified in Resend) in the dashboard.
+      - key: SESSION_IDLE_HOURS
+        value: "6"
       - key: SESSION_TTL_HOURS
         value: "168"
 

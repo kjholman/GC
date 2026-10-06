@@ -6,16 +6,20 @@ import { AddUsersForm, UserRow } from "./AdminForms";
 import { CreditPanel } from "./CreditPanel";
 import { BILLING_URL, getAiStatus, measuredSpend } from "@/lib/ai/credit";
 import { env } from "@/lib/env";
+import { Pagination, pageParam } from "@/components/Pagination";
 
 
-export default async function AdminPage() {
+export default async function AdminPage({ searchParams }: PageProps<"/administration">) {
   const me = await requireRole("ADMIN");
-  const [users, logs, ai, spend, paused] = await Promise.all([
+  const page = pageParam((await searchParams).page);
+  const LOG_PAGE = 25;
+  const [users, logs, ai, spend, paused, logTotal] = await Promise.all([
     db.user.findMany({ orderBy: [{ active: "desc" }, { email: "asc" }] }),
-    db.auditLog.findMany({ orderBy: { createdAt: "desc" }, take: 100, include: { user: { select: { email: true, name: true } } } }),
+    db.auditLog.findMany({ orderBy: { createdAt: "desc" }, skip: (page - 1) * LOG_PAGE, take: LOG_PAGE, include: { user: { select: { email: true, name: true } } } }),
     getAiStatus(),
     measuredSpend(),
     db.analysis.count({ where: { status: "PAUSED" } }),
+    db.auditLog.count(),
   ]);
   // Resolve the deals, people and documents mentioned in the log to readable names.
   const ids = [...new Set(logs.map((l) => l.entityId).filter(Boolean))] as string[];
@@ -78,7 +82,7 @@ export default async function AdminPage() {
       </div>
 
       <Card pad={false} className="mt-8">
-        <div className="px-6 pt-6">
+        <div className="px-6 pt-6" id="activity">
           <SectionTitle eyebrow="Security" title="Recent activity" />
           <p className="-mt-3 mb-5 text-[13px] text-muted">Everything people do in the Sharminator is recorded here. Items in red are worth a look, such as blocked sign-in attempts.</p>
         </div>
@@ -95,6 +99,7 @@ export default async function AdminPage() {
             );
           })}
         </ul>
+        <div className="border-t border-line px-5"><Pagination page={page} pageSize={LOG_PAGE} total={logTotal} href={(p) => `/administration?page=${p}#activity`} /></div>
       </Card>
     </>
   );

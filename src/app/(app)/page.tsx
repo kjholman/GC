@@ -21,13 +21,13 @@ export default async function Overview() {
     db.deal.findMany({ orderBy: { updatedAt: "desc" }, take: 8 }),
     db.analysis.findMany({
       where: { status: { in: ["QUEUED", "RUNNING", "PAUSED"] } },
-      include: { deal: { select: { id: true, companyName: true } } },
+      include: { deal: { select: { id: true, slug: true, companyName: true } } },
       orderBy: { createdAt: "asc" },
     }),
     db.activity.findMany({
       orderBy: { createdAt: "desc" },
       take: 10,
-      include: { deal: { select: { id: true, companyName: true } }, user: { select: { name: true, email: true } } },
+      include: { deal: { select: { id: true, slug: true, companyName: true } }, user: { select: { name: true, email: true } } },
     }),
     db.deal.count({ where: { createdAt: { gte: since } } }),
     db.deal.count({ where: { createdAt: { gte: since }, status: { in: ["DILIGENCE", "IC_REVIEW", "INVESTED"] } } }),
@@ -115,7 +115,7 @@ export default async function Overview() {
               <ul className="divide-y divide-line border-t border-line">
                 {recent.map((d) => (
                   <li key={d.id}>
-                    <Link href={`/deals/${d.id}`} className="flex items-center gap-4 px-4 py-4 transition-colors hover:bg-mist/70 sm:gap-5 sm:px-6">
+                    <Link href={`/deals/${d.slug ?? d.id}`} className="flex items-center gap-4 px-4 py-4 transition-colors hover:bg-mist/70 sm:gap-5 sm:px-6">
                       <ScoreRing score={d.latestScore} size={44} />
                       <div className="min-w-0 flex-1">
                         <div className="truncate font-medium text-navy-900">{d.companyName}</div>
@@ -143,7 +143,7 @@ export default async function Overview() {
               <ul className="space-y-4">
                 {running.map((a) => (
                   <li key={a.id}>
-                    <Link href={`/deals/${a.deal.id}`} className="block">
+                    <Link href={`/deals/${a.deal.slug ?? a.deal.id}`} className="block">
                       <div className="flex items-center gap-2 text-[13.5px] font-medium text-navy-900">
                         <span className={a.status === "PAUSED" ? "h-1.5 w-1.5 rounded-full bg-warn" : "pulse-dot h-1.5 w-1.5 rounded-full bg-brand-500"} />
                         {a.deal.companyName}
@@ -159,11 +159,11 @@ export default async function Overview() {
 
           <Card>
             <SectionTitle eyebrow="Firm-wide" title="Activity" />
-            <ol className="relative space-y-5 border-l border-line pl-5">
+            <ol className="relative max-h-[560px] space-y-5 overflow-y-auto border-l border-line pl-5 pr-1">
               {activity.map((a) => (
                 <li key={a.id} className="relative">
                   <span className="absolute top-1.5 -left-[23.5px] h-2 w-2 rounded-full border border-brand-500 bg-paper" />
-                  <Link href={`/deals/${a.deal.id}`} className="text-[13px] font-medium text-navy-900 hover:underline">
+                  <Link href={`/deals/${a.deal.slug ?? a.deal.id}`} className="text-[13px] font-medium text-navy-900 hover:underline">
                     {a.deal.companyName}
                   </Link>
                   <p className="mt-0.5 line-clamp-2 text-[12.5px] text-ink-soft">{a.message}</p>

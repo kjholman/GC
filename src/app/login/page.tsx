@@ -2,16 +2,31 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/session";
 import { Logo } from "@/components/Logo";
 import { DnaHelix } from "@/components/DnaHelix";
+import { AnalystAvatar } from "@/components/Analyst";
 import { env } from "@/lib/env";
 import { adminBypassAction } from "@/lib/auth/actions";
 import { emailDeliveryConfigured } from "@/lib/mailer";
-import { LoginForm } from "./LoginForm";
+import { LoginForm, type LoginPerson } from "./LoginForm";
+import { TEAM } from "@/lib/team";
+import fs from "node:fs";
+import path from "node:path";
+
+/** public/team/<id>.jpg, .png or .webp if it has been added. */
+function teamPhoto(id: string): string | null {
+  for (const ext of ["jpg", "jpeg", "png", "webp"]) {
+    try {
+      if (fs.existsSync(path.join(process.cwd(), "public", "team", `${id}.${ext}`))) return `/team/${id}.${ext}`;
+    } catch {}
+  }
+  return null;
+}
 
 
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   if (await getCurrentUser()) redirect("/");
   const sp = await searchParams;
   const emailEnabled = emailDeliveryConfigured();
+  const people: LoginPerson[] = TEAM.map((m) => ({ id: m.id, name: m.name, enabled: !!m.email, photo: teamPhoto(m.id) }));
   return (
     <div className="flex min-h-screen flex-col bg-paper">
       <header className="flex items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
@@ -30,6 +45,13 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
             <p className="mt-6 max-w-xl text-[16px] leading-relaxed text-white/75">
               Scientific and financial underwriting for life sciences ventures, informed by more than 25 years of Genesys Capital investment experience.
             </p>
+            <div className="mt-10 flex items-center gap-4 rounded-2xl border border-white/15 bg-white/5 p-4 backdrop-blur-sm sm:max-w-md">
+              <AnalystAvatar size={64} />
+              <div>
+                <div className="text-[13px] font-semibold text-white">The Sharminator</div>
+                <div className="text-[13px] italic text-white/70">&ldquo;I&apos;ll be back. With a term sheet, if the science holds up.&rdquo;</div>
+              </div>
+            </div>
           </div>
 
           <div className="w-full rounded-2xl bg-paper p-6 sm:p-8 shadow-[0_30px_60px_-20px_rgba(0,0,0,0.5)]">
@@ -39,7 +61,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
             </p>
           )}
           {emailEnabled ? (
-            <LoginForm />
+            <LoginForm people={people} />
           ) : (
             <div>
               <div className="eyebrow mb-2 !text-brand-600">Secure sign-in</div>

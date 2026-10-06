@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { TEAM } from "../team";
 import { db } from "../db";
 import { env, isAllowedDomain, normalizeEmail } from "../env";
 import { emailDeliveryConfigured, sendLoginCode } from "../mailer";
@@ -17,7 +18,11 @@ const MAX_ATTEMPTS = 5;
 export type RequestCodeState = { ok: boolean; email?: string; error?: string };
 
 export async function requestCodeAction(_: RequestCodeState, formData: FormData): Promise<RequestCodeState> {
-  const parsed = z.string().email().safeParse(String(formData.get("email") ?? ""));
+  // Signing in by picking a person: their address is looked up here, never sent to the browser.
+  const personId = String(formData.get("person") ?? "");
+  const person = personId ? TEAM.find((m) => m.id === personId) : null;
+  if (personId && !person?.email) return { ok: false, error: "Sign-in isn't set up for this person yet." };
+  const parsed = z.string().email().safeParse(person?.email ?? String(formData.get("email") ?? ""));
   if (!parsed.success) return { ok: false, error: "Enter a valid email address." };
   const email = normalizeEmail(parsed.data);
   if (!emailDeliveryConfigured()) {

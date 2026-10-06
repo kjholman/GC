@@ -1,10 +1,12 @@
 import { requireUser, hasRole } from "@/lib/auth/session";
 import { env } from "@/lib/env";
-import { signOutAction } from "@/lib/auth/actions";
+import { SignOutButton } from "@/components/SignOutButton";
 import { GenesysMark, Logo } from "@/components/Logo";
 import { Nav } from "@/components/Nav";
 import { MobileNav } from "@/components/MobileNav";
-import { getAiStatus } from "@/lib/ai/credit";
+import { getAiStatus, recheckCreditIfFlagged } from "@/lib/ai/credit";
+import { resumeAllPaused } from "@/lib/deals/scheduler";
+import { after } from "next/server";
 import Link from "next/link";
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
@@ -15,9 +17,11 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     { href: "/deals/new", label: "New screening", icon: "new" },
     { href: "/knowledge", label: "Knowledge base", icon: "knowledge" },
     { href: "/training", label: "Training Studio", icon: "training" },
-    ...(hasRole(user.role, "ADMIN") ? [{ href: "/admin", label: "Administration", icon: "admin" }] : []),
+    ...(hasRole(user.role, "ADMIN") ? [{ href: "/administration", label: "Administration", icon: "admin" }] : []),
   ];
   const ai = await getAiStatus().catch(() => null);
+  // Out of credit: re-check in the background so the notice clears by itself once credit is added.
+  if (ai?.creditLowSince) after(() => recheckCreditIfFlagged(resumeAllPaused).catch(() => {}));
   const initials = (user.name ?? user.email)
     .split(/[\s@.]+/)
     .slice(0, 2)
@@ -32,12 +36,10 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
             </div>
             <div className="min-w-0 flex-1">
               <div className="truncate text-[13px] text-white">{user.name ?? user.email.split("@")[0]}</div>
-              <div className="truncate text-[11px] text-white/45">{user.title ?? user.role.toLowerCase()}</div>
+              <div className="truncate text-[11px] text-white/45">{user.title ?? ({ ANALYST: "Analyst", PARTNER: "Partner", ADMIN: "Administrator" } as Record<string, string>)[user.role] ?? user.role}</div>
             </div>
           </div>
-          <form action={signOutAction} className="mt-4">
-            <button className="text-[12px] text-white/45 transition-colors hover:text-white">Sign out</button>
-          </form>
+          <div className="mt-4"><SignOutButton /></div>
     </>
   );
 
@@ -65,7 +67,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
             <span className="font-medium text-warn">The Sharminator is paused: the Anthropic account is out of credit.</span>{" "}
             The rest of the app works as normal. Analyses wait and resume once credit is added
             {hasRole(user.role, "ADMIN") ? (
-              <>; then press <Link href="/admin" className="font-medium text-navy-800 underline">Check credit</Link> on the Administration page.</>
+              <>; then press <Link href="/administration" className="font-medium text-navy-800 underline">Check credit</Link> on the Administration page.</>
             ) : (
               <>. Let an administrator know.</>
             )}

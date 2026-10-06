@@ -11,7 +11,7 @@ export function describeEvent(
 ): { text: string; warning: boolean } {
   const meta = (log.meta && typeof log.meta === "object" ? log.meta : {}) as Record<string, unknown>;
   const actor = who ?? "Someone";
-  const subject = log.entityId ? names[log.entityId] : undefined;
+  const subject = (log.entityId ? names[log.entityId] : undefined) ?? (typeof meta.name === "string" ? meta.name : undefined);
   const deal = subject ? `“${subject}”` : "a deal";
   const person = subject ?? "a team member";
   const email = typeof meta.email === "string" ? meta.email : "an unknown address";
@@ -48,6 +48,7 @@ export function describeEvent(
     case "deal.follow_up": return t(`${actor} added new information to ${deal} and started a new analysis`);
     case "deal.status_changed":
       return t(`${actor} moved ${deal} from ${stages[String(meta.from)] ?? "its previous stage"} to ${stages[String(meta.to)] ?? "a new stage"}`);
+    case "deal.logo_changed": return t(`${actor} changed the logo for ${deal}`);
     case "deal.deleted": return t(`${actor} deleted a deal`, true);
     case "document.downloaded": return t(`${actor} opened a document${subject ? ` (${subject})` : ""}`);
     case "analysis.stopped": return t(`${actor} stopped an analysis of ${deal} before it finished`);
@@ -57,17 +58,19 @@ export function describeEvent(
     // Knowledge base & training
     case "portfolio.created": return t(`${actor} added ${subject ?? "a company"} to the knowledge base`);
     case "portfolio.updated": return t(`${actor} updated ${subject ?? "a company"} in the knowledge base`);
-    case "portfolio.deleted": return t(`${actor} removed a company from the knowledge base`);
-    case "principle.created": return t(`${actor} added an investment principle`);
-    case "principle.updated": return t(`${actor} edited an investment principle`);
-    case "principle.toggled": return t(`${actor} ${meta.active ? "turned on" : "turned off"} an investment principle`);
+    case "portfolio.deleted": return t(`${actor} removed ${subject ?? "a company"} from the knowledge base`, true);
+    case "principle.created": return t(`${actor} added the principle “${subject ?? "untitled"}”`);
+    case "principle.updated": return t(`${actor} edited the principle “${subject ?? "untitled"}”`);
+    case "principle.toggled": return t(`${actor} ${meta.active ? "turned on" : "turned off"} the principle “${subject ?? "untitled"}”`, !meta.active);
     case "training.archive_added": return t(`${actor} added a past deal to the deal archive`);
     case "training.archive_imported": return t(`${actor} imported ${typeof meta.rows === "number" ? meta.rows : "several"} past deals into the archive`);
-    case "training.archive_deleted": return t(`${actor} removed a past deal from the archive`);
+    case "training.archive_deleted": return t(`${actor} removed ${subject ?? "a past deal"} from past deals`, true);
+    case "training.archive_retried": return t(`${actor} asked the Sharminator to read ${subject ?? "a past deal"} again`);
+    case "training.exemplar_toggled": return t(`${actor} ${meta.active ? "started using" : "stopped using"} the example memo “${subject ?? "untitled"}”`, !meta.active);
     case "training.exemplar_saved": return t(`${actor} saved a corrected memo as an example to follow`);
     case "training.suggestions_generated": return t(`${actor} asked the Sharminator to suggest new principles`);
-    case "training.suggestion_accepted": return t(`${actor} adopted a suggested principle`);
-    case "training.suggestion_dismissed": return t(`${actor} dismissed a suggested principle`);
+    case "training.suggestion_accepted": return t(`${actor} adopted the suggested principle “${subject ?? "untitled"}”`);
+    case "training.suggestion_dismissed": return t(`${actor} dismissed the suggested principle “${subject ?? "untitled"}”`);
     case "training.backtest_started": return t(`${actor} started a test against past decisions`);
     case "training.firm_settings_saved": return t(`${actor} updated the firm's investment parameters`);
     case "training.dataset_exported": return t(`${actor} downloaded the training data`);

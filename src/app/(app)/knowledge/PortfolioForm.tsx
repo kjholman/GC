@@ -4,6 +4,7 @@ import { useActionState, useEffect, useState } from "react";
 import type { PortfolioCompany } from "@prisma/client";
 import { deletePortfolioCompanyAction, savePortfolioCompanyAction, type AdminState } from "@/lib/admin/actions";
 import { Button, Card, Field, inputCls } from "@/components/ui";
+import { useConfirm, useConfirmSubmit } from "@/components/Confirm";
 
 export function PortfolioForm({ company, onSaved }: { company: PortfolioCompany | null; onSaved?: () => void }) {
   const [state, action, pending] = useActionState<AdminState, FormData>(
@@ -13,11 +14,20 @@ export function PortfolioForm({ company, onSaved }: { company: PortfolioCompany 
   useEffect(() => {
     if (state.ok) onSaved?.();
   }, [state, onSaved]);
+  const confirmSave = useConfirmSubmit(
+    company
+      ? { title: `Save changes to ${company.name}?`, body: "Every future analysis will use the updated details. The change is recorded in the change history.", confirmLabel: "Save changes" }
+      : null,
+  );
   return (
     <Card>
       <div className="eyebrow mb-1 text-brand-600">{company ? "Edit record" : "Add to record"}</div>
       <h3 className="mb-5 font-display font-semibold text-[20px] text-navy-900">{company ? company.name : "Portfolio company"}</h3>
-      <form action={action} className="space-y-4">
+      <form
+        action={action}
+        onSubmit={confirmSave}
+        className="space-y-4"
+      >
         <Field label="Company"><input name="name" required defaultValue={company?.name} className={inputCls} /></Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Sector"><input name="sector" required defaultValue={company?.sector} placeholder="Therapeutics" className={inputCls} /></Field>
@@ -54,11 +64,13 @@ export function PortfolioForm({ company, onSaved }: { company: PortfolioCompany 
 }
 
 export function DeleteCompanyButton({ id, name }: { id: string; name: string }) {
+  const confirm = useConfirm();
   return (
     <button
       className="text-neg hover:underline"
       onClick={async () => {
-        if (confirm(`Remove ${name} from the knowledge base?`)) await deletePortfolioCompanyAction(id);
+        if (await confirm({ title: `Remove ${name}?`, body: "It will no longer be used as a benchmark in analyses. The removal is recorded in the change history.", confirmLabel: "Remove", danger: true }))
+          await deletePortfolioCompanyAction(id);
       }}
     >
       Remove

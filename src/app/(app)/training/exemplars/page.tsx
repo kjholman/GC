@@ -3,9 +3,12 @@ import { db } from "@/lib/db";
 import { hasRole, requireUser } from "@/lib/auth/session";
 import { Card, Empty, REC_META, cx, fmtDate } from "@/components/ui";
 import { ExemplarToggle } from "./ExemplarToggle";
+import { Pagination, pageParam } from "@/components/Pagination";
 
 
-export default async function ExemplarsPage() {
+export default async function ExemplarsPage({ searchParams }: PageProps<"/training/exemplars">) {
+  const page = pageParam((await searchParams).page);
+  const PAGE = 20;
   const user = await requireUser();
   const canEdit = hasRole(user.role, "PARTNER");
   const exemplars = await db.exemplar.findMany({ orderBy: { createdAt: "desc" } });
@@ -18,7 +21,7 @@ export default async function ExemplarsPage() {
         <Empty title="No example memos yet">Open a deal with a finished memo and choose “Correct this memo and save as an example”.</Empty>
       ) : (
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-          {exemplars.map((e) => (
+          {exemplars.slice((page - 1) * PAGE, page * PAGE).map((e) => (
             <Card key={e.id} className={cx(!e.active && "opacity-50")}>
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -42,6 +45,7 @@ export default async function ExemplarsPage() {
           ))}
         </div>
       )}
+      <Pagination page={page} pageSize={PAGE} total={exemplars.length} href={(p) => `/training/exemplars?page=${p}`} />
     </div>
   );
 }

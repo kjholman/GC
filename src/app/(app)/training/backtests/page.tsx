@@ -4,13 +4,17 @@ import { hasRole, requireUser } from "@/lib/auth/session";
 import type { BacktestMetrics } from "@/lib/training/engine";
 import { Card, Empty, SectionTitle, cx, fmtDate } from "@/components/ui";
 import { StartBacktestForm } from "./StartBacktestForm";
+import { Pagination, pageParam } from "@/components/Pagination";
 
 
-export default async function BacktestsPage() {
+export default async function BacktestsPage({ searchParams }: PageProps<"/training/backtests">) {
+  const page = pageParam((await searchParams).page);
+  const PAGE = 20;
   const user = await requireUser();
   const canRun = hasRole(user.role, "PARTNER");
-  const [runs, eligible] = await Promise.all([
-    db.backtestRun.findMany({ orderBy: { createdAt: "desc" }, take: 50 }),
+  const [runs, runTotal, eligible] = await Promise.all([
+    db.backtestRun.findMany({ orderBy: { createdAt: "desc" }, skip: (page - 1) * PAGE, take: PAGE }),
+    db.backtestRun.count(),
     db.historicalDeal.count({ where: { ingestStatus: "READY", deckData: { not: null } } }),
   ]);
   return (
@@ -54,6 +58,7 @@ export default async function BacktestsPage() {
               </tbody>
             </table>
             </div>
+            <div className="border-t border-line px-5"><Pagination page={page} pageSize={PAGE} total={runTotal} href={(p) => `/training/backtests?page=${p}`} /></div>
           </Card>
         )}
       </div>

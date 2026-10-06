@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { StepLog, asSteps, type LogStep } from "./StepLog";
 import { stopAnalysisAction } from "@/lib/deals/actions";
+import { useConfirm } from "@/components/Confirm";
 
 // Each stage is matched by the first word of the server's progress line.
 const STAGES: { label: string; match: RegExp }[] = [
@@ -14,8 +15,8 @@ const STAGES: { label: string; match: RegExp }[] = [
 ];
 
 export function AnalysisProgress({
-  analysisId, version, initialProgress, initialSteps, startedAt, companyName,
-}: { analysisId: string; version: number; initialProgress: string | null; initialSteps: LogStep[]; startedAt: string | null; companyName: string }) {
+  analysisId, version, initialProgress, initialSteps, startedAt, companyName, avatar,
+}: { analysisId: string; version: number; initialProgress: string | null; initialSteps: LogStep[]; startedAt: string | null; companyName: string; avatar?: React.ReactNode }) {
   const router = useRouter();
   const [progress, setProgress] = useState(initialProgress);
   const [steps, setSteps] = useState(initialSteps);
@@ -23,10 +24,18 @@ export function AnalysisProgress({
   const [showLog, setShowLog] = useState(true);
   const logEnd = useRef<HTMLDivElement>(null);
   const [stopping, setStopping] = useState(false);
+  const confirm = useConfirm();
   const [stopError, setStopError] = useState<string>();
 
   async function stop() {
-    if (!confirm("Stop this analysis? Work done so far is discarded, and you can run it again later.")) return;
+    const ok = await confirm({
+      title: "Stop this analysis?",
+      body: "The work done so far is discarded. You can run it again later from the deal page.",
+      confirmLabel: "Stop analysis",
+      cancelLabel: "Keep running",
+      danger: true,
+    });
+    if (!ok) return;
     setStopping(true);
     const res = await stopAnalysisAction(analysisId);
     if (!res.ok) {
@@ -45,12 +54,13 @@ export function AnalysisProgress({
       const data = await res.json();
       setProgress(data.progress);
       setSteps(asSteps(data.steps));
-      // The Sharminator renamed the deal after identifying the company: refresh the header.
-      if (data.deal?.companyName && data.deal.companyName !== companyName) router.refresh();
-      if (data.status === "COMPLETE" || data.status === "FAILED" || data.status === "STOPPED" || data.status === "PAUSED") {
-        clearInterval(poll);
-        router.refresh();
-      }
+      // Renamed after identifying the company: follow the deal to its new address.
+      const here = window.location.pathname;
+      const there = data.deal?.slug ? `/deals/${data.deal.slug}` : here;
+      const done = data.status === "COMPLETE" || data.status === "FAILED" || data.status === "STOPPED" || data.status === "PAUSED";
+      if (done) clearInterval(poll);
+      if (there !== here) router.replace(there);
+      else if (done || (data.deal?.companyName && data.deal.companyName !== companyName)) router.refresh();
     }, 3000);
     return () => { clearInterval(tick); clearInterval(poll); };
   }, [analysisId, startedAt, router, companyName]);
@@ -62,14 +72,23 @@ export function AnalysisProgress({
   }, [steps.length]);
 
   const stageIdx = Math.max(0, STAGES.findIndex((s) => s.match.test(progress ?? "")));
+  const QUIPS = [
+    "Reading the whole deck. Even the appendix.",
+    "Searching the internet so you don't have to.",
+    "Writing the memo. Hasta la vista, weak IP.",
+    "Checking every claim. I don't do hallucinations.",
+  ];
 
   return (
     <div className="overflow-hidden rounded-lg border border-line bg-paper">
-      <div className="shimmer h-1" />
       <div className="flex flex-wrap items-center gap-x-8 gap-y-4 px-4 py-5 sm:px-6">
-        <div>
-          <div className="eyebrow !text-brand-600">The Sharminator · version {version}</div>
-          <div className="mt-1 font-display font-semibold text-[20px] text-ink">{progress ?? "Queued"}…</div>
+        <div className="flex items-center gap-4">
+          {avatar}
+          <div>
+            <div className="eyebrow !text-brand-600">The Sharminator · version {version}</div>
+            <div className="mt-1 font-display font-semibold text-[20px] text-ink">{progress ?? "Queued"}…</div>
+            <div className="mt-0.5 text-[12.5px] italic text-muted">{QUIPS[stageIdx]}</div>
+          </div>
         </div>
         <ol className="flex flex-1 flex-wrap items-center gap-x-3 gap-y-2 text-[12px]">
           {STAGES.map((s, i) => (

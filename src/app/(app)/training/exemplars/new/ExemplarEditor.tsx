@@ -4,11 +4,17 @@ import { useActionState } from "react";
 import { SCORE_DIMENSIONS, type Memo } from "@/lib/ai/schema";
 import { saveExemplarAction, type TrainState } from "@/lib/training/actions";
 import { Button, Card, Field, inputCls } from "@/components/ui";
+import { useConfirmSubmit } from "@/components/Confirm";
 
 export function ExemplarEditor({ analysisId, companyName, version, memo }: { analysisId: string; companyName: string; version: number; memo: Memo }) {
   const [state, action, pending] = useActionState<TrainState, FormData>(saveExemplarAction.bind(null, analysisId), { ok: false });
+  const confirmSave = useConfirmSubmit({
+    title: "Save this as an example memo?",
+    body: "The Sharminator will study it whenever it sees a similar deal.",
+    confirmLabel: "Save example",
+  });
   return (
-    <form action={action} className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
+    <form action={action} onSubmit={confirmSave} className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
       <div className="space-y-6">
         <Card>
           <div className="eyebrow mb-1 text-brand-600">Correcting memo v{version}</div>

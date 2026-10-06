@@ -31,7 +31,7 @@ export async function createSession(userId: string) {
   });
 }
 
-export const getCurrentUser = cache(async () => {
+async function loadUser(touch: boolean) {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) return null;
   const session = await db.session.findUnique({
@@ -41,12 +41,23 @@ export const getCurrentUser = cache(async () => {
   if (!session || session.revokedAt || session.expiresAt < new Date() || !session.user.active) {
     return null;
   }
+  // Signed out after a period with no activity (6 hours by default).
+  if (Date.now() - session.lastSeenAt.getTime() > env.sessionIdleHours * 3600 * 1000) {
+    await db.session.update({ where: { id: session.id }, data: { revokedAt: new Date() } }).catch(() => {});
+    return null;
+  }
   // Touch at most once every 5 minutes to keep writes cheap.
-  if (Date.now() - session.lastSeenAt.getTime() > 5 * 60 * 1000) {
+  if (touch && Date.now() - session.lastSeenAt.getTime() > 5 * 60 * 1000) {
     await db.session.update({ where: { id: session.id }, data: { lastSeenAt: new Date() } });
   }
   return session.user;
-});
+}
+
+/** The signed-in user; counts as activity for the idle timeout. */
+export const getCurrentUser = cache(() => loadUser(true));
+
+/** For background polling (e.g. analysis progress): checks the session without keeping it alive. */
+export const getCurrentUserPassive = cache(() => loadUser(false));
 
 export async function requireUser() {
   const user = await getCurrentUser();

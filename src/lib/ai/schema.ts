@@ -257,6 +257,19 @@ export const MemoSchema = z.object({
     .describe("For follow-up analyses: what the new information changed and why. Null on the first screen."),
   analystCaveats: z.string().describe("What the analysis could not assess and any assumptions made."),
 
+  gaps: z
+    .array(
+      z.object({
+        area: z.string().describe("e.g. Science, Clinical, Regulatory, IP, Team, Market, Competition, Financials, Fit."),
+        gap: z.string().describe("What could not be established, stated plainly."),
+        whyItIsAGap: z.string().describe("Why it could not be covered: not in the materials, not public, needs expert judgement, needs a document under NDA, sources conflict, and so on."),
+        howToClose: z.string().describe("The specific manual step that would close it, e.g. 'Ask the founders for the 14-day tox report' or 'Commission a freedom-to-operate opinion'."),
+        whoCanClose: z.enum(["FOUNDERS", "GENESYS_TEAM", "EXTERNAL_EXPERT"]),
+        priority: Priority,
+      }),
+    )
+    .describe("Everything material this analysis could not cover and that needs a person to follow up. Empty only if there is truly nothing."),
+
   evidence: z
     .array(
       z.object({
@@ -288,6 +301,7 @@ export function normaliseMemo(memo: Memo): Memo {
 
 export const FingerprintSchema = z.object({
   companyName: z.string().nullable(),
+  website: z.string().nullable().describe("The company's own website as given in the materials, e.g. 'northbridgetx.com'. Null if not stated."),
   sector: z.string(),
   modality: z.string(),
   indication: z.string().nullable(),

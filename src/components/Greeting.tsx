@@ -10,8 +10,8 @@ const subscribe = (notify: () => void) => {
   return () => clearInterval(t);
 };
 
-/** "Good morning, Jane." using the viewer's own clock; the server's Toronto-time version shows until the page loads. */
+/** "Good morning, Jane" using the viewer's own clock; the server's Toronto-time version shows until the page loads. */
 export function Greeting({ name, serverGreeting }: { name: string; serverGreeting: string }) {
   const greeting = useSyncExternalStore(subscribe, () => greetingFor(new Date().getHours()), () => serverGreeting);
-  return <>{`${greeting}, ${name}.`}</>;
+  return <>{`${greeting}, ${name}`}</>;
 }

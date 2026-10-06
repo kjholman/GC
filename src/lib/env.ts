@@ -20,6 +20,10 @@ export const env = {
       .map((d) => d.trim().toLowerCase())
       .filter(Boolean);
   },
+  /** Public address of the app, for links in emails. Render sets RENDER_EXTERNAL_URL automatically. */
+  get appUrl(): string {
+    return (process.env.APP_URL ?? process.env.RENDER_EXTERNAL_URL ?? "http://localhost:3000").replace(/\/$/, "");
+  },
   get anthropicModel() {
     return process.env.ANTHROPIC_MODEL ?? "claude-opus-5-5";
   },
@@ -46,7 +50,12 @@ export const env = {
     if (until && !Number.isNaN(Date.parse(until)) && Date.now() > Date.parse(until) + 24 * 3600 * 1000) return false;
     return true;
   },
-  /** Session length in hours (default 7 days, so sign-in links are rarely needed). */
+  /** Signed out after this many hours with no activity (default 6). */
+  get sessionIdleHours() {
+    const h = Number(process.env.SESSION_IDLE_HOURS ?? 6);
+    return Number.isFinite(h) && h > 0 ? Math.min(h, 24 * 30) : 6;
+  },
+  /** Longest a session can last even with activity, in hours (default 7 days). */
   get sessionTtlHours() {
     const h = Number(process.env.SESSION_TTL_HOURS ?? 168);
     return Number.isFinite(h) && h > 0 ? Math.min(h, 24 * 90) : 168;

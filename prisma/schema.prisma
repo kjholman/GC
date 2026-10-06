@@ -102,6 +102,12 @@ model Deal {
   companyName   String
   /// True while the name is a placeholder from the uploaded file; the Sharminator replaces it with the real company name.
   autoNamed     Boolean    @default(false)
+  /// Readable URL, e.g. /deals/northbridge-therapeutics. Follows the name.
+  slug          String?    @unique
+  /// Company logo fetched from its website (served from our own origin).
+  logo          Bytes?
+  logoMime      String?
+  logoCheckedAt DateTime?
   /// Factual summary of the submitted materials, given to the web-research passes instead of the full deck.
   researchDossier String?
   oneLiner      String?
@@ -119,6 +125,8 @@ model Deal {
   indication    String?
   tags          String[]   @default([])
   latestScore   Int?
+  /// Number of finished analyses (versions) of this deal.
+  analysisCount Int        @default(0)
   recommendation String?
   ownerId       String?
   createdAt     DateTime   @default(now())
@@ -192,6 +200,8 @@ model Analysis {
   trigger        AnalysisTrigger @default(INITIAL_SCREEN)
   status         AnalysisStatus  @default(QUEUED)
   progress       String?
+  /// The deal's stage before this version started, restored if the version is stopped.
+  priorDealStatus DealStatus?
   /// Live step-by-step log shown while the analysis runs: [{ at, text, kind }].
   steps          Json            @default("[]")
   /// Context the analyst typed when submitting (e.g. "Founders replied with CMC data").

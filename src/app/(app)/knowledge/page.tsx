@@ -1,3 +1,5 @@
+import { ChangeLog } from "@/components/ChangeLog";
+import { pageParam } from "@/components/Pagination";
 import { db } from "@/lib/db";
 import { hasRole, requireUser } from "@/lib/auth/session";
 import { Card, PageHeader, cx } from "@/components/ui";
@@ -14,8 +16,9 @@ const OUTCOME: Record<string, { label: string; cls: string }> = {
   UNKNOWN: { label: "Outcome n/a", cls: "bg-[#f1efea] text-muted" },
 };
 
-export default async function KnowledgePage() {
+export default async function KnowledgePage({ searchParams }: PageProps<"/knowledge">) {
   const user = await requireUser();
+  const sp = await searchParams;
   const canEdit = hasRole(user.role, "PARTNER");
   const [companies, principles, feedbackCount] = await Promise.all([
     db.portfolioCompany.findMany({ orderBy: [{ outcome: "asc" }, { name: "asc" }] }),
@@ -89,6 +92,14 @@ export default async function KnowledgePage() {
             </div>
           </div>
         )}
+      </div>
+      <div className="mt-10" id="changes">
+        <ChangeLog
+          prefixes={["portfolio.", "principle.", "training.suggestion_accepted"]}
+          page={pageParam(sp.changes)}
+          href={(p) => `/knowledge?changes=${p}#changes`}
+          title="Changes to the knowledge base"
+        />
       </div>
     </>
   );

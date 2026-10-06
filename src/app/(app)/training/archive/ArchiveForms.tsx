@@ -9,6 +9,7 @@ import {
   type TrainState,
 } from "@/lib/training/actions";
 import { Button, Card, Field, cx, inputCls } from "@/components/ui";
+import { useConfirm } from "@/components/Confirm";
 
 function Status({ s }: { s: TrainState }) {
   if (!s.error && !s.message) return null;
@@ -81,11 +82,15 @@ export function AddHistoricalForm() {
 }
 
 export function ArchiveRowActions({ id, name, failed }: { id: string; name: string; failed: boolean }) {
+  const confirm = useConfirm();
   return (
     <div className="flex gap-4 text-[12.5px]">
       {failed && <button onClick={() => retryIngestAction(id)} className="text-navy-700 hover:underline">Try reading again</button>}
       <button
-        onClick={async () => { if (confirm(`Remove ${name} from past deals?`)) await deleteHistoricalDealAction(id); }}
+        onClick={async () => {
+          if (await confirm({ title: `Remove ${name} from past deals?`, body: "It will no longer be used as a precedent or in accuracy tests. The removal is recorded in the change history.", confirmLabel: "Remove", danger: true }))
+            await deleteHistoricalDealAction(id);
+        }}
         className="text-neg hover:underline"
       >
         Remove

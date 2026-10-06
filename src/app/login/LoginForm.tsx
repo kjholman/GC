@@ -2,13 +2,18 @@
 
 import { useActionState, useRef, useState } from "react";
 import { requestCodeAction, verifyCodeAction, type RequestCodeState, type VerifyCodeState } from "@/lib/auth/actions";
-import { Button, inputCls } from "@/components/ui";
+import { Button, cx, inputCls } from "@/components/ui";
 
-export function LoginForm() {
+export type LoginPerson = { id: string; name: string; enabled: boolean; photo: string | null };
+
+export function LoginForm({ people }: { people: LoginPerson[] }) {
   const [requestState, request, requesting] = useActionState<RequestCodeState, FormData>(requestCodeAction, { ok: false });
   const [verifyState, verify, verifying] = useActionState<VerifyCodeState, FormData>(verifyCodeAction, { ok: false });
   const [restart, setRestart] = useState(0);
+  const [picked, setPicked] = useState<string | null>(null);
+  const [byEmail, setByEmail] = useState(people.length === 0);
   const sent = requestState.ok && requestState.email && restart === 0;
+  const pickedPerson = people.find((p) => p.id === picked);
 
   if (!sent) {
     return (
@@ -16,25 +21,56 @@ export function LoginForm() {
         <div>
           <div className="eyebrow mb-2 text-brand-600">Secure sign-in</div>
           <h2 className="font-display font-semibold text-[30px] leading-tight text-navy-900">Welcome back</h2>
-          <p className="mt-2 text-[14px] text-ink-soft">Enter your Genesys Capital email. We&apos;ll send you a one-time code.</p>
+          <p className="mt-2 text-[14px] text-ink-soft">
+            {byEmail ? "Enter your Genesys Capital email. We'll send you a one-time code." : "Who's signing in? We'll email you a one-time code."}
+          </p>
         </div>
-        <label className="block">
-          <span className="mb-1.5 block text-[12.5px] font-medium text-ink-soft">Work email</span>
-          <input
-            name="email"
-            type="email"
-            required
-            autoFocus
-            autoComplete="email"
-            placeholder="name@genesyscapital.com"
-            defaultValue={requestState.email}
-            className={inputCls}
-          />
-        </label>
+        {byEmail ? (
+          <label className="block">
+            <span className="mb-1.5 block text-[12.5px] font-medium text-ink-soft">Work email</span>
+            <input name="email" type="email" required autoFocus autoComplete="email" placeholder="name@genesyscapital.com" defaultValue={requestState.email} className={inputCls} />
+          </label>
+        ) : (
+          <div role="radiogroup" aria-label="Choose your name" className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+            {picked && <input type="hidden" name="person" value={picked} />}
+            {people.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                role="radio"
+                aria-checked={picked === p.id}
+                disabled={!p.enabled}
+                onClick={() => setPicked(p.id)}
+                title={p.enabled ? p.name : `${p.name}: sign-in not set up yet`}
+                className={cx(
+                  "flex flex-col items-center gap-1.5 rounded-xl border p-2.5 transition-colors",
+                  picked === p.id ? "border-brand-600 bg-brand-100/60 ring-2 ring-brand-500/30" : "border-line hover:border-navy-700",
+                  !p.enabled && "cursor-not-allowed opacity-45 hover:border-line",
+                )}
+              >
+                <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-brand-gradient font-display text-[16px] font-semibold text-white">
+                  {p.photo ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={p.photo} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    p.name[0]
+                  )}
+                </span>
+                <span className="text-[12.5px] font-medium text-ink">{p.name}</span>
+                {!p.enabled && <span className="-mt-1 text-[10px] text-muted">Coming soon</span>}
+              </button>
+            ))}
+          </div>
+        )}
         {requestState.error && <p className="text-[13px] text-neg">{requestState.error}</p>}
-        <Button type="submit" disabled={requesting} className="w-full py-3">
-          {requesting ? "Sending code…" : "Email me a sign-in code"}
+        <Button type="submit" disabled={requesting || (!byEmail && !pickedPerson)} className="w-full py-3">
+          {requesting ? "Sending code…" : byEmail ? "Email me a sign-in code" : pickedPerson ? `Log in as ${pickedPerson.name}` : "Choose your name"}
         </Button>
+        {people.length > 0 && (
+          <button type="button" onClick={() => setByEmail((v) => !v)} className="block w-full text-center text-[12.5px] text-navy-700 hover:underline">
+            {byEmail ? "Choose from the team instead" : "Sign in with a different email"}
+          </button>
+        )}
       </form>
     );
   }

@@ -3,13 +3,23 @@
 import { useActionState } from "react";
 import { saveFirmSettingsAction, type TrainState } from "@/lib/training/actions";
 import { Button, cx, inputCls } from "@/components/ui";
+import { useConfirmSubmit } from "@/components/Confirm";
 
 type S = { key: string; label: string; help: string; value: string; confirmed: boolean };
 
 export function SettingsForm({ settings, canEdit }: { settings: S[]; canEdit: boolean }) {
   const [state, action, pending] = useActionState<TrainState, FormData>(saveFirmSettingsAction, { ok: false });
+  const confirmSave = useConfirmSubmit({
+    title: "Save the firm settings?",
+    body: "Every analysis from now on is measured against these settings. Changes are recorded in the change history.",
+    confirmLabel: "Save settings",
+  });
   return (
-    <form action={action} className="space-y-5">
+    <form
+      action={action}
+      onSubmit={confirmSave}
+      className="space-y-5"
+    >
       {settings.map((s) => (
         <div key={s.key} className="grid grid-cols-1 gap-2 md:grid-cols-[240px_1fr]">
           <div>

@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { getCurrentUser } from "@/lib/auth/session";
+import { getCurrentUserPassive as getCurrentUser } from "@/lib/auth/session";
 
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
@@ -7,7 +7,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   const { id } = await ctx.params;
   const a = await db.analysis.findUnique({
     where: { id },
-    select: { status: true, progress: true, error: true, startedAt: true, steps: true, deal: { select: { companyName: true } } },
+    select: { status: true, progress: true, error: true, startedAt: true, steps: true, deal: { select: { companyName: true, slug: true } } },
   });
   if (!a) return Response.json({ error: "Not found" }, { status: 404 });
   return Response.json(a, { headers: { "Cache-Control": "no-store" } });

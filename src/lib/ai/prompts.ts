@@ -270,6 +270,11 @@ The overall score is your weighted judgement, not an average. At Genesys' stage,
 - In versionDelta, explain what changed and why: name the new evidence and its effect on the score.
 - Never re-request information that has already been supplied.
 
+## 7d. Gaps needing manual follow-up
+- List in gaps every material question this analysis could not answer: anything the materials do not cover, anything not findable in public sources, anything that needs expert judgement or confidential documents, and any point where sources conflict.
+- For each gap, say plainly why it is a gap and the specific manual step that would close it, and who can close it (the founders, the Genesys team, or an external expert such as patent counsel, a KOL or a reimbursement consultant).
+- Do not pad the list; do not omit a gap to make the memo look complete. A gap that would change the decision is CRITICAL priority.
+
 ## 7a. Market analysis standard
 - Build the market from the bottom up: start from prevalence or incidence, narrow to the diagnosed, eligible and treated population, apply a realistic penetration rate and a price anchored on named analogues, then adjust for compliance or utilisation.
 - Show the arithmetic in marketSizing.method and list every assumption. Give TAM, SAM and a low / base / high peak-sales range.
@@ -543,6 +548,7 @@ Keep it to about 1,200 words.
 export const FINGERPRINT_PROMPT = `
 Classify the life-science opportunity in the attached materials so it can be matched with similar past deals. Use the materials only.
 - **companyName:** the company's legal or trading name exactly as the materials give it (e.g. "Northbridge Therapeutics"), not a product, programme or file name. Null if the materials do not name the company.
+- **website:** the company's own website if the materials give it, else null.
 - **sector:** one of Therapeutics, Medical Devices, Diagnostics, Platform / Tools, Digital Health, Other.
 - **modality:** be specific, e.g. "Small molecule", "Monoclonal antibody", "AAV gene therapy", "Radiopharmaceutical", "Implantable neuromodulation device".
 - **indication:** the lead indication.

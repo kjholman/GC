@@ -5,13 +5,14 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { interpretFeedback } from "../feedback/interpret";
 import { withMeter } from "../ai/usage";
+import type { FieldChange } from "../changes";
 import type { HistoricalDecision, PortfolioOutcome, Prisma } from "@prisma/client";
 import { db } from "../db";
 import { audit } from "../audit";
 import { requireRole } from "../auth/session";
 import { MAX_FILE_BYTES, extractText, resolveMimeType } from "../ai/extract";
 import { MemoSchema, SCORE_DIMENSIONS, normaliseMemo, type Memo } from "../ai/schema";
-import { FIRM_SETTINGS } from "./settings";
+import { FIRM_SETTINGS, getFirmSettings } from "./settings";
 import { expectedFor, generatePrincipleSuggestions, ingestHistoricalDeal, runBacktest, trainingSnapshot } from "./engine";
 
 export type TrainState = { ok: boolean; error?: string; message?: string };
@@ -179,15 +180,20 @@ export async function importArchiveCsvAction(_: TrainState, fd: FormData): Promi
 }
 
 export async function retryIngestAction(id: string) {
-  await requireRole("PARTNER");
+  const user = await requireRole("PARTNER");
+  const h = await db.historicalDeal.findUnique({ where: { id }, select: { companyName: true } });
+  await audit("training.archive_retried", { userId: user.id, entity: "HistoricalDeal", entityId: id, meta: { name: h?.companyName } });
   scheduleIngest([id]);
   revalidatePath("/training/archive");
 }
 
 export async function deleteHistoricalDealAction(id: string) {
   const user = await requireRole("PARTNER");
-  await db.historicalDeal.delete({ where: { id } });
-  await audit("training.archive_deleted", { userId: user.id, entity: "HistoricalDeal", entityId: id });
+  const removed = await db.historicalDeal.delete({ where: { id } });
+  await audit("training.archive_deleted", {
+    userId: user.id, entity: "HistoricalDeal", entityId: id,
+    meta: { name: removed.companyName, changes: [{ field: "Past deal", from: `${removed.companyName} (${removed.decisionYear ?? "year unknown"}, ${removed.decision.replaceAll("_", " ").toLowerCase()})`, to: "(removed)" }] },
+  });
   revalidatePath("/training/archive");
 }
 
@@ -260,8 +266,9 @@ export async function saveExemplarAction(sourceAnalysisId: string, _: TrainState
 }
 
 export async function toggleExemplarAction(id: string, active: boolean) {
-  await requireRole("PARTNER");
-  await db.exemplar.update({ where: { id }, data: { active } });
+  const user = await requireRole("PARTNER");
+  const ex = await db.exemplar.update({ where: { id }, data: { active } });
+  await audit("training.exemplar_toggled", { userId: user.id, entity: "Exemplar", entityId: id, meta: { active, name: ex.title } });
   revalidatePath("/training/exemplars");
 }
 
@@ -283,7 +290,7 @@ export async function resolveSuggestionAction(id: string, accept: boolean) {
   const user = await requireRole("PARTNER");
   const s = await db.principleSuggestion.update({ where: { id }, data: { status: accept ? "ACCEPTED" : "DISMISSED" } });
   if (accept) await db.investmentPrinciple.create({ data: { title: s.title, body: s.body } });
-  await audit(accept ? "training.suggestion_accepted" : "training.suggestion_dismissed", { userId: user.id, entity: "PrincipleSuggestion", entityId: id });
+  await audit(accept ? "training.suggestion_accepted" : "training.suggestion_dismissed", { userId: user.id, entity: "PrincipleSuggestion", entityId: id, meta: { name: s.title } });
   revalidatePath("/training/calibration");
   revalidatePath("/knowledge");
 }
@@ -326,8 +333,12 @@ export async function startBacktestAction(_: TrainState, fd: FormData): Promise<
 
 export async function saveFirmSettingsAction(_: TrainState, fd: FormData): Promise<TrainState> {
   const user = await requireRole("PARTNER");
+  const current = await getFirmSettings();
+  const changes: FieldChange[] = [];
   for (const s of FIRM_SETTINGS) {
     const value = str(fd, s.key);
+    const was = current.find((c) => c.key === s.key)?.value ?? "";
+    if (value && value.slice(0, 2000) !== was) changes.push({ field: s.label, from: was || "(empty)", to: value.slice(0, 2000) });
     if (value) {
       await db.firmSetting.upsert({
         where: { key: s.key },
@@ -336,7 +347,7 @@ export async function saveFirmSettingsAction(_: TrainState, fd: FormData): Promi
       });
     }
   }
-  await audit("training.firm_settings_saved", { userId: user.id });
+  await audit("training.firm_settings_saved", { userId: user.id, meta: { changes } });
   revalidatePath("/training/prompt");
   return { ok: true, message: "Saved. These parameters apply to every analysis from now on." };
 }

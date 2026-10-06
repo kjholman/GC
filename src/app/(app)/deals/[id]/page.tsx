@@ -1,11 +1,18 @@
 import Link from "next/link";
 import { ANALYST_NAME } from "@/components/Analyst";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { hasRole, requireUser } from "@/lib/auth/session";
 import type { CompetitorSweep, Memo } from "@/lib/ai/schema";
 import { Button, Card, REC_META, ScoreRing, SectionTitle, StatusBadge, cx, fmtDate, relTime } from "@/components/ui";
 import { AnalysisProgress } from "./AnalysisProgress";
+import { DealLogo } from "@/components/DealLogo";
+import { AnalystAvatar } from "@/components/Analyst";
+import { refreshSlug } from "@/lib/deals/slug";
+import { GapsView, SourcesList, VersionHistory, collectWebSources, type VersionRow } from "./History";
+import { LogoEditor } from "./LogoEditor";
+import { fetchCompanyLogo } from "@/lib/deals/logo";
+import { after } from "next/server";
 import { StepLog, asSteps } from "./StepLog";
 import { CopyButton } from "./CopyButton";
 import { FeedbackPanel, FollowUpPanel, NoteForm, RerunButton, SignOffPanel, StatusPanel, ResumeButton } from "./DealActions";
@@ -33,12 +40,13 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
   const { id } = await params;
   const sp = await searchParams;
 
-  const deal = await db.deal.findUnique({
-    where: { id },
+  const deal = await db.deal.findFirst({
+    where: { OR: [{ slug: id }, { id }] },
+    omit: { logo: true, researchDossier: true },
     include: {
       owner: { select: { name: true, email: true } },
       documents: {
-        select: { id: true, filename: true, kind: true, round: true, sizeBytes: true, createdAt: true, uploadedBy: { select: { name: true, email: true } } },
+        select: { id: true, filename: true, kind: true, round: true, sizeBytes: true, createdAt: true, pageCount: true, uploadedBy: { select: { name: true, email: true } } },
         orderBy: [{ round: "asc" }, { createdAt: "asc" }],
       },
       analyses: {
@@ -49,6 +57,11 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
     },
   });
   if (!deal) notFound();
+  // Old links by id, or a deal renamed since: send to its current readable address.
+  const slug = deal.slug ?? (await refreshSlug(deal.id));
+  if (id !== slug) redirect(`/deals/${slug}${typeof sp.v === "string" ? `?v=${sp.v}` : ""}`);
+  // Older deals: look for a logo the first time the page is opened.
+  if (deal.website && !deal.logoCheckedAt) after(() => fetchCompanyLogo(deal.id));
 
   const latest = deal.analyses[0];
   const inFlight = latest && (latest.status === "RUNNING" || latest.status === "QUEUED") ? latest : null;
@@ -65,6 +78,26 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
   const isLatestShown = shown && shown.id === completed[0]?.id;
 
   const rounds = [...new Set(deal.documents.map((d) => d.round))];
+  const people = await db.user.findMany({ where: { id: { in: deal.analyses.map((a) => a.createdById).filter((x): x is string => !!x) } }, select: { id: true, name: true, email: true } });
+  const asc = [...deal.analyses].reverse();
+  const versionRows: VersionRow[] = deal.analyses.map((a) => {
+    const prevStart = asc.filter((x) => x.version < a.version).at(-1)?.createdAt ?? new Date(0);
+    const who = people.find((p) => p.id === a.createdById);
+    return {
+      id: a.id, version: a.version, trigger: a.trigger, status: a.status, createdAt: a.createdAt, completedAt: a.completedAt,
+      recommendation: a.recommendation, overallScore: a.overallScore, versionDelta: (a.memo as Memo | null)?.versionDelta ?? null,
+      analystContext: a.analystContext, by: who ? who.name ?? who.email.split("@")[0] : null, costUsd: a.costUsd,
+      newFiles: deal.documents.filter((d) => d.createdAt > prevStart && d.createdAt <= a.createdAt).map((d) => d.filename),
+    };
+  });
+  const webSources = shown
+    ? collectWebSources([
+        { label: "research", text: shown.research },
+        { label: "competitor sweep", text: shown.competitorNotes },
+        { label: "memo", text: JSON.stringify((shown.memo as Memo | null)?.evidence ?? []) },
+        { label: "competitor table", text: JSON.stringify(shown.competitors ?? null) },
+      ])
+    : [];
   const report = (shown?.verification as VerificationReport | null) ?? null;
   const signer = shown?.signedOffById ? await db.user.findUnique({ where: { id: shown.signedOffById }, select: { name: true, email: true } }) : null;
   const signedOff = shown?.signedOffAt && signer ? { by: signer.name ?? signer.email.split("@")[0], at: fmtDate(shown.signedOffAt, true), note: shown.signOffNote } : null;
@@ -89,7 +122,13 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
             {deal.sector && <span className="text-[12.5px] text-muted">{deal.sector}</span>}
             {deal.modality && <span className="text-[12.5px] text-muted">· {deal.modality}</span>}
           </div>
-          <h1 className="font-display font-semibold text-[40px] leading-[1.05] tracking-[-0.015em] text-navy-900">{deal.companyName}</h1>
+          <div className="flex items-center gap-4">
+            <div className="flex shrink-0 flex-col items-center gap-1">
+              <DealLogo dealId={deal.id} name={deal.companyName} hasLogo={!!deal.logoMime} version={deal.logoCheckedAt?.getTime()} size={56} />
+            </div>
+            <h1 className="min-w-0 font-display font-semibold text-[32px] leading-[1.05] tracking-[-0.015em] text-navy-900 [overflow-wrap:anywhere] sm:text-[40px]">{deal.companyName}</h1>
+          </div>
+          <div className="mt-1.5"><LogoEditor dealId={deal.id} hasLogo={!!deal.logoMime} /></div>
           {deal.oneLiner && <p className="mt-3 max-w-3xl text-[16px] leading-relaxed text-ink-soft">{deal.oneLiner}</p>}
           <dl className="mt-5 flex flex-wrap gap-x-8 gap-y-2 text-[13px]">
             {[
@@ -115,7 +154,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
         {memo && shown && (
           <div className="flex items-center gap-6 self-end">
             <div className="text-right">
-              <div className="eyebrow">The Sharminator recommends</div>
+              <div className="eyebrow flex items-center justify-end gap-2"><AnalystAvatar size={22} />The Sharminator recommends</div>
               <div className={cx("mt-1 font-display font-semibold text-[22px]", REC_META[memo.recommendation].cls)}>{REC_META[memo.recommendation].label}</div>
               <div className="mt-1 text-[12px] text-muted">
                 {memo.conviction.toLowerCase()} conviction · v{shown.version} · {fmtDate(shown.completedAt)}
@@ -133,6 +172,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
             version={inFlight.version}
             initialProgress={inFlight.progress}
             initialSteps={asSteps(inFlight.steps)}
+            avatar={<AnalystAvatar size={56} />}
             companyName={deal.companyName}
             startedAt={inFlight.startedAt?.toISOString() ?? null}
           />
@@ -175,11 +215,23 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
       {shown && !isLatestShown && (
         <div className="mb-8 rounded-lg border border-brand-300 bg-brand-100/60 px-6 py-3 text-[13px] text-ink-soft">
           Viewing historical version v{shown.version}.{" "}
-          <Link href={`/deals/${deal.id}`} className="font-medium text-navy-800 underline">Return to latest</Link>
+          <Link href={`/deals/${slug}`} className="font-medium text-navy-800 underline">Return to latest</Link>
         </div>
       )}
 
-      {firstRun ? null : (
+      {firstRun ? (
+        <Card pad={false}>
+          <div className="px-6 pt-6"><SectionTitle eyebrow="While you wait" title="Materials received" /></div>
+          <ul className="divide-y divide-line border-t border-line">
+            {deal.documents.map((d) => (
+              <li key={d.id} className="flex items-center gap-3 px-4 py-3 text-[13.5px] sm:px-6">
+                <a href={`/api/documents/${d.id}`} target="_blank" className="min-w-0 flex-1 truncate text-navy-800 hover:underline">{d.filename}</a>
+                <span className="shrink-0 whitespace-nowrap text-[12px] tabular text-muted">{(d.sizeBytes / 1024 / 1024).toFixed(1)} MB</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : (
       <div className="grid grid-cols-1 gap-10 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="min-w-0">
           {!memo ? (
@@ -202,6 +254,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
               key={shown!.id}
               tabs={[
                 { id: "memo", label: "Investment memo", content: <MemoView memo={memo} /> },
+                { id: "gaps", label: "Gaps to close", badge: memo.gaps?.length || undefined, content: <GapsView memo={memo} /> },
                 { id: "market", label: "Market", content: <MarketView memo={memo} /> },
                 { id: "ip", label: "IP", badge: memo.intellectualProperty.assets?.length, content: <IPView memo={memo} /> },
                 { id: "team", label: "Team", badge: memo.team.members?.length, content: <TeamView memo={memo} /> },
@@ -256,7 +309,17 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
                     </Card>
                   ),
                 },
-                { id: "evidence", label: "Sources", badge: memo.evidence?.length ?? 0, content: memo.evidence ? <EvidenceLedger memo={memo} report={report} /> : <Card><p className="text-[14px] text-muted">This memo was written before source tracking was added.</p></Card> },
+                {
+                  id: "evidence",
+                  label: "Sources",
+                  badge: (memo.evidence?.length ?? 0) + webSources.length,
+                  content: (
+                    <div className="space-y-8">
+                      {memo.evidence ? <EvidenceLedger memo={memo} report={report} /> : <Card><p className="text-[14px] text-muted">This memo was written before source tracking was added.</p></Card>}
+                      <SourcesList documents={deal.documents.filter((d) => d.createdAt <= (shown.createdAt ?? new Date()))} web={webSources} />
+                    </div>
+                  ),
+                },
                 {
                   id: "research",
                   label: "Research brief",
@@ -273,7 +336,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
                 },
                 {
                   id: "docs",
-                  label: "Documents & history",
+                  label: "Documents & versions",
                   badge: deal.documents.length,
                   content: (
                     <div className="space-y-8">
@@ -303,33 +366,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
                           <StepLog steps={asSteps(shown.steps)} />
                         </Card>
                       )}
-                      <Card pad={false}>
-                        <div className="px-6 pt-6"><SectionTitle eyebrow="History" title="Analysis versions" /></div>
-                        <div className="overflow-x-auto">
-                        <table className="w-full text-left text-[13.5px]">
-                          <tbody className="divide-y divide-line border-t border-line">
-                            {deal.analyses.map((a) => (
-                              <tr key={a.id} className={cx(a.id === shown.id && "bg-brand-100/40")}>
-                                <td className="py-3 pr-4 pl-6 font-display font-semibold text-[16px] text-navy-900">v{a.version}</td>
-                                <td className="px-4 py-3 text-ink-soft">
-                                  {a.trigger === "INITIAL_SCREEN" ? "Initial screen" : a.trigger === "NEW_INFORMATION" ? "New information" : "Re-run"}
-                                </td>
-                                <td className={cx("px-4 py-3 font-medium", a.recommendation ? REC_META[a.recommendation]?.cls : "text-muted")}>
-                                  {a.recommendation ? REC_META[a.recommendation]?.label : ({ QUEUED: "Waiting to start", RUNNING: "In progress", FAILED: "Didn't finish", STOPPED: "Stopped", PAUSED: "Paused (out of credit)", COMPLETE: "Finished" } as Record<string, string>)[a.status]}
-                                </td>
-                                <td className="px-4 py-3 tabular text-ink">{a.overallScore ?? "—"}</td>
-                                <td className="px-4 py-3 text-[12px] text-muted">{fmtDate(a.completedAt ?? a.createdAt, true)}</td>
-                                <td className="py-3 pr-6 pl-4 text-right">
-                                  {a.status === "COMPLETE" && a.id !== shown.id && (
-                                    <Link href={`/deals/${deal.id}?v=${a.version}`} className="text-[12.5px] text-navy-700 hover:underline">View</Link>
-                                  )}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                        </div>
-                      </Card>
+                      <VersionHistory dealPath={`/deals/${slug}`} rows={versionRows} shownId={shown.id} />
                     </div>
                   ),
                 },
@@ -340,8 +377,21 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
         </div>
 
         <aside className="no-print space-y-6">
-          {awaitingFounders && (
-            <FollowUpPanel dealId={deal.id} disabled={!!inFlight} openRequests={memo?.informationRequests.length ?? 0} />
+          <Card>
+            <div className="mb-3 flex items-baseline justify-between">
+              <div className="eyebrow">Materials ({deal.documents.length})</div>
+            </div>
+            <ul className="max-h-64 space-y-2 overflow-y-auto pr-1 text-[13px]">
+              {deal.documents.map((d) => (
+                <li key={d.id} className="flex items-baseline gap-2">
+                  <a href={`/api/documents/${d.id}`} target="_blank" className="min-w-0 flex-1 truncate text-navy-800 hover:underline" title={d.filename}>{d.filename}</a>
+                  <span className="shrink-0 text-[11.5px] text-muted">round {d.round}</span>
+                </li>
+              ))}
+            </ul>
+          </Card>
+          {(memo || !inFlight) && (
+            <FollowUpPanel key={`fu-${awaitingFounders}`} dealId={deal.id} disabled={!!inFlight} openRequests={memo?.informationRequests.length ?? 0} awaitingFounders={awaitingFounders} />
           )}
           {shown && (
             <SignOffPanel key={`so-${shown.id}`} analysisId={shown.id} version={shown.version} status={shown.verificationStatus} signedOff={signedOff} />
