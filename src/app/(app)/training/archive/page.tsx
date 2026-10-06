@@ -21,7 +21,7 @@ export default async function ArchivePage() {
     },
   });
   return (
-    <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_380px]">
+    <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_380px]">
       <div>
         <p className="mb-6 max-w-3xl text-[14px] leading-relaxed text-ink-soft">
           For each new deck, the Sharminator looks up the most similar past deals here: what the partners decided, why, and how it turned out. Original decks attached here are also used for accuracy tests. Include deals Genesys <em>declined</em>; they matter as much as investments.
@@ -47,7 +47,7 @@ export default async function ArchivePage() {
                         {d.ingestStatus === "READY" ? (d.deckFilename ? "● deck read" : "● ready") : d.ingestStatus === "FAILED" ? "couldn't read" : "reading…"}
                       </span>
                     </summary>
-                    <div className="mt-4 grid gap-4 border-t border-line pt-4 text-[13px] md:grid-cols-2">
+                    <div className="mt-4 grid grid-cols-1 gap-4 border-t border-line pt-4 text-[13px] md:grid-cols-2">
                       <div>
                         <div className="eyebrow mb-1">Partners&apos; rationale</div>
                         <p className="text-ink-soft">{d.decisionRationale}</p>

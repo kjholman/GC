@@ -4,7 +4,7 @@ import { useActionState, useState } from "react";
 import type { DealStatus } from "@prisma/client";
 import {
   addNoteAction,
-  rerunAnalysisAction,
+  resumeAnalysisAction, rerunAnalysisAction,
   signOffAction,
   submitFeedbackAction,
   submitFollowUpAction,
@@ -80,6 +80,27 @@ export function StatusPanel({ dealId, status, canPartner }: { dealId: string; st
         </Button>
       </form>
     </Card>
+  );
+}
+
+export function ResumeButton({ analysisId }: { analysisId: string }) {
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string>();
+  return (
+    <div>
+      <Button
+        disabled={pending}
+        onClick={async () => {
+          setPending(true);
+          const res = await resumeAnalysisAction(analysisId);
+          if (!res.ok) setError(res.error);
+          setPending(false);
+        }}
+      >
+        {pending ? "Resuming…" : "Resume analysis"}
+      </Button>
+      {error && <p className="mt-1 text-[12px] text-neg">{error}</p>}
+    </div>
   );
 }
 

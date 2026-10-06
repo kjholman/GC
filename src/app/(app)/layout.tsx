@@ -3,6 +3,9 @@ import { env } from "@/lib/env";
 import { signOutAction } from "@/lib/auth/actions";
 import { GenesysMark, Logo } from "@/components/Logo";
 import { Nav } from "@/components/Nav";
+import { MobileNav } from "@/components/MobileNav";
+import { getAiStatus } from "@/lib/ai/credit";
+import Link from "next/link";
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const user = await requireUser();
@@ -14,23 +17,15 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     { href: "/training", label: "Training Studio", icon: "training" },
     ...(hasRole(user.role, "ADMIN") ? [{ href: "/admin", label: "Administration", icon: "admin" }] : []),
   ];
+  const ai = await getAiStatus().catch(() => null);
   const initials = (user.name ?? user.email)
     .split(/[\s@.]+/)
     .slice(0, 2)
     .map((p) => p[0]?.toUpperCase())
     .join("");
 
-  return (
-    <div className="flex min-h-screen">
-      <aside className="sticky top-0 flex h-screen w-[252px] shrink-0 flex-col overflow-hidden bg-navy-900 text-white">
-        {/* Oversized faded mark, as on the website's navy sections. */}
-        <GenesysMark size={420} className="pointer-events-none absolute -right-28 bottom-16 opacity-[0.09]" />
-        <div className="relative px-6 pt-7 pb-8">
-          <Logo on="dark" />
-          <div className="mt-4 text-[10.5px] font-medium uppercase tracking-[0.22em] text-brand-300/80">The Sharminator</div>
-        </div>
-        <div className="relative"><Nav items={items} /></div>
-        <div className="relative mt-auto border-t border-white/10 px-5 py-5">
+  const account = (
+    <>
           <div className="flex items-center gap-3">
             <div className="hex bg-brand-gradient flex h-10 w-10 items-center justify-center font-display font-semibold text-[13px] font-semibold text-white">
               {initials}
@@ -43,12 +38,37 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
           <form action={signOutAction} className="mt-4">
             <button className="text-[12px] text-white/45 transition-colors hover:text-white">Sign out</button>
           </form>
+    </>
+  );
+
+  return (
+    <div className="min-h-screen lg:flex">
+      <MobileNav items={items} footer={account} />
+      <aside className="no-print sticky top-0 hidden h-screen w-[252px] lg:flex shrink-0 flex-col overflow-hidden bg-navy-900 text-white">
+        {/* Oversized faded mark, as on the website's navy sections. */}
+        <GenesysMark size={420} className="pointer-events-none absolute -right-28 bottom-16 opacity-[0.09]" />
+        <div className="relative px-6 pt-7 pb-8">
+          <Logo on="dark" />
+          <div className="mt-4 text-[10.5px] font-medium uppercase tracking-[0.22em] text-brand-300/80">The Sharminator</div>
         </div>
+        <div className="relative"><Nav items={items} /></div>
+        <div className="relative mt-auto border-t border-white/10 px-5 py-5">{account}</div>
       </aside>
-      <main className="min-w-0 flex-1 px-10 py-10 xl:px-14">
+      <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 md:px-8 md:py-8 lg:px-10 lg:py-10 xl:px-14">
         {env.adminBypassEnabled && (
           <div className="no-print mx-auto mb-6 max-w-[1280px] rounded-lg border border-[#e3c3be] bg-neg-bg px-4 py-2 text-[12.5px] text-neg">
             Testing mode: anyone with this web address can get in without signing in. Ask your developer to switch this off before uploading confidential material.
+          </div>
+        )}
+        {ai?.creditLowSince && (
+          <div className="no-print mx-auto mb-6 max-w-[1280px] rounded-lg border border-[#efdcb4] bg-warn-bg px-4 py-3 text-[13px] text-ink">
+            <span className="font-medium text-warn">The Sharminator is paused: the Anthropic account is out of credit.</span>{" "}
+            The rest of the app works as normal. Analyses wait and resume once credit is added
+            {hasRole(user.role, "ADMIN") ? (
+              <>; then press <Link href="/admin" className="font-medium text-navy-800 underline">Check credit</Link> on the Administration page.</>
+            ) : (
+              <>. Let an administrator know.</>
+            )}
           </div>
         )}
         <div className="mx-auto max-w-[1280px]">{children}</div>

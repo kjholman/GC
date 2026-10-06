@@ -11,7 +11,7 @@ export function SettingsForm({ settings, canEdit }: { settings: S[]; canEdit: bo
   return (
     <form action={action} className="space-y-5">
       {settings.map((s) => (
-        <div key={s.key} className="grid gap-2 md:grid-cols-[240px_1fr]">
+        <div key={s.key} className="grid grid-cols-1 gap-2 md:grid-cols-[240px_1fr]">
           <div>
             <div className="text-[13.5px] font-medium text-navy-900">{s.label}</div>
             <div className="text-[12px] text-muted">{s.help}</div>

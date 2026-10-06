@@ -67,7 +67,7 @@ export function CompetitorsView({ sweep, memo }: { sweep: CompetitorSweep | null
 
       <Card>
         <SectionTitle eyebrow="Field summary" title="How this space has played out" />
-        <div className="grid gap-x-8 gap-y-5 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-x-8 gap-y-5 md:grid-cols-2">
           {[
             ["Crowding", sweep.fieldSummary.crowding],
             ["Capital raised in the field", sweep.fieldSummary.capitalRaisedInField],
@@ -94,7 +94,7 @@ export function CompetitorsView({ sweep, memo }: { sweep: CompetitorSweep | null
             return (
               <li key={c.name} className="px-6 py-4">
                 <details className="group">
-                  <summary className="grid cursor-pointer list-none gap-3 md:grid-cols-[minmax(0,1fr)_96px_104px_170px_16px] md:items-center">
+                  <summary className="grid grid-cols-1 cursor-pointer list-none gap-3 md:grid-cols-[minmax(0,1fr)_96px_104px_170px_16px] md:items-center">
                     <div className="min-w-0">
                       <div className="truncate font-medium text-navy-900">{c.name}</div>
                       <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[12px] text-muted">
@@ -108,7 +108,7 @@ export function CompetitorsView({ sweep, memo }: { sweep: CompetitorSweep | null
                     <span className="truncate text-[12.5px] text-ink-soft">{leads.length ? leads.slice(0, 3).join(", ") : "Investors not found"}</span>
                     <span className="text-muted transition-transform group-open:rotate-90">›</span>
                   </summary>
-                  <div className="mt-4 grid gap-5 border-t border-line pt-4 text-[13px] md:grid-cols-2">
+                  <div className="mt-4 grid grid-cols-1 gap-5 border-t border-line pt-4 text-[13px] md:grid-cols-2">
                     <div className="space-y-3">
                       <div><div className="eyebrow mb-1">Approach</div><p className="text-ink-soft">{c.approach}</p></div>
                       <div><div className="eyebrow mb-1">Outcome</div><p className="text-ink-soft">{c.outcome}</p></div>
@@ -120,6 +120,7 @@ export function CompetitorsView({ sweep, memo }: { sweep: CompetitorSweep | null
                       {c.fundingRounds.length === 0 ? (
                         <p className="text-muted">No rounds found.</p>
                       ) : (
+                        <div className="overflow-x-auto">
                         <table className="w-full text-[12.5px]">
                           <tbody className="divide-y divide-line">
                             {c.fundingRounds.map((r, i) => (
@@ -135,6 +136,7 @@ export function CompetitorsView({ sweep, memo }: { sweep: CompetitorSweep | null
                             ))}
                           </tbody>
                         </table>
+                        </div>
                       )}
                       <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[11.5px]">
                         {c.sources.map((u) => (
@@ -153,6 +155,7 @@ export function CompetitorsView({ sweep, memo }: { sweep: CompetitorSweep | null
       {sweep.activeInvestors.length > 0 && (
         <Card pad={false}>
           <div className="px-6 pt-6"><SectionTitle eyebrow="Investor map" title="Who is funding this space" /></div>
+          <div className="overflow-x-auto">
           <table className="w-full text-left text-[13px]">
             <thead>
               <tr className="border-y border-line text-[11px] uppercase tracking-[0.12em] text-muted">
@@ -179,6 +182,7 @@ export function CompetitorsView({ sweep, memo }: { sweep: CompetitorSweep | null
               ))}
             </tbody>
           </table>
+          </div>
         </Card>
       )}
 

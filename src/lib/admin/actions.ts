@@ -9,6 +9,8 @@ import { requireRole } from "../auth/session";
 import { headers } from "next/headers";
 import { isAllowedDomain, normalizeEmail } from "../env";
 import { generateSessionToken, hashToken } from "../auth/crypto";
+import { checkCredit } from "../ai/credit";
+import { resumePausedAnalyses } from "../deals/actions";
 
 export type AdminState = { ok: boolean; error?: string; message?: string };
 
@@ -158,4 +160,17 @@ export async function createSignInLinkAction(userId: string): Promise<{ ok: bool
     url: `${proto}://${host}/login/link?token=${token}`,
     expires: expiresAt.toLocaleString("en-CA", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Toronto" }),
   };
+}
+
+export async function checkCreditAction(): Promise<{ ok: boolean; message: string }> {
+  const user = await requireRole("ADMIN");
+  const result = await checkCredit();
+  let message = result.message;
+  if (result.ok) {
+    const resumed = await resumePausedAnalyses();
+    if (resumed) message += ` Resumed ${resumed} paused analys${resumed === 1 ? "is" : "es"}.`;
+  }
+  await audit("admin.credit_checked", { userId: user.id, meta: { ok: result.ok } });
+  revalidatePath("/admin");
+  return { ok: result.ok, message };
 }

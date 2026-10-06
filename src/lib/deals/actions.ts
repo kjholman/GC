@@ -136,6 +136,8 @@ async function queueNewVersion(dealId: string, userId: string, trigger: Analysis
   if (last && (last.status === "RUNNING" || last.status === "QUEUED")) {
     throw new Error("An analysis is already in progress for this deal.");
   }
+  // A newer version supersedes any paused one, so it doesn't run again later.
+  await db.analysis.updateMany({ where: { dealId, status: "PAUSED" }, data: { status: "STOPPED", error: "Replaced by a newer version." } });
   return db.analysis.create({
     data: { dealId, version: (last?.version ?? 0) + 1, trigger, analystContext, createdById: userId },
   });
@@ -180,11 +182,33 @@ export async function submitFollowUpAction(dealId: string, _: ActionState, formD
   return { ok: true };
 }
 
+/** Puts every analysis that paused for lack of credit back in the queue. */
+export async function resumePausedAnalyses(): Promise<number> {
+  await requireUser();
+  const paused = await db.analysis.findMany({ where: { status: "PAUSED" }, select: { id: true } });
+  for (const { id } of paused) {
+    await db.analysis.update({ where: { id }, data: { status: "QUEUED", error: null, progress: "Resuming" } });
+    scheduleAnalysis(id);
+  }
+  return paused.length;
+}
+
+export async function resumeAnalysisAction(analysisId: string): Promise<ActionState> {
+  const user = await requireUser();
+  const a = await db.analysis.findUnique({ where: { id: analysisId }, select: { dealId: true, version: true, status: true } });
+  if (!a || a.status !== "PAUSED") return { ok: false, error: "This analysis isn't paused." };
+  await db.analysis.update({ where: { id: analysisId }, data: { status: "QUEUED", error: null, progress: "Resuming" } });
+  await db.activity.create({ data: { dealId: a.dealId, userId: user.id, type: "analysis.resumed", message: `Resumed the Sharminator's analysis (version ${a.version}).` } });
+  scheduleAnalysis(analysisId);
+  revalidatePath(`/deals/${a.dealId}`);
+  return { ok: true };
+}
+
 export async function stopAnalysisAction(analysisId: string): Promise<ActionState> {
   const user = await requireUser();
   const a = await db.analysis.findUnique({ where: { id: analysisId }, select: { dealId: true, version: true, status: true } });
   if (!a) return { ok: false, error: "That analysis no longer exists." };
-  if (a.status !== "RUNNING" && a.status !== "QUEUED") return { ok: false, error: "This analysis has already finished." };
+  if (a.status !== "RUNNING" && a.status !== "QUEUED" && a.status !== "PAUSED") return { ok: false, error: "This analysis has already finished." };
   const who = user.name ?? user.email.split("@")[0];
   const entry = JSON.stringify([{ at: new Date().toISOString(), text: `Stopped by ${who}`, kind: "warn" }]);
   await db.$transaction([

@@ -25,7 +25,7 @@ const SEV: Record<string, string> = {
 
 export function Paras({ text, className }: { text: string; className?: string }) {
   return (
-    <div className={cx("prose-memo text-[14.5px] leading-[1.7] text-ink-soft", className)}>
+    <div className={cx("prose-memo text-[14.5px] leading-[1.7] text-ink-soft [overflow-wrap:anywhere]", className)}>
       {text.split(/\n{2,}/).map((p, i) => (
         <p key={i} className="whitespace-pre-line"><Tagged text={p} /></p>
       ))}
@@ -39,7 +39,7 @@ function Pill({ children, cls }: { children: ReactNode; cls: string }) {
 
 function KV({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="grid gap-1 border-t border-line py-4 first:border-t-0 first:pt-0 md:grid-cols-[200px_1fr] md:gap-6">
+    <div className="grid grid-cols-1 gap-1 border-t border-line py-4 first:border-t-0 first:pt-0 md:grid-cols-[200px_1fr] md:gap-6">
       <div className="eyebrow pt-0.5">{label}</div>
       <div>{typeof children === "string" ? <Paras text={children} /> : children}</div>
     </div>
@@ -84,7 +84,7 @@ export function MemoView({ memo }: { memo: Memo }) {
       <Card>
         <SectionTitle eyebrow="Executive summary" title="The opportunity" />
         <Paras text={memo.executiveSummary} className="text-[15px]" />
-        <div className="mt-8 grid gap-8 md:grid-cols-2">
+        <div className="mt-8 grid grid-cols-1 gap-8 md:grid-cols-2">
           <div>
             <div className="eyebrow mb-3 text-pos">Investment highlights</div>
             <Bullets items={memo.investmentHighlights} marker="+" />
@@ -111,7 +111,7 @@ export function MemoView({ memo }: { memo: Memo }) {
                 <div className="w-10 text-right font-display font-semibold text-[20px] tabular text-navy-900">{s.score}</div>
                 <span className="text-muted transition-transform group-open:rotate-90">›</span>
               </summary>
-              <div className="mt-3 grid gap-4 pl-0 md:grid-cols-2 md:pl-[228px]">
+              <div className="mt-3 grid grid-cols-1 gap-4 pl-0 md:grid-cols-2 md:pl-[228px]">
                 <div>
                   <div className="eyebrow mb-1">Assessment</div>
                   <p className="text-[13.5px] leading-relaxed text-ink-soft"><Tagged text={s.assessment} /></p>
@@ -140,6 +140,7 @@ export function MemoView({ memo }: { memo: Memo }) {
         <KV label="Pathway">{memo.clinicalRegulatory.pathway}</KV>
         <KV label="Probability of success">{memo.clinicalRegulatory.probabilityOfSuccess}</KV>
         <div className="mt-2 overflow-x-auto">
+          <div className="overflow-x-auto">
           <table className="w-full text-left text-[13.5px]">
             <thead>
               <tr className="border-b border-line text-[11px] uppercase tracking-[0.12em] text-muted">
@@ -160,12 +161,13 @@ export function MemoView({ memo }: { memo: Memo }) {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       </Card>
 
       <Card>
         <SectionTitle eyebrow="Diligence workstreams" title="Market, IP and team at a glance" />
-        <div className="grid gap-6 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
           <div>
             <div className="eyebrow mb-1">Market</div>
             <p className="text-[13.5px] leading-relaxed text-ink-soft"><Tagged text={memo.market.addressableMarket} /></p>
@@ -186,7 +188,7 @@ export function MemoView({ memo }: { memo: Memo }) {
         <SectionTitle eyebrow="Risk register" title="Key risks" />
         <div className="divide-y divide-line">
           {memo.keyRisks.map((r, i) => (
-            <div key={i} className="grid gap-2 py-4 first:pt-0 md:grid-cols-[90px_1fr_1fr] md:gap-6">
+            <div key={i} className="grid grid-cols-1 gap-2 py-4 first:pt-0 md:grid-cols-[90px_1fr_1fr] md:gap-6">
               <div><Pill cls={SEV[r.severity]}>{r.severity}</Pill></div>
               <p className="text-[14px] font-medium leading-relaxed text-ink"><Tagged text={r.risk} /></p>
               <p className="text-[13.5px] leading-relaxed text-ink-soft"><span className="text-muted">Mitigation: </span><Tagged text={r.mitigation} /></p>
@@ -239,7 +241,7 @@ export function FinancialsView({ memo }: { memo: Memo }) {
         <SectionTitle eyebrow="Returns" title="Exit scenarios" />
         <div className="space-y-6">
           {scen.map((s) => (
-            <div key={s.scenario} className="grid gap-4 md:grid-cols-[110px_1fr]">
+            <div key={s.scenario} className="grid grid-cols-1 gap-4 md:grid-cols-[110px_1fr]">
               <div>
                 <div className="text-[12px] font-semibold tracking-[0.14em]" style={{ color: tone[s.scenario] }}>{s.scenario}</div>
                 <div className="mt-1 text-[12px] text-muted tabular">p = {Math.round((s.probability ?? 0) * 100)}%</div>
@@ -291,7 +293,7 @@ export function FitView({ memo }: { memo: Memo }) {
           <SectionTitle eyebrow="Deal archive" title="Genesys precedents applied" />
           <div className="divide-y divide-line">
             {p.historicalPrecedents.map((h, i) => (
-              <div key={i} className="grid gap-2 py-4 first:pt-0 md:grid-cols-[220px_1fr]">
+              <div key={i} className="grid grid-cols-1 gap-2 py-4 first:pt-0 md:grid-cols-[220px_1fr]">
                 <div>
                   <div className="font-display font-semibold text-[17px] text-navy-900">{h.company}</div>
                   <div className="text-[12px] text-muted">{h.genesysDecision}</div>
@@ -307,7 +309,7 @@ export function FitView({ memo }: { memo: Memo }) {
         {p.comparableGenesysInvestments.length === 0 ? (
           <p className="text-[14px] text-muted">No close analogues in the Genesys portfolio.</p>
         ) : (
-          <div className="grid gap-5 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
             {p.comparableGenesysInvestments.map((c, i) => (
               <div key={i} className="border-l-2 border-brand-500 pl-5">
                 <div className="font-display font-semibold text-[19px] text-navy-900">{c.company}</div>
@@ -346,7 +348,7 @@ export function RequestsView({ memo }: { memo: Memo }) {
             </div>
             <ol className="divide-y divide-line">
               {items.map((r, i) => (
-                <li key={i} className="grid gap-2 px-6 py-4 md:grid-cols-[160px_1fr]">
+                <li key={i} className="grid grid-cols-1 gap-2 px-6 py-4 md:grid-cols-[160px_1fr]">
                   <div className="text-[12px] font-medium uppercase tracking-[0.08em] text-muted">{r.category}</div>
                   <div>
                     <p className="text-[14px] font-medium leading-relaxed text-ink"><Tagged text={r.request} /></p>
@@ -401,7 +403,7 @@ export function DiligenceView({ memo }: { memo: Memo }) {
         </div>
       </Card>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         {plan.workstreams.map((w, i) => (
           <Card key={i}>
             <div className="flex items-start justify-between gap-4">
@@ -428,7 +430,7 @@ export function DiligenceView({ memo }: { memo: Memo }) {
 
       <Card>
         <SectionTitle eyebrow="Data room" title="Document request list" />
-        <ol className="grid gap-x-8 gap-y-2 md:grid-cols-2">
+        <ol className="grid grid-cols-1 gap-x-8 gap-y-2 md:grid-cols-2">
           {plan.documentRequestList.map((d, i) => (
             <li key={i} className="flex gap-3 text-[13.5px] text-ink-soft">
               <span className="w-6 shrink-0 text-right tabular text-muted">{i + 1}.</span>
@@ -474,6 +476,7 @@ export function MarketView({ memo }: { memo: Memo }) {
       {m.patientPopulation?.length > 0 && (
         <Card>
           <SectionTitle eyebrow="Epidemiology" title="Patient population" />
+          <div className="overflow-x-auto">
           <table className="w-full text-left text-[13.5px]">
             <thead>
               <tr className="border-b border-line text-[11px] uppercase tracking-[0.12em] text-muted">
@@ -494,6 +497,7 @@ export function MarketView({ memo }: { memo: Memo }) {
               ))}
             </tbody>
           </table>
+          </div>
         </Card>
       )}
       {ms && (
@@ -507,6 +511,7 @@ export function MarketView({ memo }: { memo: Memo }) {
       {m.pricingAnalogues?.length > 0 && (
         <Card>
           <SectionTitle eyebrow="Pricing" title="Analogues" />
+          <div className="overflow-x-auto">
           <table className="w-full text-left text-[13.5px]">
             <tbody className="divide-y divide-line">
               {m.pricingAnalogues.map((p, i) => (
@@ -518,6 +523,7 @@ export function MarketView({ memo }: { memo: Memo }) {
               ))}
             </tbody>
           </table>
+          </div>
         </Card>
       )}
       <Card>
@@ -563,6 +569,7 @@ export function IPView({ memo }: { memo: Memo }) {
           {ip.assets.length === 0 ? (
             <p className="px-6 pb-6 text-[14px] text-muted">No patents or applications were identified in the materials or the IP research.</p>
           ) : (
+            <div className="overflow-x-auto">
             <table className="w-full text-left text-[13px]">
               <thead>
                 <tr className="border-y border-line text-[11px] uppercase tracking-[0.12em] text-muted">
@@ -588,6 +595,7 @@ export function IPView({ memo }: { memo: Memo }) {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </Card>
       )}
@@ -620,7 +628,7 @@ export function TeamView({ memo }: { memo: Memo }) {
         {t.founderMarketFit && <div className="mt-5"><KV label="Founder-market fit">{t.founderMarketFit}</KV></div>}
       </Card>
       {t.members?.length > 0 && (
-        <div className="grid gap-5 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           {t.members.map((p, i) => (
             <Card key={i}>
               <div className="flex items-start justify-between gap-3">

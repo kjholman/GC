@@ -19,7 +19,7 @@ export default async function Overview() {
     db.deal.groupBy({ by: ["status"], _count: true }),
     db.deal.findMany({ orderBy: { updatedAt: "desc" }, take: 8 }),
     db.analysis.findMany({
-      where: { status: { in: ["QUEUED", "RUNNING"] } },
+      where: { status: { in: ["QUEUED", "RUNNING", "PAUSED"] } },
       include: { deal: { select: { id: true, companyName: true } } },
       orderBy: { createdAt: "asc" },
     }),
@@ -65,7 +65,7 @@ export default async function Overview() {
         ))}
       </div>
 
-      <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="min-w-0 space-y-8">
           <Card>
             <SectionTitle eyebrow="Pipeline" title="Stage distribution" />
@@ -111,15 +111,16 @@ export default async function Overview() {
               <ul className="divide-y divide-line border-t border-line">
                 {recent.map((d) => (
                   <li key={d.id}>
-                    <Link href={`/deals/${d.id}`} className="flex items-center gap-5 px-6 py-4 transition-colors hover:bg-mist/70">
+                    <Link href={`/deals/${d.id}`} className="flex items-center gap-4 px-4 py-4 transition-colors hover:bg-mist/70 sm:gap-5 sm:px-6">
                       <ScoreRing score={d.latestScore} size={44} />
                       <div className="min-w-0 flex-1">
                         <div className="truncate font-medium text-navy-900">{d.companyName}</div>
                         <div className="truncate text-[12.5px] text-muted">
                           {[d.sector, d.modality, d.stage].filter(Boolean).join(" · ") || "Awaiting analysis"}
                         </div>
+                        <div className="mt-1.5 sm:hidden"><StatusBadge status={d.status} /></div>
                       </div>
-                      <StatusBadge status={d.status} />
+                      <div className="hidden sm:block"><StatusBadge status={d.status} /></div>
                       <div className="hidden w-20 text-right text-[12px] text-muted md:block">{relTime(d.updatedAt)}</div>
                     </Link>
                   </li>
@@ -140,11 +141,11 @@ export default async function Overview() {
                   <li key={a.id}>
                     <Link href={`/deals/${a.deal.id}`} className="block">
                       <div className="flex items-center gap-2 text-[13.5px] font-medium text-navy-900">
-                        <span className="pulse-dot h-1.5 w-1.5 rounded-full bg-brand-500" />
+                        <span className={a.status === "PAUSED" ? "h-1.5 w-1.5 rounded-full bg-warn" : "pulse-dot h-1.5 w-1.5 rounded-full bg-brand-500"} />
                         {a.deal.companyName}
                         <span className="text-[11px] font-normal text-muted">v{a.version}</span>
                       </div>
-                      <div className="mt-1 pl-3.5 text-[12px] text-muted">{a.progress ?? "Queued"}</div>
+                      <div className={cx("mt-1 pl-3.5 text-[12px]", a.status === "PAUSED" ? "text-warn" : "text-muted")}>{a.status === "PAUSED" ? "Paused: out of Anthropic credit" : a.progress ?? "Queued"}</div>
                     </Link>
                   </li>
                 ))}

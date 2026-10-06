@@ -112,7 +112,8 @@ export function EvidenceLedger({ memo, report }: { memo: Memo; report: Verificat
           ))}
         </div>
       </div>
-      <table className="w-full text-left text-[13px]">
+      <div className="overflow-x-auto">
+      <table className="w-full min-w-[620px] text-left text-[13px]">
         <thead>
           <tr className="border-y border-line text-[11px] uppercase tracking-[0.12em] text-muted">
             <th className="py-2.5 pr-3 pl-6 font-semibold">#</th>
@@ -141,6 +142,7 @@ export function EvidenceLedger({ memo, report }: { memo: Memo; report: Verificat
           ))}
         </tbody>
       </table>
+      </div>
     </Card>
   );
 }

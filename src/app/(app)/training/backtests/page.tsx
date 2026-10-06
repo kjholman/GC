@@ -14,7 +14,7 @@ export default async function BacktestsPage() {
     db.historicalDeal.count({ where: { ingestStatus: "READY", deckData: { not: null } } }),
   ]);
   return (
-    <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_360px]">
+    <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_360px]">
       <div>
         <p className="mb-6 max-w-3xl text-[14px] leading-relaxed text-ink-soft">
           An accuracy test has the Sharminator re-screen past deals using only the original decks. It never sees the partners&rsquo; memo or decision, and only looks at precedents from earlier years. Its calls are then compared with what Genesys actually decided. Run another test after changing principles, example memos or firm settings to see whether the change helped.
@@ -23,6 +23,7 @@ export default async function BacktestsPage() {
           <Empty title="No accuracy tests yet">{eligible ? "Start one from the panel on the right." : "First add past deals with their original decks under Past deals."}</Empty>
         ) : (
           <Card pad={false}>
+            <div className="overflow-x-auto">
             <table className="w-full text-left text-[13.5px]">
               <thead>
                 <tr className="border-b border-line text-[11px] uppercase tracking-[0.12em] text-muted">
@@ -52,6 +53,7 @@ export default async function BacktestsPage() {
                 })}
               </tbody>
             </table>
+            </div>
           </Card>
         )}
       </div>

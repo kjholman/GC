@@ -173,6 +173,8 @@ enum AnalysisStatus {
   FAILED
   /// Stopped by a team member before it finished.
   STOPPED
+  /// Waiting because the Anthropic account ran out of credit; resumes once credit is added.
+  PAUSED
 }
 
 enum AnalysisTrigger {

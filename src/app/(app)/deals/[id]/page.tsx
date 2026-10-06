@@ -8,7 +8,7 @@ import { Button, Card, REC_META, ScoreRing, SectionTitle, StatusBadge, cx, fmtDa
 import { AnalysisProgress } from "./AnalysisProgress";
 import { StepLog, asSteps } from "./StepLog";
 import { CopyButton } from "./CopyButton";
-import { FeedbackPanel, FollowUpPanel, NoteForm, RerunButton, SignOffPanel, StatusPanel } from "./DealActions";
+import { FeedbackPanel, FollowUpPanel, NoteForm, RerunButton, SignOffPanel, StatusPanel, ResumeButton } from "./DealActions";
 import { EvidenceProvider } from "./Evidence";
 import { EvidenceLedger, VerificationBanner } from "./Verification";
 import { CompetitorsView } from "./Competitors";
@@ -57,6 +57,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
   const shown = (requestedV && completed.find((a) => a.version === requestedV)) || completed[0];
   const memo = shown?.memo as Memo | undefined;
   const failed = latest?.status === "FAILED" || latest?.status === "STOPPED" ? latest : null;
+  const paused = latest?.status === "PAUSED" ? latest : null;
   // First analysis still running: show only the progress view until the memo exists.
   const firstRun = !!inFlight && !memo;
   // Only offer "Founders replied?" when the memo actually asks the founders for something.
@@ -81,7 +82,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
         <Link href="/deals" className="hover:text-navy-800">Pipeline</Link> <span className="mx-1.5">/</span> {deal.companyName}
       </div>
 
-      <header className="mb-8 grid gap-8 border-b border-line pb-8 lg:grid-cols-[minmax(0,1fr)_auto]">
+      <header className="mb-8 grid grid-cols-1 gap-8 border-b border-line pb-8 lg:grid-cols-[minmax(0,1fr)_auto]">
         <div className="min-w-0">
           <div className="mb-3 flex flex-wrap items-center gap-3">
             <StatusBadge status={deal.status} />
@@ -137,6 +138,25 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
           />
         </div>
       )}
+      {paused && (
+        <div className="mb-8 rounded-lg border border-[#efdcb4] bg-warn-bg px-5 py-4 sm:px-6">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <div className="text-[13.5px] font-medium text-warn">Analysis version {paused.version} is paused: the Anthropic account is out of credit</div>
+              <p className="mt-0.5 text-[13px] text-ink-soft">
+                Nothing is lost. Once credit is added to the Anthropic account, press Resume and the Sharminator starts this analysis again. An administrator can also check credit on the Administration page, which resumes every paused analysis.
+              </p>
+              {asSteps(paused.steps).length > 0 && (
+                <details className="mt-2">
+                  <summary className="cursor-pointer text-[12.5px] font-medium text-navy-800">See how far it got</summary>
+                  <StepLog steps={asSteps(paused.steps)} className="mt-3" />
+                </details>
+              )}
+            </div>
+            <ResumeButton analysisId={paused.id} />
+          </div>
+        </div>
+      )}
       {failed && (
         <div className="mb-8 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-[#efd2ce] bg-neg-bg px-6 py-4">
           <div>
@@ -160,7 +180,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
       )}
 
       {firstRun ? null : (
-      <div className="grid gap-10 xl:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="grid grid-cols-1 gap-10 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="min-w-0">
           {!memo ? (
             <Card className="py-16 text-center">
@@ -266,11 +286,11 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
                             </div>
                             <ul className="divide-y divide-line">
                               {deal.documents.filter((d) => d.round === r).map((d) => (
-                                <li key={d.id} className="flex items-center gap-4 px-6 py-3 text-[13.5px]">
-                                  <span className="w-32 shrink-0 text-[12px] text-muted">{KIND_LABEL[d.kind]}</span>
+                                <li key={d.id} className="flex items-center gap-3 px-4 py-3 text-[13.5px] sm:gap-4 sm:px-6">
+                                  <span className="hidden w-32 shrink-0 text-[12px] text-muted sm:block">{KIND_LABEL[d.kind]}</span>
                                   <a href={`/api/documents/${d.id}`} target="_blank" className="min-w-0 flex-1 truncate text-navy-800 hover:underline">{d.filename}</a>
-                                  <span className="text-[12px] tabular text-muted">{(d.sizeBytes / 1024 / 1024).toFixed(1)} MB</span>
-                                  <span className="w-28 text-right text-[12px] text-muted">{fmtDate(d.createdAt)}</span>
+                                  <span className="shrink-0 whitespace-nowrap text-[12px] tabular text-muted">{(d.sizeBytes / 1024 / 1024).toFixed(1)} MB</span>
+                                  <span className="hidden w-28 text-right text-[12px] text-muted sm:block">{fmtDate(d.createdAt)}</span>
                                 </li>
                               ))}
                             </ul>
@@ -285,6 +305,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
                       )}
                       <Card pad={false}>
                         <div className="px-6 pt-6"><SectionTitle eyebrow="History" title="Analysis versions" /></div>
+                        <div className="overflow-x-auto">
                         <table className="w-full text-left text-[13.5px]">
                           <tbody className="divide-y divide-line border-t border-line">
                             {deal.analyses.map((a) => (
@@ -294,7 +315,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
                                   {a.trigger === "INITIAL_SCREEN" ? "Initial screen" : a.trigger === "NEW_INFORMATION" ? "New information" : "Re-run"}
                                 </td>
                                 <td className={cx("px-4 py-3 font-medium", a.recommendation ? REC_META[a.recommendation]?.cls : "text-muted")}>
-                                  {a.recommendation ? REC_META[a.recommendation]?.label : ({ QUEUED: "Waiting to start", RUNNING: "In progress", FAILED: "Didn't finish", STOPPED: "Stopped", COMPLETE: "Finished" } as Record<string, string>)[a.status]}
+                                  {a.recommendation ? REC_META[a.recommendation]?.label : ({ QUEUED: "Waiting to start", RUNNING: "In progress", FAILED: "Didn't finish", STOPPED: "Stopped", PAUSED: "Paused (out of credit)", COMPLETE: "Finished" } as Record<string, string>)[a.status]}
                                 </td>
                                 <td className="px-4 py-3 tabular text-ink">{a.overallScore ?? "—"}</td>
                                 <td className="px-4 py-3 text-[12px] text-muted">{fmtDate(a.completedAt ?? a.createdAt, true)}</td>
@@ -307,6 +328,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
                             ))}
                           </tbody>
                         </table>
+                        </div>
                       </Card>
                     </div>
                   ),

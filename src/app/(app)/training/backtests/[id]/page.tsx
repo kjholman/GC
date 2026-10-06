@@ -56,9 +56,10 @@ export default async function BacktestRunPage({ params }: PageProps<"/training/b
             ))}
           </div>
 
-          <div className="grid gap-8 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
             <Card>
               <SectionTitle eyebrow="Side by side" title="Genesys decision vs the Sharminator's call" />
+              <div className="overflow-x-auto">
               <table className="w-full text-[13px]">
                 <thead>
                   <tr className="text-[11px] uppercase tracking-[0.1em] text-muted">
@@ -80,6 +81,7 @@ export default async function BacktestRunPage({ params }: PageProps<"/training/b
                   ))}
                 </tbody>
               </table>
+              </div>
             </Card>
             <Card>
               <SectionTitle eyebrow="By sector" title="Where judgement is strongest" />
@@ -111,7 +113,7 @@ export default async function BacktestRunPage({ params }: PageProps<"/training/b
                 </span>
               </div>
               {r.memo && r.agree === false && (
-                <div className="mt-3 grid gap-4 pl-6 text-[12.5px] md:grid-cols-2">
+                <div className="mt-3 grid grid-cols-1 gap-4 pl-6 text-[12.5px] md:grid-cols-2">
                   <p className="text-ink-soft"><span className="text-muted">Sharminator&rsquo;s reasoning: </span>{(r.memo as { worthOurTime?: { headline?: string } }).worthOurTime?.headline}</p>
                   <p className="text-ink-soft"><span className="text-muted">Partners at the time: </span>{r.historicalDeal.decisionRationale}</p>
                 </div>

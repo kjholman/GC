@@ -4,13 +4,18 @@ import { env } from "@/lib/env";
 import { Card, PageHeader, SectionTitle, cx, fmtDate, relTime } from "@/components/ui";
 import { describeEvent } from "@/lib/auditText";
 import { AddUsersForm, UserRow } from "./AdminForms";
+import { CreditPanel } from "./CreditPanel";
+import { BILLING_URL, estimatedSpend, getAiStatus } from "@/lib/ai/credit";
 
 
 export default async function AdminPage() {
   const me = await requireRole("ADMIN");
-  const [users, logs] = await Promise.all([
+  const [users, logs, ai, spend, paused] = await Promise.all([
     db.user.findMany({ orderBy: [{ active: "desc" }, { email: "asc" }] }),
     db.auditLog.findMany({ orderBy: { createdAt: "desc" }, take: 100, include: { user: { select: { email: true, name: true } } } }),
+    getAiStatus(),
+    estimatedSpend(),
+    db.analysis.count({ where: { status: "PAUSED" } }),
   ]);
   // Resolve the deals, people and documents mentioned in the log to readable names.
   const ids = [...new Set(logs.map((l) => l.entityId).filter(Boolean))] as string[];
@@ -33,9 +38,10 @@ export default async function AdminPage() {
         title="Team access"
         subtitle={<>Only people you add here can sign in, and they must use a <span className="font-medium">{env.allowedDomains.map((d) => `@${d}`).join(" or ")}</span> email address. Removing someone&apos;s access signs them out straight away.</>}
       />
-      <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_360px]">
         <Card pad={false}>
           <div className="px-6 pt-6"><SectionTitle eyebrow="Team" title={`People with access (${users.filter((u) => u.active).length})`} /></div>
+          <div className="overflow-x-auto">
           <table className="w-full text-left text-[13.5px]">
             <thead>
               <tr className="border-y border-line text-[11px] uppercase tracking-[0.12em] text-muted">
@@ -51,8 +57,21 @@ export default async function AdminPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </Card>
-        <div><AddUsersForm /></div>
+        <div className="space-y-8">
+          <CreditPanel
+            lowSince={ai.creditLowSince?.toISOString() ?? null}
+            lastOk={ai.lastOkAt?.toISOString() ?? null}
+            lastChecked={ai.lastCheckedAt?.toISOString() ?? null}
+            monthUsd={spend.monthUsd}
+            allTimeUsd={spend.allTimeUsd}
+            analysesThisMonth={spend.analysesThisMonth}
+            paused={paused}
+            billingUrl={BILLING_URL}
+          />
+          <AddUsersForm />
+        </div>
       </div>
 
       <Card pad={false} className="mt-8">

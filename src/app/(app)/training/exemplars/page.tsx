@@ -17,7 +17,7 @@ export default async function ExemplarsPage() {
       {exemplars.length === 0 ? (
         <Empty title="No example memos yet">Open a deal with a finished memo and choose “Correct this memo and save as an example”.</Empty>
       ) : (
-        <div className="grid gap-5 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           {exemplars.map((e) => (
             <Card key={e.id} className={cx(!e.active && "opacity-50")}>
               <div className="flex items-start justify-between gap-3">

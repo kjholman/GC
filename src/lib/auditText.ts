@@ -51,6 +51,7 @@ export function describeEvent(
     case "deal.deleted": return t(`${actor} deleted a deal`, true);
     case "document.downloaded": return t(`${actor} opened a document${subject ? ` (${subject})` : ""}`);
     case "analysis.stopped": return t(`${actor} stopped an analysis of ${deal} before it finished`);
+    case "admin.credit_checked": return t(`${actor} checked the Anthropic credit balance (${meta.ok ? "credit available" : "out of credit or unreachable"})`, !meta.ok);
     case "analysis.signed_off": return t(`${actor} signed off a memo${subject ? ` for ${deal}` : ""}`);
     case "analysis.feedback": return t(`${actor} reviewed a memo and ${verdicts[String(meta.verdict)] ?? "left feedback"}`);
     // Knowledge base & training

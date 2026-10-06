@@ -17,13 +17,13 @@ function clock(iso: string) {
 export function StepLog({ steps, live = false, empty, className }: { steps: LogStep[]; live?: boolean; empty?: string; className?: string }) {
   if (!steps.length) return <p className={cx("text-[13px] text-muted", className)}>{empty ?? "Waiting to start…"}</p>;
   return (
-    <ol className={cx("space-y-1.5 font-mono text-[12.5px] leading-relaxed", className)}>
+    <ol className={cx("space-y-1.5 font-mono text-[11.5px] leading-relaxed sm:text-[12.5px]", className)}>
       {steps.map((s, i) => {
         const last = live && i === steps.length - 1;
         const m = MARK[s.kind] ?? MARK.info;
         return (
-          <li key={`${s.at}-${i}`} className="flex gap-3">
-            <span className="w-[92px] shrink-0 whitespace-nowrap text-right tabular text-muted">{clock(s.at)}</span>
+          <li key={`${s.at}-${i}`} className="flex gap-2 sm:gap-3">
+            <span className="w-[58px] shrink-0 whitespace-nowrap tabular text-muted sm:w-[72px]">{clock(s.at)}</span>
             <span className={cx("w-3 shrink-0 text-center font-semibold", m.cls)}>
               {last && s.kind === "start" ? <span className="pulse-dot inline-block h-1.5 w-1.5 rounded-full bg-brand-500 align-middle" /> : m.sym}
             </span>

@@ -8,6 +8,7 @@ import { findPrecedents } from "../training/retrieval";
 import { coverageNote, prepareFiles, type InputFile, type PreparedFiles } from "./files";
 import { FALLBACK_BETA, anthropic, structuredCall, textOf, type ContentBlock } from "./client";
 import { plainPunctuation } from "./style";
+import { isCreditError, recordCreditOk, recordCreditProblem } from "./credit";
 import { automatedChecks, correctionsBlock, modelFactCheck, sourceTexts, summarise } from "./verify";
 import { CompetitorSweepSchema, FingerprintSchema, MemoSchema, normaliseMemo, type CompetitorSweep, type Fingerprint, type Memo } from "./schema";
 
@@ -118,6 +119,7 @@ async function webResearch(prompt: string, docs: ContentBlock[], limits: { searc
       messages,
     });
     const response = await stream.finalMessage();
+    void recordCreditOk().catch(() => {});
     if (response.stop_reason === "refusal") return null;
     if (response.stop_reason === "pause_turn") {
       // Server-side tool loop hit its iteration limit; resume where it left off.
@@ -289,6 +291,7 @@ export async function runAnalysis(analysisId: string): Promise<void> {
     include: { deal: { include: { documents: true } } },
   });
   if (!analysis || analysis.status === "COMPLETE" || analysis.status === "STOPPED") return;
+  const resumedFromPause = analysis.status === "PAUSED";
   const { deal } = analysis;
 
   await db.analysis.update({
@@ -298,10 +301,12 @@ export async function runAnalysis(analysisId: string): Promise<void> {
   const resumed = analysis.status === "QUEUED" && analysis.progress?.startsWith("Restarting");
   await logStep(
     analysisId,
-    resumed
+    resumedFromPause
+      ? "Resumed after the Anthropic account was topped up; starting again from the beginning"
+      : resumed
       ? "The server was updated while this was running, so the Sharminator started it again from the beginning"
       : analysis.version === 1 ? "Started the first analysis of this deal" : `Started analysis version ${analysis.version}`,
-    resumed ? "warn" : "start",
+    resumed || resumedFromPause ? "warn" : "start",
   );
   let companyName = deal.companyName;
 
@@ -330,6 +335,7 @@ export async function runAnalysis(analysisId: string): Promise<void> {
     if (!deal.tags.length || analysis.trigger !== "INITIAL_SCREEN" || placeholder) {
       await logStep(analysisId, "Identifying the company, its technology and lead indication", "start");
       const fp = await fingerprint(blocks).catch((err) => {
+        if (isCreditError(err)) throw err;
         console.error("[analyst] fingerprint failed; continuing", err);
         return null;
       });
@@ -396,6 +402,8 @@ export async function runAnalysis(analysisId: string): Promise<void> {
             return v;
           },
           async (err) => {
+            // Out of credit: stop the whole analysis rather than carry on without research.
+            if (isCreditError(err)) throw err;
             console.error(`[analyst] ${label} research failed; continuing without it`, err);
             await logStep(analysisId, `Couldn't complete the ${label} research; continuing without it`, "warn");
             return null;
@@ -469,6 +477,7 @@ export async function runAnalysis(analysisId: string): Promise<void> {
     const check = async (m: Memo, revisions: number) => {
       const auto = automatedChecks(m, verifyCtx);
       const fact = await modelFactCheck({ memo: auto.sanitized, docs: blocks, research: webSources, precedentsText }).catch((err) => {
+        if (isCreditError(err)) throw err;
         console.error("[analyst] fact-check failed", err);
         return null;
       });
@@ -558,6 +567,18 @@ export async function runAnalysis(analysisId: string): Promise<void> {
   } catch (err) {
     // Someone pressed Stop: the stop action already recorded it, so just wind down.
     if (err instanceof AnalysisStopped) return;
+    if (isCreditError(err)) {
+      await recordCreditProblem().catch(() => {});
+      await db.analysis.update({
+        where: { id: analysisId },
+        data: { status: "PAUSED", progress: null, error: "Paused because the Anthropic account behind the Sharminator has run out of credit." },
+      });
+      await logStep(analysisId, "Paused: the Anthropic account has run out of credit. Once credit is added, press Resume (or an administrator can check credit on the Administration page, which resumes paused analyses)", "warn");
+      await db.activity.create({
+        data: { dealId: deal.id, type: "analysis.paused", message: `The Sharminator paused version ${analysis.version}: the Anthropic account is out of credit.` },
+      });
+      return;
+    }
     const message = describeError(err);
     console.error("[analyst] analysis failed", analysisId, err);
     await logStep(analysisId, `Stopped: ${message}`, "warn");
@@ -576,13 +597,14 @@ export async function runAnalysis(analysisId: string): Promise<void> {
 
 export function describeError(err: unknown): string {
   return err instanceof Anthropic.APIError
-    ? friendlyApiError(err.status)
+    ? friendlyApiError(err.status, err)
     : err instanceof Error
       ? err.message
       : String(err);
 }
 
-function friendlyApiError(status: number | undefined): string {
+function friendlyApiError(status: number | undefined, err?: unknown): string {
+  if (isCreditError(err)) return "The Anthropic account behind the Sharminator has run out of credit. Add credit, then try again.";
   if (status === 401 || status === 403) return "The Sharminator's AI service key was rejected. Ask your developer to check the Anthropic API key.";
   if (status === 429) return "The AI service is busy or the account's usage limit was reached. Try again in a few minutes.";
   if (status === 400 || status === 413) return "The AI service couldn't accept these files. Try again; if it repeats, upload fewer or smaller files.";

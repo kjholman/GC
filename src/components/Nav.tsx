@@ -13,7 +13,7 @@ const ICONS: Record<string, React.ReactNode> = {
   admin: <path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6l-8-3Z" strokeWidth="1.6" stroke="currentColor" fill="none" />,
 };
 
-export function Nav({ items }: { items: { href: string; label: string; icon: string }[] }) {
+export function Nav({ items, onNavigate }: { items: { href: string; label: string; icon: string }[]; onNavigate?: () => void }) {
   const pathname = usePathname();
   return (
     <nav className="space-y-0.5">
@@ -23,6 +23,7 @@ export function Nav({ items }: { items: { href: string; label: string; icon: str
           <Link
             key={item.href}
             href={item.href}
+            onClick={onNavigate}
             className={cx(
               "group mx-3 flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13.5px] transition-colors",
               active

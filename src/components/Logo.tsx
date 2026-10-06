@@ -1,3 +1,5 @@
+import { useId } from "react";
+
 /**
  * Genesys Capital logo: the interlocking G/C hexagon mark (vector reconstruction
  * of the mark on genesyscapital.com, with its navy → teal → green gradient) and
@@ -12,7 +14,9 @@ const POLYGONS = [
 ];
 
 export function GenesysMark({ size = 40, solid, className }: { size?: number; solid?: string; className?: string }) {
-  const id = solid ? undefined : "gc-mark-gradient";
+  // Unique per instance: a gradient defined inside a hidden copy (e.g. the mobile header) would otherwise blank every other copy.
+  const uid = useId().replace(/:/g, "");
+  const id = solid ? undefined : `gc-mark-${uid}`;
   const paint = solid ?? `url(#${id})`;
   return (
     <svg viewBox="0 0 440 620" height={size} width={(size * 440) / 620} className={className} aria-hidden="true">

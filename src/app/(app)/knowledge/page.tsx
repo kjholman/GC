@@ -49,8 +49,8 @@ export default async function KnowledgePage() {
         <Principles principles={principles} canEdit={canEdit} />
       </div>
 
-      <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <div className="grid gap-5 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           {companies.map((c) => (
             <Card key={c.id} className="flex flex-col">
               <div className="flex items-start justify-between gap-3">

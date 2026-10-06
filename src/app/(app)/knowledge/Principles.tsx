@@ -34,7 +34,7 @@ export function Principles({ principles, canEdit }: { principles: P[]; canEdit: 
         ))}
       </ol>
       {canEdit && (
-        <form key={k} action={async (fd) => { await action(fd); setK((n) => n + 1); }} className="grid gap-3 border-t border-line pt-5 md:grid-cols-[240px_1fr_auto]">
+        <form key={k} action={async (fd) => { await action(fd); setK((n) => n + 1); }} className="grid grid-cols-1 gap-3 border-t border-line pt-5 md:grid-cols-[240px_1fr_auto]">
           <input name="title" placeholder="e.g. Composition-of-matter IP" className={inputCls} />
           <input name="body" placeholder="e.g. We do not lead single-asset therapeutics deals without composition-of-matter protection." className={inputCls} />
           <Button type="submit" disabled={pending}>Add principle</Button>

@@ -15,7 +15,7 @@ const STEPS = [
 export function NewDealForm() {
   const [state, action, pending] = useActionState<ActionState, FormData>(createDealAction, { ok: false });
   return (
-    <form action={action} className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
+    <form action={action} className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
       <div className="space-y-6">
         <Card>
           <div className="eyebrow mb-4">Materials</div>
@@ -23,7 +23,7 @@ export function NewDealForm() {
         </Card>
         <Card>
           <div className="eyebrow mb-5">Deal details <span className="normal-case tracking-normal font-normal">(optional; the analyst extracts these from the deck)</span></div>
-          <div className="grid gap-5 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
             <Field label="Company name">
               <input name="companyName" className={inputCls} placeholder="e.g. Northbridge Therapeutics" />
             </Field>

@@ -4,6 +4,7 @@ import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import type { z } from "zod";
 import { env } from "../env";
 import { sanitizeStrings } from "./style";
+import { recordCreditOk } from "./credit";
 
 export type ContentBlock = Anthropic.Beta.BetaContentBlockParam;
 
@@ -41,6 +42,7 @@ export async function structuredCall<S extends z.ZodType>(args: {
     messages: [{ role: "user", content: args.content }],
   });
   const response = await stream.finalMessage();
+  void recordCreditOk().catch(() => {});
   if (response.stop_reason === "refusal") {
     throw new Error("The model declined to analyse these materials. Review the documents and try again.");
   }

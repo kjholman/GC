@@ -28,7 +28,7 @@ export default async function TrainingOverview() {
 
   return (
     <div className="space-y-8">
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
         <Card>
           <SectionTitle eyebrow="Judgement" title="How often it agrees with Genesys" />
           {m ? (
@@ -88,7 +88,7 @@ export default async function TrainingOverview() {
         </Card>
       </div>
 
-      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
         {levers.map((l) => (
           <Link key={l.href} href={l.href}>
             <Card className="h-full transition-shadow hover:shadow-[var(--shadow-lift)]">

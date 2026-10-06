@@ -47,7 +47,7 @@ export function AnalysisProgress({
       setSteps(asSteps(data.steps));
       // The Sharminator renamed the deal after identifying the company: refresh the header.
       if (data.deal?.companyName && data.deal.companyName !== companyName) router.refresh();
-      if (data.status === "COMPLETE" || data.status === "FAILED" || data.status === "STOPPED") {
+      if (data.status === "COMPLETE" || data.status === "FAILED" || data.status === "STOPPED" || data.status === "PAUSED") {
         clearInterval(poll);
         router.refresh();
       }
@@ -56,7 +56,9 @@ export function AnalysisProgress({
   }, [analysisId, startedAt, router, companyName]);
 
   useEffect(() => {
-    logEnd.current?.scrollIntoView({ block: "nearest" });
+    // Keep the newest line in view without scrolling the whole page.
+    const box = logEnd.current;
+    if (box) box.scrollTop = box.scrollHeight;
   }, [steps.length]);
 
   const stageIdx = Math.max(0, STAGES.findIndex((s) => s.match.test(progress ?? "")));
@@ -64,14 +66,14 @@ export function AnalysisProgress({
   return (
     <div className="overflow-hidden rounded-lg border border-line bg-paper">
       <div className="shimmer h-1" />
-      <div className="flex flex-wrap items-center gap-8 px-6 py-5">
+      <div className="flex flex-wrap items-center gap-x-8 gap-y-4 px-4 py-5 sm:px-6">
         <div>
           <div className="eyebrow !text-brand-600">The Sharminator · version {version}</div>
           <div className="mt-1 font-display font-semibold text-[20px] text-ink">{progress ?? "Queued"}…</div>
         </div>
-        <ol className="flex flex-1 items-center gap-3 text-[12px]">
+        <ol className="flex flex-1 flex-wrap items-center gap-x-3 gap-y-2 text-[12px]">
           {STAGES.map((s, i) => (
-            <li key={s.label} className="flex items-center gap-2">
+            <li key={s.label} className="flex items-center gap-2 whitespace-nowrap">
               <span className={`h-2 w-2 rounded-full ${i < stageIdx ? "bg-pos" : i === stageIdx ? "pulse-dot bg-brand-500" : "bg-line-strong"}`} />
               <span className={i <= stageIdx ? "text-ink" : "text-muted"}>{s.label}</span>
               {i < STAGES.length - 1 && <span className="mx-1 h-px w-6 bg-line-strong" />}
@@ -93,18 +95,17 @@ export function AnalysisProgress({
         {stopError && <p className="w-full text-right text-[12px] text-neg">{stopError}</p>}
       </div>
       <div className="border-t border-line">
-        <button onClick={() => setShowLog((v) => !v)} className="flex w-full items-center justify-between px-6 py-3 text-left text-[13px] font-medium text-navy-800 hover:bg-mist/50">
+        <button onClick={() => setShowLog((v) => !v)} className="flex w-full items-center justify-between gap-3 px-4 py-3 sm:px-6 text-left text-[13px] font-medium text-navy-800 hover:bg-mist/50">
           <span>What the Sharminator is doing{steps.length ? ` · ${steps.length} steps so far` : ""}</span>
           <span className="text-muted">{showLog ? "Hide" : "Show"}</span>
         </button>
         {showLog && (
-          <div className="max-h-[360px] overflow-y-auto bg-[#f7fafb] px-6 py-4">
+          <div ref={logEnd} className="max-h-[360px] overflow-y-auto bg-[#f7fafb] px-4 py-4 sm:px-6">
             <StepLog steps={steps} live empty={progress ? "Working. Step-by-step updates appear here as each stage finishes." : undefined} />
-            <div ref={logEnd} />
           </div>
         )}
       </div>
-      <div className="border-t border-line bg-mist/70 px-6 py-3 text-[12.5px] text-ink-soft">
+      <div className="border-t border-line bg-mist/70 px-4 py-3 text-[12.5px] text-ink-soft sm:px-6">
         This runs on the server. You can leave this page, reload it or close the browser; the analysis keeps going and the memo will be here when it finishes.
       </div>
     </div>

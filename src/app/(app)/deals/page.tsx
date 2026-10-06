@@ -72,7 +72,7 @@ export default async function DealsPage({ searchParams }: PageProps<"/deals">) {
             </Link>
           ))}
         </div>
-        <form className="w-72">
+        <form className="w-full sm:w-72">
           <input type="hidden" name="status" value={status} />
           <input name="q" defaultValue={q} placeholder="Search company, sector, modality…" className={inputCls} />
         </form>
@@ -81,7 +81,29 @@ export default async function DealsPage({ searchParams }: PageProps<"/deals">) {
       {deals.length === 0 ? (
         <Empty title="No deals match">Try another stage or search term.</Empty>
       ) : (
-        <Card pad={false} className="overflow-x-auto">
+        <>
+        {/* Phones: one card per deal. */}
+        <Card pad={false} className="md:hidden">
+          <ul className="divide-y divide-line">
+            {deals.map((d) => (
+              <li key={d.id}>
+                <Link href={`/deals/${d.id}`} className="flex items-start gap-4 px-4 py-4 hover:bg-mist/70">
+                  <ScoreRing score={d.latestScore} size={44} />
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium text-navy-900">{d.companyName}</div>
+                    <div className="mt-0.5 line-clamp-2 text-[12.5px] text-muted">{d.oneLiner ?? ([d.sector, d.modality].filter(Boolean).join(" · ") || "Awaiting analysis")}</div>
+                    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                      <StatusBadge status={d.status} />
+                      <span className="text-[12px] text-muted">{fmtDate(d.updatedAt)}</span>
+                    </div>
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Card>
+        <Card pad={false} className="hidden overflow-x-auto md:block">
+          <div>
           <table className="w-full min-w-[900px] text-left text-[13.5px]">
             <thead>
               <tr className="border-b border-line text-[11px] uppercase tracking-[0.12em] text-muted">
@@ -122,7 +144,9 @@ export default async function DealsPage({ searchParams }: PageProps<"/deals">) {
               ))}
             </tbody>
           </table>
+          </div>
         </Card>
+        </>
       )}
     </>
   );

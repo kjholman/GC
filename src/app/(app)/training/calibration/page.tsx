@@ -30,7 +30,7 @@ export default async function CalibrationPage() {
 
   return (
     <div className="space-y-8">
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_380px]">
         <Card>
           <SectionTitle eyebrow="Partner reviews" title="Where the Sharminator differs from the partners" />
           {total === 0 ? (
@@ -48,6 +48,7 @@ export default async function CalibrationPage() {
                   </div>
                 ))}
               </div>
+              <div className="overflow-x-auto">
               <table className="mt-8 w-full text-left text-[13px]">
                 <thead>
                   <tr className="border-b border-line text-[11px] uppercase tracking-[0.12em] text-muted">
@@ -64,6 +65,7 @@ export default async function CalibrationPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </>
           )}
         </Card>
@@ -96,7 +98,7 @@ export default async function CalibrationPage() {
         ) : (
           <ul className="divide-y divide-line border-t border-line">
             {feedback.map((f) => (
-              <li key={f.id} className="grid gap-2 px-6 py-4 md:grid-cols-[220px_160px_1fr_110px]">
+              <li key={f.id} className="grid grid-cols-1 gap-2 px-6 py-4 md:grid-cols-[220px_160px_1fr_110px]">
                 <Link href={`/deals/${f.analysis.deal.id}?v=${f.analysis.version}`} className="text-[13.5px] font-medium text-navy-900 hover:underline">
                   {f.analysis.deal.companyName} <span className="text-[11.5px] font-normal text-muted">v{f.analysis.version}</span>
                 </Link>
