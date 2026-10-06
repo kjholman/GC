@@ -13,7 +13,7 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["exceljs"],
   experimental: {
     // Deal rooms can be large: many files per upload, up to 500 MB each.
-    serverActions: { bodySizeLimit: "2gb" },
+    serverActions: { bodySizeLimit: "10gb" },
     proxyClientMaxBodySize: "2gb",
   },
   async redirects() {

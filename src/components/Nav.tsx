@@ -15,10 +15,13 @@ const ICONS: Record<string, React.ReactNode> = {
 
 export function Nav({ items, onNavigate }: { items: { href: string; label: string; icon: string }[]; onNavigate?: () => void }) {
   const pathname = usePathname();
+  // Only the most specific match is highlighted, so /deals/new lights up "New screening", not "Deal pipeline" too.
+  const matches = (href: string) => (href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`));
+  const activeHref = items.map((i) => i.href).filter(matches).sort((a, b) => b.length - a.length)[0];
   return (
     <nav className="space-y-0.5">
       {items.map((item) => {
-        const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+        const active = item.href === activeHref;
         return (
           <Link
             key={item.href}

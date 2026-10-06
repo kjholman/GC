@@ -502,3 +502,41 @@ model AiUsage {
   @@index([createdAt])
   @@index([analysisId])
 }
+
+/// Any file attached in the knowledge base or Training Studio: firm documents,
+/// files on a portfolio company, or extra files on a past deal. Stored in
+/// chunks so there is no per-file size cap.
+model KnowledgeFile {
+  id                 String    @id @default(cuid())
+  createdAt          DateTime  @default(now())
+  /// FIRM, PORTFOLIO or PAST_DEAL
+  scope              String
+  portfolioCompanyId String?
+  historicalDealId   String?
+  filename           String
+  mimeType           String
+  sizeBytes          BigInt
+  /// READING, READY, STORED (kept for reference, nothing to read) or FAILED
+  status             String    @default("READING")
+  extractedText      String?
+  /// The Sharminator's short summary, used in analyses.
+  summary            String?
+  uploadedById       String?
+
+  chunks KnowledgeFileChunk[]
+
+  @@index([scope])
+  @@index([portfolioCompanyId])
+  @@index([historicalDealId])
+}
+
+model KnowledgeFileChunk {
+  id     String @id @default(cuid())
+  fileId String
+  index  Int
+  data   Bytes
+
+  file KnowledgeFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@unique([fileId, index])
+}

@@ -3,6 +3,8 @@ import { hasRole, requireUser } from "@/lib/auth/session";
 import { Card, Empty, cx } from "@/components/ui";
 import { AddHistoricalForm, ArchiveRowActions, ImportCsvForm } from "./ArchiveForms";
 import { Pagination, pageParam } from "@/components/Pagination";
+import { KnowledgeFiles, type KFile } from "@/components/KnowledgeFiles";
+import { formatBytes } from "@/lib/knowledge/files";
 
 
 const DECISION: Record<string, { label: string; cls: string }> = {
@@ -23,6 +25,18 @@ export default async function ArchivePage({ searchParams }: PageProps<"/training
       sector: true, modality: true, indication: true, tags: true, digest: true, deckFilename: true, ingestStatus: true, ingestError: true,
     },
   });
+  const pageDeals = deals.slice((page - 1) * PAGE, page * PAGE);
+  const kfiles = await db.knowledgeFile.findMany({
+    where: { historicalDealId: { in: pageDeals.map((d) => d.id) } },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, historicalDealId: true, filename: true, sizeBytes: true, status: true, summary: true },
+  });
+  const filesByDeal = new Map<string, KFile[]>();
+  for (const f of kfiles) {
+    const list = filesByDeal.get(f.historicalDealId!) ?? [];
+    list.push({ id: f.id, filename: f.filename, size: formatBytes(f.sizeBytes), status: f.status, summary: f.summary });
+    filesByDeal.set(f.historicalDealId!, list);
+  }
   return (
     <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_380px]">
       <div>
@@ -64,6 +78,11 @@ export default async function ArchivePage({ searchParams }: PageProps<"/training
                             {d.tags.map((t) => <span key={t} className="rounded-full bg-navy-50 px-2 py-0.5 text-[11px] text-navy-700">{t}</span>)}
                           </div>
                         )}
+                      </div>
+                      <div className="md:col-span-2">
+                        <div className="eyebrow mb-2">Files ({(filesByDeal.get(d.id) ?? []).length + (d.deckFilename ? 1 : 0)})</div>
+                        {d.deckFilename && <p className="mb-2 text-[12.5px] text-ink-soft">Original deck: {d.deckFilename}</p>}
+                        <KnowledgeFiles scope="PAST_DEAL" targetId={d.id} files={filesByDeal.get(d.id) ?? []} canEdit={canEdit} compact hint="Memos, data, notes, anything about this deal. Any number, any format, any size." />
                       </div>
                       {canEdit && <div className="md:col-span-2"><ArchiveRowActions id={d.id} name={d.companyName} failed={d.ingestStatus === "FAILED"} /></div>}
                     </div>

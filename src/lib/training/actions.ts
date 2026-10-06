@@ -10,7 +10,8 @@ import type { HistoricalDecision, PortfolioOutcome, Prisma } from "@prisma/clien
 import { db } from "../db";
 import { audit } from "../audit";
 import { requireRole } from "../auth/session";
-import { MAX_FILE_BYTES, extractText, resolveMimeType } from "../ai/extract";
+import { MAX_FILE_BYTES, extractText, familyOf, resolveMimeType } from "../ai/extract";
+import { processKnowledgeFile, storeKnowledgeFile } from "../knowledge/files";
 import { MemoSchema, SCORE_DIMENSIONS, normaliseMemo, type Memo } from "../ai/schema";
 import { FIRM_SETTINGS, getFirmSettings } from "./settings";
 import { expectedFor, generatePrincipleSuggestions, ingestHistoricalDeal, runBacktest, trainingSnapshot } from "./engine";
@@ -25,18 +26,38 @@ function str(fd: FormData, k: string) {
   return typeof v === "string" && v.trim() ? v.trim() : null;
 }
 
+/** A file the model can read as the deal's original deck (used in accuracy tests). */
+function isDeckCandidate(f: File) {
+  const mime = resolveMimeType(f.name, f.type);
+  return !!mime && f.size <= MAX_FILE_BYTES && ["pdf", "pptx", "docx", "image"].includes(familyOf(mime) ?? "");
+}
+
 async function prepareDeck(file: File | null) {
   if (!file || file.size === 0) return {};
-  if (file.size > MAX_FILE_BYTES) throw new Error(`${file.name} is larger than 500 MB, the model provider's per-file maximum.`);
-  const mime = resolveMimeType(file.name, file.type);
-  if (!mime) throw new Error(`${file.name}: unsupported file type.`);
+  const mime = resolveMimeType(file.name, file.type)!;
   const buf = Buffer.from(await file.arrayBuffer());
   return { deckFilename: file.name, deckMimeType: mime, deckData: buf, deckExtractedText: await extractText(buf, mime) };
 }
 
-function scheduleIngest(ids: string[]) {
+/**
+ * Splits a past deal's uploads: the first file the model can read natively becomes
+ * the original deck; everything else (any type, any size) is kept as an extra file.
+ */
+function splitUploads(files: File[]) {
+  const deck = files.find(isDeckCandidate) ?? null;
+  return { deck, extras: files.filter((f) => f !== deck) };
+}
+
+async function storeExtras(dealId: string, extras: File[], userId: string) {
+  const ids: string[] = [];
+  for (const f of extras) ids.push((await storeKnowledgeFile(f, { scope: "PAST_DEAL", historicalDealId: dealId, uploadedById: userId })).id);
+  return ids;
+}
+
+function scheduleIngest(ids: string[], fileIds: string[] = []) {
   after(async () => {
     await withMeter({ purpose: "reading past deals" }, async () => {
+      for (const id of fileIds) await processKnowledgeFile(id);
       for (const id of ids) await ingestHistoricalDeal(id);
     });
   });
@@ -55,7 +76,9 @@ export async function addHistoricalDealAction(_: TrainState, fd: FormData): Prom
   const outcome = (str(fd, "outcome") ?? "UNKNOWN") as PortfolioOutcome;
   const year = Number(str(fd, "decisionYear"));
   try {
-    const deck = await prepareDeck(fd.get("deck") as File | null);
+    const uploads = [...fd.getAll("files"), ...fd.getAll("deck")].filter((f): f is File => f instanceof File && f.size > 0);
+    const { deck: deckFile, extras } = splitUploads(uploads);
+    const deck = await prepareDeck(deckFile);
     const h = await db.historicalDeal.create({
       data: {
         companyName,
@@ -73,8 +96,9 @@ export async function addHistoricalDealAction(_: TrainState, fd: FormData): Prom
         ...deck,
       },
     });
-    await audit("training.archive_added", { userId: user.id, entity: "HistoricalDeal", entityId: h.id });
-    scheduleIngest([h.id]);
+    const fileIds = await storeExtras(h.id, extras, user.id);
+    await audit("training.archive_added", { userId: user.id, entity: "HistoricalDeal", entityId: h.id, meta: { name: companyName } });
+    scheduleIngest([h.id], fileIds);
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }
@@ -133,6 +157,7 @@ export async function importArchiveCsvAction(_: TrainState, fd: FormData): Promi
   }
 
   const created: string[] = [];
+  const createdFiles: string[] = [];
   const problems: string[] = [];
   for (const [n, r] of rows.slice(1).entries()) {
     const company = col(r, "company");
@@ -143,15 +168,17 @@ export async function importArchiveCsvAction(_: TrainState, fd: FormData): Promi
     }
     const outcomeRaw = (col(r, "outcome") ?? "UNKNOWN").toUpperCase().replace(/\s+/g, "_");
     const year = Number(col(r, "year"));
-    const deckName = col(r, "deck_filename")?.toLowerCase();
-    let deck = {};
-    if (deckName) {
-      const f = decks.get(deckName);
-      if (!f) problems.push(`row ${n + 2}: deck "${deckName}" not attached`);
-      else {
-        try { deck = await prepareDeck(f); } catch (e) { problems.push(`row ${n + 2}: ${(e as Error).message}`); }
-      }
+    // deck_filename may list several files separated by ";" (deck, model, memo…).
+    const names = (col(r, "deck_filename") ?? "").split(/[;|]/).map((x) => x.trim().toLowerCase()).filter(Boolean);
+    const rowFiles: File[] = [];
+    for (const name of names) {
+      const f = decks.get(name);
+      if (f) rowFiles.push(f);
+      else problems.push(`row ${n + 2}: "${name}" not attached`);
     }
+    const { deck: deckFile, extras } = splitUploads(rowFiles);
+    let deck = {};
+    try { deck = await prepareDeck(deckFile); } catch (e) { problems.push(`row ${n + 2}: ${(e as Error).message}`); }
     const h = await db.historicalDeal.create({
       data: {
         companyName: company,
@@ -169,9 +196,10 @@ export async function importArchiveCsvAction(_: TrainState, fd: FormData): Promi
       },
     });
     created.push(h.id);
+    createdFiles.push(...(await storeExtras(h.id, extras, user.id)));
   }
   await audit("training.archive_imported", { userId: user.id, meta: { rows: created.length } });
-  scheduleIngest(created);
+  scheduleIngest(created, createdFiles);
   revalidatePath("/training/archive");
   return {
     ok: true,

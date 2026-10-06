@@ -18,6 +18,12 @@ async function historicalFiles(h: HistoricalDeal, opts: { includeMemo: boolean }
       ? [{ filename: h.deckFilename, mimeType: h.deckMimeType, sizeBytes: h.deckData.length, data: h.deckData, extractedText: h.deckExtractedText, context: "Original materials submitted to Genesys." }]
       : [],
   );
+  // Extra files attached to this past deal in the Training Studio.
+  const extra = await db.knowledgeFile.findMany({ where: { historicalDealId: h.id, status: "READY" }, select: { filename: true, extractedText: true, summary: true } });
+  for (const f of extra) {
+    const text = f.extractedText ?? f.summary;
+    if (text) prepared.blocks.push({ type: "document", source: { type: "text", media_type: "text/plain", data: text.slice(0, 200_000) }, title: f.filename, context: "Additional file on this past deal, added by the Genesys team." });
+  }
   if (opts.includeMemo && h.icMemoText) {
     prepared.blocks.push({ type: "document", source: { type: "text", media_type: "text/plain", data: h.icMemoText }, title: "Genesys internal memo", context: "Written by the Genesys team at the time." });
   }

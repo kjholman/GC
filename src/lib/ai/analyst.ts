@@ -228,7 +228,7 @@ export async function competitorSweep(companyName: string, docs: ContentBlock[])
 
 /** system[1]: firm parameters, principles, calibration, portfolio and recent decisions. */
 export async function buildFirmContext(opts: { excludeDealId?: string } = {}) {
-  const [settings, principles, feedback, portfolio, pipeline] = await Promise.all([
+  const [settings, principles, feedback, portfolio, pipeline, files] = await Promise.all([
     getFirmSettings(),
     db.investmentPrinciple.findMany({ where: { active: true }, orderBy: { createdAt: "asc" } }),
     db.analysisFeedback.findMany({
@@ -246,7 +246,19 @@ export async function buildFirmContext(opts: { excludeDealId?: string } = {}) {
       take: 40,
       select: { companyName: true, sector: true, status: true, latestScore: true },
     }),
+    db.knowledgeFile.findMany({
+      where: { scope: { in: ["FIRM", "PORTFOLIO"] }, status: "READY", summary: { not: null } },
+      orderBy: { createdAt: "desc" },
+      take: 80,
+      select: { scope: true, portfolioCompanyId: true, filename: true, summary: true },
+    }),
   ]);
+  const firmDocs = files.filter((f) => f.scope === "FIRM").slice(0, 30).map((f) => ({ filename: f.filename, summary: f.summary! }));
+  const portfolioFiles: Record<string, { filename: string; summary: string }[]> = {};
+  for (const f of files.filter((x) => x.scope === "PORTFOLIO" && x.portfolioCompanyId)) {
+    const list = (portfolioFiles[f.portfolioCompanyId!] ??= []);
+    if (list.length < 3) list.push({ filename: f.filename, summary: f.summary! });
+  }
   const calibration: CalibrationExample[] = feedback.map((f) => ({
     companyName: f.analysis.deal.companyName,
     aiRecommendation: f.analysis.recommendation,
@@ -259,7 +271,7 @@ export async function buildFirmContext(opts: { excludeDealId?: string } = {}) {
     lesson: f.lesson,
     appliesTo: f.appliesTo,
   }));
-  return firmContextBlock({ settings, principles, calibration, portfolio, pipeline });
+  return firmContextBlock({ settings, principles, calibration, portfolio, pipeline, firmDocs, portfolioFiles });
 }
 
 export function systemBlocks(firmContext: string): Anthropic.Beta.BetaTextBlockParam[] {

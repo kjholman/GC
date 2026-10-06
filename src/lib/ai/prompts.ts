@@ -371,6 +371,10 @@ export type FirmContext = {
   calibration: CalibrationExample[];
   portfolio: PortfolioCompany[];
   pipeline: { companyName: string; sector: string | null; status: string; latestScore: number | null }[];
+  /** Summaries of documents the partners uploaded to the knowledge base. */
+  firmDocs?: { filename: string; summary: string }[];
+  /** Summaries of files attached to each portfolio company, keyed by company id. */
+  portfolioFiles?: Record<string, { filename: string; summary: string }[]>;
 };
 
 /** system[1]: everything the partners teach the analyst. */
@@ -397,7 +401,8 @@ export function firmContextBlock(ctx: FirmContext): string {
         p.stageAtEntry ? `entry: ${p.stageAtEntry}` : null,
         `outcome: ${p.outcome}${p.outcomeNotes ? ` (${p.outcomeNotes})` : ""}`,
       ].filter(Boolean);
-      return `- **${p.name}** (${[p.sector, p.modality, p.indication].filter(Boolean).join("; ")}); ${facts.join("; ")}\n  ${p.description}${p.lessons ? `\n  Partner lesson: ${p.lessons}` : ""}`;
+      const files = (ctx.portfolioFiles?.[p.id] ?? []).map((f) => `\n  From "${f.filename}": ${f.summary}`).join("");
+      return `- **${p.name}** (${[p.sector, p.modality, p.indication].filter(Boolean).join("; ")}); ${facts.join("; ")}\n  ${p.description}${p.lessons ? `\n  Partner lesson: ${p.lessons}` : ""}${files}`;
     })
     .join("\n");
 
@@ -418,7 +423,7 @@ ${principles}
 These are the partners' corrections to your earlier judgements, each with the lesson drawn from it. Apply every lesson whose scope covers this deal. Learn the pattern, not only the individual cases. If the partners repeatedly find you too optimistic or too pessimistic on a type of deal, adjust for it. Partner judgement outranks your priors.
 ${calibration}
 
-## Genesys portfolio history
+${ctx.firmDocs?.length ? `## Firm documents (uploaded by the partners)\nSummaries of the firm's own documents. Treat them as authoritative on Genesys's strategy, mandate and history.\n${ctx.firmDocs.map((d) => `- **${d.filename}:** ${d.summary}`).join("\n")}\n\n` : ""}## Genesys portfolio history
 Benchmark each new deal against these companies. In portfolioFit.comparableGenesysInvestments, cite only companies from this list.
 ${portfolio || "(none recorded)"}
 

@@ -59,6 +59,12 @@ export function describeEvent(
     case "portfolio.created": return t(`${actor} added ${subject ?? "a company"} to the knowledge base`);
     case "portfolio.updated": return t(`${actor} updated ${subject ?? "a company"} in the knowledge base`);
     case "portfolio.deleted": return t(`${actor} removed ${subject ?? "a company"} from the knowledge base`, true);
+    case "knowledge.files_added": {
+      const n = Array.isArray(meta.changes) ? meta.changes.length : 1;
+      return t(`${actor} added ${n} file${n === 1 ? "" : "s"} to ${subject ?? "the knowledge base"}`);
+    }
+    case "knowledge.file_removed": return t(`${actor} removed the file ${subject ?? ""}`.trim(), true);
+    case "knowledge.file_downloaded": return t(`${actor} downloaded ${subject ?? "a knowledge base file"}`);
     case "principle.created": return t(`${actor} added the principle “${subject ?? "untitled"}”`);
     case "principle.updated": return t(`${actor} edited the principle “${subject ?? "untitled"}”`);
     case "principle.toggled": return t(`${actor} ${meta.active ? "turned on" : "turned off"} the principle “${subject ?? "untitled"}”`, !meta.active);
