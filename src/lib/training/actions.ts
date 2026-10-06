@@ -258,7 +258,7 @@ export async function saveExemplarAction(sourceAnalysisId: string, _: TrainState
       },
     });
     after(async () => {
-      await withMeter({ purpose: "feedback lessons" }, () => interpretFeedback(fb.id));
+      await withMeter({ purpose: "feedback lessons", analysisId: sourceAnalysisId }, () => interpretFeedback(fb.id));
     });
   }
   await audit("training.exemplar_saved", { userId: user.id, entity: "Exemplar", entityId: ex.id });

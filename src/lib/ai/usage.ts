@@ -62,3 +62,26 @@ export function recordUsage(model: string, usage: Anthropic.Beta.BetaUsage, step
     })
     .catch((err) => console.error("[usage] could not record", err));
 }
+
+/** AI spend per deal in US$, every step of every version included (live while an analysis runs). */
+export async function spendByDeal(dealIds: string[]): Promise<Map<string, number>> {
+  if (!dealIds.length) return new Map();
+  const rows = await db.$queryRaw<{ dealId: string; usd: number }[]>`
+    SELECT a."dealId" AS "dealId", COALESCE(SUM(u."usd"), 0)::float AS "usd"
+    FROM "AiUsage" u JOIN "Analysis" a ON a."id" = u."analysisId"
+    WHERE a."dealId" = ANY(${dealIds})
+    GROUP BY a."dealId"`;
+  return new Map(rows.map((r) => [r.dealId, Number(r.usd)]));
+}
+
+/** AI spend so far for one analysis in US$. */
+export async function spendForAnalysis(analysisId: string): Promise<number> {
+  const r = await db.aiUsage.aggregate({ where: { analysisId }, _sum: { usd: true } });
+  return r._sum.usd ?? 0;
+}
+
+/** "US$4.37", or "<US$0.01" for tiny amounts. */
+export function formatUsd(usd: number): string {
+  if (usd > 0 && usd < 0.01) return "<US$0.01";
+  return `US$${usd.toFixed(2)}`;
+}

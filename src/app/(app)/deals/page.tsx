@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { DealStatus, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+import { formatUsd, spendByDeal } from "@/lib/ai/usage";
 import { Pagination, pageParam } from "@/components/Pagination";
 import { PipelineFilters } from "./PipelineFilters";
 import { DealLogo } from "@/components/DealLogo";
@@ -78,6 +79,7 @@ export default async function DealsPage({ searchParams }: PageProps<"/deals">) {
     db.deal.findMany({ where: { sector: { not: null } }, distinct: ["sector"], select: { sector: true }, orderBy: { sector: "asc" } }),
     db.deal.findMany({ where: { stage: { not: null } }, distinct: ["stage"], select: { stage: true }, orderBy: { stage: "asc" } }),
   ]);
+  const spend = await spendByDeal(deals.map((d) => d.id));
   // Keep every filter when switching status tab or page.
   const qs = (over: Record<string, string | number | null>) => {
     const p = new URLSearchParams();
@@ -157,6 +159,7 @@ export default async function DealsPage({ searchParams }: PageProps<"/deals">) {
                       {badgeFor(d)}
                       {d.latestScore != null && <span className="text-[12px] tabular text-ink">Score {d.latestScore}</span>}
                       <span className="text-[12px] text-muted">{d.analysisCount} analys{d.analysisCount === 1 ? "is" : "es"}</span>
+                      {spend.has(d.id) && <span className="text-[12px] tabular text-muted">{formatUsd(spend.get(d.id)!)}</span>}
                       <span className="text-[12px] text-muted">{fmtDate(d.updatedAt)}</span>
                     </div>
                   </div>
@@ -176,6 +179,7 @@ export default async function DealsPage({ searchParams }: PageProps<"/deals">) {
                 <th className="px-4 py-3 font-semibold">Sharminator call</th>
                 <th className="px-4 py-3 text-center font-semibold">Score</th>
                 <th className="px-4 py-3 text-center font-semibold">Analyses</th>
+                <th className="px-4 py-3 text-right font-semibold">AI cost</th>
                 <th className="px-4 py-3 font-semibold">Status</th>
                 <th className="py-3 pr-6 pl-4 text-right font-semibold">Updated</th>
               </tr>
@@ -206,6 +210,7 @@ export default async function DealsPage({ searchParams }: PageProps<"/deals">) {
                     <ScoreRing score={d.latestScore} size={40} />
                   </td>
                   <td className="px-4 py-4 text-center tabular text-ink">{d.analysisCount}</td>
+                  <td className="px-4 py-4 text-right text-[12.5px] tabular text-muted">{spend.has(d.id) ? formatUsd(spend.get(d.id)!) : "—"}</td>
                   <td className="px-4 py-4">
                     {badgeFor(d)}
                   </td>

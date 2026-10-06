@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { spendForAnalysis } from "@/lib/ai/usage";
 import { getCurrentUserPassive as getCurrentUser } from "@/lib/auth/session";
 
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -10,5 +11,5 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     select: { status: true, progress: true, error: true, startedAt: true, steps: true, deal: { select: { companyName: true, slug: true } } },
   });
   if (!a) return Response.json({ error: "Not found" }, { status: 404 });
-  return Response.json(a, { headers: { "Cache-Control": "no-store" } });
+  return Response.json({ ...a, costUsd: await spendForAnalysis(id) }, { headers: { "Cache-Control": "no-store" } });
 }

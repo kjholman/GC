@@ -10,6 +10,7 @@ import { DealLogo } from "@/components/DealLogo";
 import { AnalystAvatar } from "@/components/Analyst";
 import { MemeScene } from "@/components/MemeScene";
 import { refreshSlug } from "@/lib/deals/slug";
+import { formatUsd, spendByDeal } from "@/lib/ai/usage";
 import { GapsView, SourcesList, VersionHistory, collectWebSources, type VersionRow } from "./History";
 import { LogoEditor } from "./LogoEditor";
 import { fetchCompanyLogo } from "@/lib/deals/logo";
@@ -79,6 +80,8 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
   const isLatestShown = shown && shown.id === completed[0]?.id;
 
   const rounds = [...new Set(deal.documents.map((d) => d.round))];
+  const dealSpend = (await spendByDeal([deal.id])).get(deal.id) ?? 0;
+  const runs = deal.analyses.filter((a) => a.status !== "QUEUED").length;
   const people = await db.user.findMany({ where: { id: { in: deal.analyses.map((a) => a.createdById).filter((x): x is string => !!x) } }, select: { id: true, name: true, email: true } });
   const asc = [...deal.analyses].reverse();
   const versionRows: VersionRow[] = deal.analyses.map((a) => {
@@ -133,6 +136,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
           {deal.oneLiner && <p className="mt-3 max-w-3xl text-[16px] leading-relaxed text-ink-soft">{deal.oneLiner}</p>}
           <dl className="mt-5 flex flex-wrap gap-x-8 gap-y-2 text-[13px]">
             {[
+              ["AI cost so far", dealSpend > 0 ? `${formatUsd(dealSpend)} across ${runs} analys${runs === 1 ? "is" : "es"}` : null],
               ["Stage", deal.stage],
               ["Round", deal.roundSize],
               ["Location", deal.location],

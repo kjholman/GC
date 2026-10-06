@@ -21,6 +21,7 @@ export function AnalysisProgress({
   const [progress, setProgress] = useState(initialProgress);
   const [steps, setSteps] = useState(initialSteps);
   const [elapsed, setElapsed] = useState(0);
+  const [cost, setCost] = useState(0);
   const [showLog, setShowLog] = useState(true);
   const logEnd = useRef<HTMLDivElement>(null);
   const [stopping, setStopping] = useState(false);
@@ -54,6 +55,7 @@ export function AnalysisProgress({
       const data = await res.json();
       setProgress(data.progress);
       setSteps(asSteps(data.steps));
+      if (typeof data.costUsd === "number") setCost(data.costUsd);
       // Renamed after identifying the company: follow the deal to its new address.
       const here = window.location.pathname;
       const there = data.deal?.slug ? `/deals/${data.deal.slug}` : here;
@@ -102,6 +104,7 @@ export function AnalysisProgress({
         <div className="flex items-center gap-4">
           <div className="tabular text-[12px] text-muted">
             {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, "0")} elapsed
+            {cost > 0 && <span title="Anthropic credit used by this run so far"> · US${cost.toFixed(2)} so far</span>}
           </div>
           <button
             onClick={stop}

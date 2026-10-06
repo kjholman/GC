@@ -320,7 +320,7 @@ export async function submitFeedbackAction(analysisId: string, _: ActionState, f
   });
   // Turn the review into a lesson for future analyses, in the background.
   after(async () => {
-    await withMeter({ purpose: "feedback lessons" }, () => interpretFeedback(created.id));
+    await withMeter({ purpose: "feedback lessons", analysisId }, () => interpretFeedback(created.id));
   });
   await db.activity.create({
     data: {
