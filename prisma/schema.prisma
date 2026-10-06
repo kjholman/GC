@@ -112,6 +112,8 @@ model Deal {
   logoMime      String?
   logoCheckedAt DateTime?
   /// Factual summary of the submitted materials, given to the web-research passes instead of the full deck.
+  /// What the automatic logo lookup found or why it found nothing, shown on the deal.
+  logoNote        String?
   researchDossier String?
   /// Every piece of AI web research done for this deal, kept so later analyses reuse it:
   /// { passes: { science|founders|ip|market: { text, at } }, sweep: { notes, sweep, at } }.

@@ -390,6 +390,17 @@ export async function setLogoAction(dealId: string, formData: FormData): Promise
   return { ok: true };
 }
 
+/** "Find logo": runs the full logo lookup now instead of waiting for the hourly retry. */
+export async function findLogoNowAction(dealId: string): Promise<ActionState & { note?: string | null }> {
+  await requireUser();
+  const { findDealLogo } = await import("../ai/analyst");
+  const found = await findDealLogo(dealId, { force: true });
+  revalidatePath("/deals/[id]", "page");
+  if (found) return { ok: true };
+  const d = await db.deal.findUnique({ where: { id: dealId }, select: { logoNote: true } });
+  return { ok: false, error: "No logo found automatically.", note: d?.logoNote ?? null };
+}
+
 /**
  * Removes one uploaded file from a deal. Nothing from it is used again: the deal
  * starts fresh, so later analyses don't reuse earlier memos, research or the

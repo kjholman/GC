@@ -74,29 +74,85 @@ function candidates(html: string, base: URL): string[] {
   return [...new Set(out)];
 }
 
-/** Finds the company's logo from its website and stores it on the deal. Never throws. */
-export async function fetchCompanyLogo(dealId: string): Promise<boolean> {
+/**
+ * Finds the company's logo on its website and stores it on the deal. Never throws.
+ * Returns true when a logo was saved, otherwise a short plain-English reason.
+ */
+export async function logoFromWebsite(dealId: string, site?: string): Promise<true | string> {
   try {
     const deal = await db.deal.findUnique({ where: { id: dealId }, select: { website: true, logo: true } });
-    if (!deal?.website || deal.logo) return false;
-    const home = new URL(deal.website.startsWith("http") ? deal.website : `https://${deal.website}`);
+    const website = site ?? deal?.website;
+    if (!website) return "no website known";
+    if (deal?.logo) return true;
+    const home = new URL(website.startsWith("http") ? website : `https://${website}`);
     const page = await safeFetch(home.toString(), "text/html");
     const html = page ? (await page.text()).slice(0, 500_000) : "";
+    let tried = 0;
     for (const url of candidates(html, page ? new URL(page.url || home.toString()) : home)) {
+      tried++;
       const res = await safeFetch(url, "image/*");
       const mime = res?.headers.get("content-type")?.split(";")[0].trim().toLowerCase() ?? "";
       if (!res || !/^image\/(png|jpe?g|gif|webp|svg\+xml|x-icon|vnd\.microsoft\.icon)$/.test(mime)) continue;
       const buf = Buffer.from(await res.arrayBuffer());
       // Skip empty files and the 16px "no icon" placeholders the logo services return.
       if (buf.length < 200 || buf.length > MAX_BYTES) continue;
-      await db.deal.update({ where: { id: dealId }, data: { logo: buf, logoMime: mime, logoCheckedAt: new Date() } });
+      await db.deal.update({ where: { id: dealId }, data: { logo: buf, logoMime: mime, logoCheckedAt: new Date(), logoNote: `Found on ${home.hostname}`, ...(site ? { website: `https://${home.hostname}` } : {}) } });
       return true;
     }
+    return page ? `${home.hostname} has no usable logo or icon (${tried} places checked)` : `${home.hostname} could not be reached or blocked automated requests`;
   } catch (err) {
     console.error("[logo] could not fetch", dealId, err);
+    return "the website lookup failed";
   }
-  await db.deal.update({ where: { id: dealId }, data: { logoCheckedAt: new Date() } }).catch(() => {});
-  return false;
+}
+
+/** Kept for existing callers: true when a logo was saved. */
+export async function fetchCompanyLogo(dealId: string): Promise<boolean> {
+  return (await logoFromWebsite(dealId)) === true;
+}
+
+/**
+ * The logo as an image on the deck's title slide (page 1, then 2): prefers images
+ * with transparency (logos usually have it) or wide wordmarks, and skips full-slide
+ * backgrounds and photos.
+ */
+export async function logoFromDeckPdf(pdf: Buffer): Promise<{ buf: Buffer; mime: string } | null> {
+  try {
+    const { getDocumentProxy, extractImages } = await import("unpdf");
+    const sharp = (await import("sharp")).default;
+    const doc = await getDocumentProxy(new Uint8Array(pdf));
+    for (const pageNo of [1, 2].filter((n) => n <= doc.numPages)) {
+      const page = await doc.getPage(pageNo);
+      const vp = page.getViewport({ scale: 1 });
+      const pageAspect = vp.width / vp.height;
+      const imgs = await extractImages(doc, pageNo).catch(() => []);
+      const scored = imgs
+        .filter((im) => im.width >= 40 && im.height >= 20)
+        .map((im) => {
+          const aspect = im.width / im.height;
+          const background = Math.abs(aspect - pageAspect) / pageAspect < 0.12 && im.width >= 700;
+          let alpha = false;
+          if (im.channels === 4) {
+            for (let k = 3; k < im.data.length; k += 4 * 37) if (im.data[k] < 200) { alpha = true; break; }
+          }
+          const score = (alpha ? 3 : 0) + (aspect >= 1.6 && aspect <= 8 ? 2 : aspect >= 0.6 && aspect < 1.6 ? 1 : -2) + (im.width * im.height < 600_000 ? 1 : -1);
+          return { im, score, background };
+        })
+        .filter((c) => !c.background && c.score >= 3)
+        .sort((a, b) => b.score - a.score);
+      const best = scored[0]?.im;
+      if (!best) continue;
+      const png = await sharp(Buffer.from(best.data), { raw: { width: best.width, height: best.height, channels: best.channels } })
+        .trim()
+        .resize({ width: 512, height: 512, fit: "inside", withoutEnlargement: true })
+        .png()
+        .toBuffer();
+      if (png.length >= 200 && png.length <= MAX_BYTES) return { buf: png, mime: "image/png" };
+    }
+  } catch (err) {
+    console.error("[logo] could not read the deck's images", err);
+  }
+  return null;
 }
 
 /** Normalises "https://www.Example.com/about" or "example.com" to "example.com". */

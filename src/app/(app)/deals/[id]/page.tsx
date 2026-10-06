@@ -145,7 +145,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
             </div>
             <h1 className="min-w-0 font-display font-semibold text-[32px] leading-[1.05] tracking-[-0.015em] text-navy-900 [overflow-wrap:anywhere] sm:text-[40px]">{deal.companyName}</h1>
           </div>
-          <div className="mt-1.5"><LogoEditor dealId={deal.id} hasLogo={!!deal.logoMime} /></div>
+          <div className="mt-1.5"><LogoEditor dealId={deal.id} hasLogo={!!deal.logoMime} note={deal.logoNote} /></div>
           {deal.oneLiner && <p className="mt-3 max-w-3xl text-[16px] leading-relaxed text-ink-soft">{deal.oneLiner}</p>}
           <dl className="mt-5 flex flex-wrap gap-x-8 gap-y-2 text-[13px]">
             {[

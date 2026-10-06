@@ -10,7 +10,7 @@ import { FALLBACK_BETA, anthropic, structuredCall, textOf, type ContentBlock } f
 import { plainPunctuation } from "./style";
 import { isCreditError, recordCreditOk, recordCreditProblem } from "./credit";
 import { meteredUsd, recordUsage, withMeter } from "./usage";
-import { cleanDomain, fetchCompanyLogo, websiteFromText } from "../deals/logo";
+import { cleanDomain, logoFromDeckPdf, logoFromWebsite, websiteFromText } from "../deals/logo";
 import { refreshSlug } from "../deals/slug";
 import { sendAnalysisProblem, sendAnalysisReady } from "../mailer";
 import { FEEDBACK_AREA_LABEL } from "../feedback/options";
@@ -196,25 +196,83 @@ export async function findCompanyWebsite(companyName: string, about: string | nu
   return null;
 }
 
-/** For deals opened without a logo: website from the deck or online, then the logo. At most once an hour. */
-export async function ensureDealLogo(dealId: string): Promise<void> {
-  const d = await db.deal.findUnique({ where: { id: dealId }, select: { website: true, logoMime: true, logoCheckedAt: true, companyName: true, oneLiner: true, autoNamed: true } });
-  if (!d || d.logoMime || d.autoNamed || d.companyName.startsWith("Untitled")) return;
-  // Retry hourly while no logo is found: a site that was down or a website added later should not wait a week.
-  if (d.logoCheckedAt && Date.now() - d.logoCheckedAt.getTime() < 3600 * 1000) return;
-  await db.deal.update({ where: { id: dealId }, data: { logoCheckedAt: new Date() } });
-  if (d.website && (await fetchCompanyLogo(dealId))) return;
-  const docs = await db.document.findMany({ where: { dealId }, select: { extractedText: true } });
-  const fromDeck = websiteFromText(docs.map((x) => x.extractedText ?? "").join("\n"), d.companyName);
-  if (fromDeck && cleanDomain(fromDeck) !== cleanDomain(d.website)) {
-    await db.deal.update({ where: { id: dealId }, data: { website: fromDeck } });
-    if (await fetchCompanyLogo(dealId)) return;
+/**
+ * Finds the company's logo, trying in order: the website already known, the website
+ * named in the materials (email addresses and links), the official site found by a
+ * web search, and finally the logo image on the deck's title slide. Records what it
+ * tried on the deal so the page can say why nothing was found. Never throws.
+ */
+export async function findDealLogo(dealId: string, opts: { force?: boolean; analysisId?: string } = {}): Promise<boolean> {
+  try {
+    const d = await db.deal.findUnique({
+      where: { id: dealId },
+      select: { website: true, logoMime: true, logoCheckedAt: true, companyName: true, oneLiner: true, autoNamed: true, researchDossier: true },
+    });
+    if (!d || d.logoMime) return !!d?.logoMime;
+    // Automatic retries at most hourly; the "Find logo" button and analyses always try.
+    if (!opts.force && d.logoCheckedAt && Date.now() - d.logoCheckedAt.getTime() < 3600 * 1000) return false;
+    await db.deal.update({ where: { id: dealId }, data: { logoCheckedAt: new Date() } });
+    const notes: string[] = [];
+    const log = (t: string) => (opts.analysisId ? logStep(opts.analysisId, t, "info") : Promise.resolve());
+    const tried = new Set<string>();
+    const tryWebsite = async (site: string, how: string) => {
+      const domain = cleanDomain(site);
+      if (!domain || tried.has(domain)) return false;
+      tried.add(domain);
+      // The website is only saved when it actually yields the logo.
+      const r = await logoFromWebsite(dealId, domain);
+      if (r === true) {
+        await log(`Found the company logo on ${domain} (${how})`);
+        return true;
+      }
+      notes.push(`${how}: ${r}`);
+      return false;
+    };
+    const placeholder = d.autoNamed || d.companyName.startsWith("Untitled");
+    const name = placeholder ? "" : d.companyName;
+
+    if (d.website && (await tryWebsite(d.website, "website on file"))) return true;
+
+    const docs = await db.document.findMany({ where: { dealId }, select: { extractedText: true, plainText: true, mimeType: true, data: true, round: true, kind: true }, orderBy: [{ round: "asc" }, { createdAt: "asc" }] });
+    const deckText = docs.map((x) => x.plainText ?? x.extractedText ?? "").join("\n");
+    const fromDeck = websiteFromText(deckText, name || d.companyName.replace(/^Untitled:\s*/, "").split(/[_\s-]/)[0]);
+    if (fromDeck) {
+      if (await tryWebsite(fromDeck, "website named in the materials")) return true;
+    } else notes.push("no website address found in the materials");
+
+    if (name) {
+      const site = await withMeter({ purpose: opts.analysisId ? "analysis" : "logo lookup", analysisId: opts.analysisId }, () =>
+        findCompanyWebsite(name, d.researchDossier?.slice(0, 400) ?? d.oneLiner),
+      );
+      if (site) {
+        if (await tryWebsite(site, "website found online")) return true;
+      } else notes.push("a web search found no confident match for the official site");
+    }
+
+    // Last resort: the logo image on the deck's title slide.
+    const deck = docs.find((x) => x.mimeType === "application/pdf" && x.kind === "PITCH_DECK") ?? docs.find((x) => x.mimeType === "application/pdf");
+    if (deck?.data) {
+      const img = await logoFromDeckPdf(Buffer.from(deck.data));
+      if (img) {
+        await db.deal.update({ where: { id: dealId }, data: { logo: new Uint8Array(img.buf), logoMime: img.mime, logoNote: "Taken from the title slide of the deck" } });
+        await log("Took the company logo from the deck's title slide");
+        return true;
+      }
+      notes.push("the deck's title slide has no separate logo image (it may be drawn as text or vector art)");
+    }
+    // Keep a website found in the materials even without a logo: it is useful in its own right.
+    if (!d.website && fromDeck) await db.deal.update({ where: { id: dealId }, data: { website: `https://${cleanDomain(fromDeck)}` } });
+    await db.deal.update({ where: { id: dealId }, data: { logoNote: notes.join("; ").slice(0, 800) || "nothing to try yet" } });
+    return false;
+  } catch (err) {
+    console.error("[analyst] logo lookup failed", dealId, err);
+    return false;
   }
-  // No website yet, or the one we have gave nothing usable: look the company up online.
-  const site = await withMeter({ purpose: "logo lookup" }, () => findCompanyWebsite(d.companyName, d.oneLiner));
-  if (!site || cleanDomain(site) === cleanDomain(d.website)) return;
-  await db.deal.update({ where: { id: dealId }, data: { website: site } });
-  await fetchCompanyLogo(dealId);
+}
+
+/** For deals opened without a logo: an automatic, at-most-hourly attempt. */
+export async function ensureDealLogo(dealId: string): Promise<void> {
+  await findDealLogo(dealId);
 }
 
 /** Science, regulatory precedent, licensing comps and contradictions. */
@@ -646,25 +704,8 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
         await logStep(analysisId, "Couldn't classify the company automatically; continuing with the documents alone", "warn");
       }
     }
-    // Company logo, in order: the website already known, the website named in the deck
-    // (email addresses and links), then the official site found by a web search.
-    void (async () => {
-      const current = await db.deal.findUnique({ where: { id: deal.id }, select: { website: true, logoMime: true, companyName: true, oneLiner: true } });
-      if (!current || current.logoMime) return;
-      if (current.website && (await fetchCompanyLogo(deal.id))) return;
-      const fromDeck = websiteFromText(deal.documents.map((d) => d.extractedText ?? "").join("\n"), current.companyName);
-      if (fromDeck && cleanDomain(fromDeck) !== cleanDomain(current.website)) {
-        await db.deal.update({ where: { id: deal.id }, data: { website: fromDeck } });
-        await logStep(analysisId, `Found the company website in the materials: ${fromDeck}`, "info");
-        if (await fetchCompanyLogo(deal.id)) return;
-      }
-      const site = await withMeter({ purpose: "analysis", analysisId }, () => findCompanyWebsite(current.companyName, dossier?.slice(0, 400) ?? current.oneLiner));
-      if (site && cleanDomain(site) !== cleanDomain(current.website) && cleanDomain(site) !== cleanDomain(fromDeck)) {
-        await db.deal.update({ where: { id: deal.id }, data: { website: site } });
-        await logStep(analysisId, `Found the company website online: ${site}`, "info");
-        await fetchCompanyLogo(deal.id);
-      }
-    })().catch((err) => console.error("[analyst] logo lookup failed", err));
+    // Company logo (website on file, website in the deck, web search, then the deck's title slide).
+    void findDealLogo(deal.id, { force: true, analysisId });
     await setProgress(analysisId, "Looking up similar past Genesys deals");
     const tCtx = Date.now();
     await logStep(analysisId, "Looking for similar deals in Genesys's history", "start");
@@ -1050,7 +1091,8 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
     ]);
     await logStep(analysisId, `Finished: ${RECOMMENDATION_TEXT[memo.recommendation]}. The memo is ready for review and sign-off`, "done");
     const slug = await refreshSlug(deal.id);
-    void fetchCompanyLogo(deal.id);
+    // The finished memo may name the website; try once more if there is still no logo.
+    void findDealLogo(deal.id, { force: true });
     await notifyStarter(analysis.createdById, async (to, firstName) =>
       sendAnalysisReady({
         to, firstName, companyName: (await db.deal.findUnique({ where: { id: deal.id }, select: { companyName: true } }))?.companyName ?? deal.companyName,
