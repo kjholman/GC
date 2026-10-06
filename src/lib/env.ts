@@ -23,9 +23,13 @@ export const env = {
   get anthropicModel() {
     return process.env.ANTHROPIC_MODEL ?? "claude-opus-5-5";
   },
+  /** Cheaper model for mechanical steps: reading decks into a dossier, web research, table extraction, feedback lessons. */
+  get anthropicFastModel() {
+    return process.env.ANTHROPIC_FAST_MODEL ?? "claude-sonnet-5-5";
+  },
   get analysisEffort(): "low" | "medium" | "high" | "xhigh" | "max" {
-    const v = process.env.ANALYSIS_EFFORT ?? "high";
-    return (["low", "medium", "high", "xhigh", "max"].includes(v) ? v : "high") as
+    const v = process.env.ANALYSIS_EFFORT ?? "medium";
+    return (["low", "medium", "high", "xhigh", "max"].includes(v) ? v : "medium") as
       "low" | "medium" | "high" | "xhigh" | "max";
   },
   get webResearchEnabled() {

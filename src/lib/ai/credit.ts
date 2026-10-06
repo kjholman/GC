@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { db } from "../db";
 import { env } from "../env";
 import { anthropic } from "./client";
+import { recordUsage } from "./usage";
 
 /**
  * Tracks whether the Anthropic account behind the Sharminator has credit.
@@ -16,13 +17,6 @@ const LAST_CHECK = "ai.last_checked_at";
 
 export const BILLING_URL = "https://platform.claude.com/settings/billing";
 
-/** Prices per million tokens (US$) for spend estimates. */
-const PRICES: Record<string, { input: number; output: number }> = {
-  "claude-opus-5-5": { input: 4, output: 20 },
-  "claude-opus-5": { input: 5, output: 25 },
-  "claude-fable-5-1": { input: 10, output: 50 },
-  "claude-sonnet-5-5": { input: 2, output: 10 },
-};
 
 export class CreditExhaustedError extends Error {
   constructor() {
@@ -76,12 +70,13 @@ export async function getAiStatus(): Promise<AiStatus> {
 export async function checkCredit(): Promise<{ ok: boolean; message: string }> {
   await put(LAST_CHECK, new Date().toISOString());
   try {
-    await anthropic().messages.create({
-      model: env.anthropicModel,
+    const res = await anthropic().messages.create({
+      model: env.anthropicFastModel,
       max_tokens: 64,
       output_config: { effort: "low" },
       messages: [{ role: "user", content: "Reply with the single word OK." }],
     });
+    recordUsage(res.model, res.usage as unknown as Anthropic.Beta.BetaUsage, "credit check");
     await recordCreditOk();
     return { ok: true, message: "The Anthropic account has credit and the AI service is responding." };
   } catch (err) {
@@ -96,21 +91,24 @@ export async function checkCredit(): Promise<{ ok: boolean; message: string }> {
   }
 }
 
-/** Estimated AI spend from token counts this app has recorded (excludes web-search fees). */
-export async function estimatedSpend(): Promise<{ monthUsd: number; allTimeUsd: number; analysesThisMonth: number }> {
+/** AI spend measured from every request this app has made (see AiUsage). */
+export async function measuredSpend(): Promise<{
+  monthUsd: number; allTimeUsd: number; analysesThisMonth: number; perAnalysisUsd: number | null; byPurpose: { purpose: string; usd: number }[];
+}> {
   const start = new Date();
   start.setDate(1);
   start.setHours(0, 0, 0, 0);
-  const rows = await db.analysis.findMany({
-    where: { inputTokens: { not: null } },
-    select: { model: true, inputTokens: true, outputTokens: true, createdAt: true },
-  });
-  let month = 0, all = 0, n = 0;
-  for (const r of rows) {
-    const p = PRICES[r.model ?? ""] ?? PRICES["claude-opus-5-5"];
-    const usd = ((r.inputTokens ?? 0) * p.input + (r.outputTokens ?? 0) * p.output) / 1_000_000;
-    all += usd;
-    if (r.createdAt >= start) { month += usd; n++; }
-  }
-  return { monthUsd: month, allTimeUsd: all, analysesThisMonth: n };
+  const [month, all, byPurpose, analyses] = await Promise.all([
+    db.aiUsage.aggregate({ where: { createdAt: { gte: start } }, _sum: { usd: true } }),
+    db.aiUsage.aggregate({ _sum: { usd: true } }),
+    db.aiUsage.groupBy({ by: ["purpose"], where: { createdAt: { gte: start } }, _sum: { usd: true } }),
+    db.analysis.aggregate({ where: { createdAt: { gte: start }, status: "COMPLETE", costUsd: { not: null } }, _avg: { costUsd: true }, _count: true }),
+  ]);
+  return {
+    monthUsd: month._sum.usd ?? 0,
+    allTimeUsd: all._sum.usd ?? 0,
+    analysesThisMonth: analyses._count,
+    perAnalysisUsd: analyses._avg.costUsd ?? null,
+    byPurpose: byPurpose.map((p) => ({ purpose: p.purpose, usd: p._sum.usd ?? 0 })).sort((a, b) => b.usd - a.usd),
+  };
 }

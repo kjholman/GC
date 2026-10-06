@@ -102,6 +102,8 @@ model Deal {
   companyName   String
   /// True while the name is a placeholder from the uploaded file; the Sharminator replaces it with the real company name.
   autoNamed     Boolean    @default(false)
+  /// Factual summary of the submitted materials, given to the web-research passes instead of the full deck.
+  researchDossier String?
   oneLiner      String?
   sector        String?
   modality      String?
@@ -213,6 +215,8 @@ model Analysis {
   model          String?
   inputTokens    Int?
   outputTokens   Int?
+  /// Exact AI spend for this analysis in US$, all steps included.
+  costUsd        Float?
   error          String?
   createdById    String?
   createdAt      DateTime        @default(now())
@@ -469,4 +473,22 @@ model FirmSetting {
   value       String
   updatedById String?
   updatedAt   DateTime @updatedAt
+}
+
+/// One row per AI request, for exact spend reporting on the Administration page.
+model AiUsage {
+  id           String   @id @default(cuid())
+  createdAt    DateTime @default(now())
+  /// analysis, backtest, past-deal reading, feedback, credit check…
+  purpose      String
+  /// fingerprint, research:science, memo, fact-check…
+  step         String
+  analysisId   String?
+  model        String
+  inputTokens  Int
+  outputTokens Int
+  usd          Float
+
+  @@index([createdAt])
+  @@index([analysisId])
 }

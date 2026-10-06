@@ -9,6 +9,7 @@ import { coverageNote, prepareFiles, type InputFile, type PreparedFiles } from "
 import { FALLBACK_BETA, anthropic, structuredCall, textOf, type ContentBlock } from "./client";
 import { plainPunctuation } from "./style";
 import { isCreditError, recordCreditOk, recordCreditProblem } from "./credit";
+import { meteredUsd, recordUsage, withMeter } from "./usage";
 import { FEEDBACK_AREA_LABEL } from "../feedback/options";
 import { automatedChecks, correctionsBlock, modelFactCheck, sourceTexts, summarise } from "./verify";
 import { CompetitorSweepSchema, FingerprintSchema, MemoSchema, normaliseMemo, type CompetitorSweep, type Fingerprint, type Memo } from "./schema";
@@ -95,6 +96,8 @@ function dealFiles(docs: Document[]): InputFile[] {
 export async function fingerprint(docs: ContentBlock[]): Promise<Fingerprint> {
   const { data } = await structuredCall({
     schema: FingerprintSchema,
+    tier: "fast",
+    step: "reading the materials",
     effort: "low",
     maxTokens: 8000,
     content: [...docs, { type: "text", text: FINGERPRINT_PROMPT }],
@@ -103,23 +106,26 @@ export async function fingerprint(docs: ContentBlock[]): Promise<Fingerprint> {
 }
 
 /** Agentic web research with server-side search/fetch; returns sourced notes. */
-async function webResearch(prompt: string, docs: ContentBlock[], limits: { search: number; fetch: number }): Promise<string | null> {
-  const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: "user", content: [...docs, { type: "text", text: prompt }] }];
-  for (let turn = 0; turn < 8; turn++) {
+async function webResearch(step: string, prompt: string, input: ContentBlock[], limits: { search: number; fetch: number }): Promise<string | null> {
+  const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: "user", content: [...input, { type: "text", text: prompt }] }];
+  for (let turn = 0; turn < 6; turn++) {
     const stream = anthropic().beta.messages.stream({
-      model: env.anthropicModel,
-      max_tokens: 48000,
+      // Research is gathering and summarising, so it runs on the cheaper model.
+      model: env.anthropicFastModel,
+      max_tokens: 32000,
       thinking: { type: "adaptive" },
       output_config: { effort: "medium" },
       betas: [FALLBACK_BETA],
       fallbacks: "default",
       tools: [
         { type: "web_search_20260209", name: "web_search", max_uses: limits.search },
-        { type: "web_fetch_20260209", name: "web_fetch", max_uses: limits.fetch },
+        // Cap each fetched page: long pages are the biggest hidden cost in research.
+        { type: "web_fetch_20260209", name: "web_fetch", max_uses: limits.fetch, max_content_tokens: 8000 },
       ],
       messages,
     });
     const response = await stream.finalMessage();
+    recordUsage(response.model, response.usage, step);
     void recordCreditOk().catch(() => {});
     if (response.stop_reason === "refusal") return null;
     if (response.stop_reason === "pause_turn") {
@@ -133,13 +139,24 @@ async function webResearch(prompt: string, docs: ContentBlock[], limits: { searc
 }
 
 /** Science, regulatory precedent, licensing comps and contradictions. */
-function researchBrief(companyName: string, docs: ContentBlock[]) {
-  return webResearch(`Company under review: ${companyName}.\n\n${RESEARCH_PROMPT}`, docs, { search: 12, fetch: 8 });
+function researchBrief(companyName: string, input: ContentBlock[]) {
+  return webResearch("research: science", `Company under review: ${companyName}.\n\n${RESEARCH_PROMPT}`, input, { search: 8, fetch: 5 });
 }
 
 /** Dedicated diligence passes: founders and management, IP, market. */
-function diligenceResearch(prompt: string, companyName: string, docs: ContentBlock[]) {
-  return webResearch(`Company under review: ${companyName}.\n\n${prompt}`, docs, { search: 15, fetch: 10 });
+function diligenceResearch(step: string, prompt: string, companyName: string, input: ContentBlock[]) {
+  return webResearch(step, `Company under review: ${companyName}.\n\n${prompt}`, input, { search: 8, fetch: 5 });
+}
+
+/**
+ * What the research passes see instead of the full deck: the dossier extracted
+ * once from the materials. Sending the deck to five parallel passes was the
+ * single largest cost of an analysis.
+ */
+function researchInput(dossier: string | null | undefined, docs: ContentBlock[]): ContentBlock[] {
+  return dossier
+    ? [{ type: "text", text: `## Company dossier (extracted from the submitted materials)\n${dossier}` }]
+    : docs;
 }
 
 const URL_RE = /https?:\/\/[^\s"'<>)\]]+/g;
@@ -151,11 +168,13 @@ const cleanUrl = (u: string) => u.replace(/[.,;]+$/, "");
  * table. Entries whose sources do not appear in the research notes are dropped.
  */
 export async function competitorSweep(companyName: string, docs: ContentBlock[]): Promise<{ notes: string; sweep: CompetitorSweep } | null> {
-  const notes = await webResearch(`Company under review: ${companyName}.\n\n${COMPETITOR_SWEEP_PROMPT}`, docs, { search: 25, fetch: 15 });
+  const notes = await webResearch("research: competitors", `Company under review: ${companyName}.\n\n${COMPETITOR_SWEEP_PROMPT}`, docs, { search: 15, fetch: 8 });
   if (!notes) return null;
   const { data } = await structuredCall({
     schema: CompetitorSweepSchema,
-    effort: "medium",
+    tier: "fast",
+    step: "competitor table",
+    effort: "low",
     maxTokens: 32000,
     content: [{ type: "text", text: `${COMPETITOR_EXTRACT_PROMPT}\n\n## Research notes\n${notes}` }],
   });
@@ -293,6 +312,7 @@ export async function underwrite(args: {
 
   const { data, usage, model } = await structuredCall({
     schema: MemoSchema,
+    step: args.corrections ? "memo correction" : "memo",
     effort: env.analysisEffort,
     system: systemBlocks(args.firmContext),
     content: [...args.docs, { type: "text", text: task }],
@@ -307,8 +327,24 @@ function precedentsSummary(p: Precedents) {
   };
 }
 
-/** Runs one live analysis end-to-end. Safe to call from a background task. */
-export async function runAnalysis(analysisId: string): Promise<void> {
+/** Runs one live analysis end-to-end, metering every AI call. Safe to call from a background task. */
+export function runAnalysis(analysisId: string): Promise<void> {
+  return withMeter({ purpose: "analysis", analysisId }, async () => {
+    try {
+      await runAnalysisSteps(analysisId);
+    } finally {
+      const usd = meteredUsd();
+      if (usd > 0) {
+        const a = await db.analysis.findUnique({ where: { id: analysisId }, select: { costUsd: true, status: true } });
+        // A resumed analysis adds to what earlier attempts already spent.
+        await db.analysis.update({ where: { id: analysisId }, data: { costUsd: (a?.costUsd ?? 0) + usd } }).catch(() => {});
+        if (a?.status === "COMPLETE") await logStep(analysisId, `AI credits used for this run: about US$${usd.toFixed(2)}`, "info");
+      }
+    }
+  });
+}
+
+async function runAnalysisSteps(analysisId: string): Promise<void> {
   const analysis = await db.analysis.findUnique({
     where: { id: analysisId },
     include: { deal: { include: { documents: true } } },
@@ -356,7 +392,8 @@ export async function runAnalysis(analysisId: string): Promise<void> {
     // Fingerprint the deal (once, or again when new materials arrive) to find precedents.
     let probe: { sector: string | null; modality: string | null; indication: string | null; tags: string[] } = deal;
     const placeholder = hasPlaceholderName(deal);
-    if (!deal.tags.length || analysis.trigger !== "INITIAL_SCREEN" || placeholder) {
+    let dossier: string | null = deal.researchDossier;
+    if (!deal.tags.length || analysis.trigger !== "INITIAL_SCREEN" || placeholder || !dossier) {
       await logStep(analysisId, "Identifying the company, its technology and lead indication", "start");
       const fp = await fingerprint(blocks).catch((err) => {
         if (isCreditError(err)) throw err;
@@ -368,9 +405,11 @@ export async function runAnalysis(analysisId: string): Promise<void> {
         const foundName = fp.companyName?.trim();
         const rename = placeholder && !!foundName;
         if (rename) companyName = foundName;
+        dossier = fp.researchDossier?.trim() || dossier;
         await db.deal.update({
           where: { id: deal.id },
           data: {
+            researchDossier: dossier,
             tags: fp.tags,
             indication: deal.indication ?? fp.indication,
             sector: deal.sector ?? fp.sector,
@@ -409,7 +448,9 @@ export async function runAnalysis(analysisId: string): Promise<void> {
     let research = priorResearch?.research ?? null;
     let competitors = (priorSweep?.competitors as CompetitorSweep | undefined) ?? null;
     let competitorNotes = priorSweep?.competitorNotes ?? null;
-    const refresh = analysis.trigger === "RERUN";
+    // A re-run refreshes web research only if it is more than 30 days old; follow-ups always reuse it.
+    const researchAge = priorResearch ? Date.now() - (priorResearch.completedAt ?? priorResearch.createdAt).getTime() : Infinity;
+    const refresh = analysis.trigger === "RERUN" && researchAge > 30 * 24 * 60 * 60 * 1000;
     if (env.webResearchEnabled && (!research || !competitors || refresh)) {
       await setProgress(analysisId, "Researching science, founders, patents, market and competitors");
       const needResearch = !research || refresh;
@@ -440,12 +481,12 @@ export async function runAnalysis(analysisId: string): Promise<void> {
       const sourcesIn = (t: string) => new Set(t.match(URL_RE) ?? []).size;
       const finished = (what: string) => (t: string) => `Finished ${what}${sourcesIn(t) ? ` (${plural(sourcesIn(t), "source")})` : ""}`;
       const [science, founders, ip, market, swept] = await Promise.all([
-        needResearch ? soft("science", researchBrief(companyName, blocks), finished("the science and regulatory research")) : null,
-        needResearch ? soft("founder", diligenceResearch(FOUNDER_RESEARCH_PROMPT, companyName, blocks), finished("the founder and management research")) : null,
-        needResearch ? soft("patent", diligenceResearch(IP_RESEARCH_PROMPT, companyName, blocks), finished("the patent and IP research")) : null,
-        needResearch ? soft("market", diligenceResearch(MARKET_RESEARCH_PROMPT, companyName, blocks), finished("the market research")) : null,
+        needResearch ? soft("science", researchBrief(companyName, researchInput(dossier, blocks)), finished("the science and regulatory research")) : null,
+        needResearch ? soft("founder", diligenceResearch("research: founders", FOUNDER_RESEARCH_PROMPT, companyName, researchInput(dossier, blocks)), finished("the founder and management research")) : null,
+        needResearch ? soft("patent", diligenceResearch("research: patents", IP_RESEARCH_PROMPT, companyName, researchInput(dossier, blocks)), finished("the patent and IP research")) : null,
+        needResearch ? soft("market", diligenceResearch("research: market", MARKET_RESEARCH_PROMPT, companyName, researchInput(dossier, blocks)), finished("the market research")) : null,
         needSweep
-          ? soft("competitor", competitorSweep(companyName, blocks), (r) => {
+          ? soft("competitor", competitorSweep(companyName, researchInput(dossier, blocks)), (r) => {
               const names = r.sweep.competitors.map((c) => c.name);
               return names.length ? `Found ${plural(names.length, "competitor")}: ${listNames(names, 5)}` : "Competitor search finished; no direct competitors could be confirmed";
             })

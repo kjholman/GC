@@ -215,7 +215,8 @@ export async function generatePrincipleSuggestions(): Promise<number> {
   ].join("\n");
   const { data } = await structuredCall({
     schema: SuggestionsSchema,
-    effort: "high",
+    step: "principle suggestions",
+    effort: "medium",
     maxTokens: 16000,
     content: [{ type: "text", text: `${SUGGEST_PRINCIPLES_PROMPT}\n\n${text}` }],
   });

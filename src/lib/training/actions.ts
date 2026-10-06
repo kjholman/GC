@@ -4,6 +4,7 @@ import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { interpretFeedback } from "../feedback/interpret";
+import { withMeter } from "../ai/usage";
 import type { HistoricalDecision, PortfolioOutcome, Prisma } from "@prisma/client";
 import { db } from "../db";
 import { audit } from "../audit";
@@ -34,7 +35,9 @@ async function prepareDeck(file: File | null) {
 
 function scheduleIngest(ids: string[]) {
   after(async () => {
-    for (const id of ids) await ingestHistoricalDeal(id);
+    await withMeter({ purpose: "reading past deals" }, async () => {
+      for (const id of ids) await ingestHistoricalDeal(id);
+    });
   });
 }
 
@@ -249,7 +252,7 @@ export async function saveExemplarAction(sourceAnalysisId: string, _: TrainState
       },
     });
     after(async () => {
-      await interpretFeedback(fb.id);
+      await withMeter({ purpose: "feedback lessons" }, () => interpretFeedback(fb.id));
     });
   }
   await audit("training.exemplar_saved", { userId: user.id, entity: "Exemplar", entityId: ex.id });
@@ -267,7 +270,7 @@ export async function toggleExemplarAction(id: string, active: boolean) {
 export async function generateSuggestionsAction(): Promise<TrainState> {
   const user = await requireRole("PARTNER");
   try {
-    const n = await generatePrincipleSuggestions();
+    const n = await withMeter({ purpose: "principle suggestions" }, () => generatePrincipleSuggestions());
     await audit("training.suggestions_generated", { userId: user.id, meta: { n } });
     revalidatePath("/training/calibration");
     return { ok: true, message: n ? `${n} suggested principle${n === 1 ? "" : "s"} ready for review.` : "No clear pattern in the feedback yet." };
@@ -314,7 +317,7 @@ export async function startBacktestAction(_: TrainState, fd: FormData): Promise<
   });
   await audit("training.backtest_started", { userId: user.id, entity: "BacktestRun", entityId: run.id });
   after(async () => {
-    await runBacktest(run.id);
+    await withMeter({ purpose: "accuracy tests" }, () => runBacktest(run.id));
   });
   redirect(`/training/backtests/${run.id}`);
 }

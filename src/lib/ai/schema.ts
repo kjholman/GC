@@ -294,6 +294,7 @@ export const FingerprintSchema = z.object({
   stage: z.string().nullable(),
   tags: z.array(z.string()),
   digest: z.string(),
+  researchDossier: z.string().describe("Factual extraction for the research team; see the prompt."),
 });
 export type Fingerprint = z.infer<typeof FingerprintSchema>;
 

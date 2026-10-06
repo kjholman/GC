@@ -15,7 +15,8 @@ The analyst uses **Anthropic Claude Opus 5.5** (`claude-opus-5-5`) through the M
 
 Configuration is in `.env`:
 - `ANTHROPIC_MODEL` sets the model.
-- `ANALYSIS_EFFORT` sets reasoning depth. The default is `high`; use `xhigh` or `max` for the deepest work, at more cost and latency.
+- `ANALYSIS_EFFORT` sets reasoning depth for the memo. The default is `medium`; `high` or above costs more for deeper work.
+- `ANTHROPIC_FAST_MODEL` (default `claude-sonnet-5-5`) runs the mechanical steps: reading the materials into a research dossier, the five web-research passes, the competitor table and feedback lessons. The memo and the fact-check use `ANTHROPIC_MODEL`.
 - `ENABLE_WEB_RESEARCH` turns the web research stage on or off.
 
 ## Pipeline (`src/lib/ai/analyst.ts`)

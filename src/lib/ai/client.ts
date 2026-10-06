@@ -5,6 +5,7 @@ import type { z } from "zod";
 import { env } from "../env";
 import { sanitizeStrings } from "./style";
 import { recordCreditOk } from "./credit";
+import { recordUsage } from "./usage";
 
 export type ContentBlock = Anthropic.Beta.BetaContentBlockParam;
 
@@ -30,9 +31,13 @@ export async function structuredCall<S extends z.ZodType>(args: {
   system?: Anthropic.Beta.BetaTextBlockParam[];
   effort: "low" | "medium" | "high" | "xhigh" | "max";
   maxTokens?: number;
+  /** "fast" for mechanical steps (cheaper model); "main" for judgement (memo, fact-check). */
+  tier?: "main" | "fast";
+  /** Label for spend reporting, e.g. "memo" or "fact-check". */
+  step: string;
 }): Promise<{ data: z.infer<S>; usage: Anthropic.Beta.BetaUsage; model: string }> {
   const stream = anthropic().beta.messages.stream({
-    model: env.anthropicModel,
+    model: args.tier === "fast" ? env.anthropicFastModel : env.anthropicModel,
     max_tokens: args.maxTokens ?? 64000,
     thinking: { type: "adaptive" },
     output_config: { effort: args.effort, format: betaZodOutputFormat(args.schema) },
@@ -42,6 +47,7 @@ export async function structuredCall<S extends z.ZodType>(args: {
     messages: [{ role: "user", content: args.content }],
   });
   const response = await stream.finalMessage();
+  recordUsage(response.model, response.usage, args.step);
   void recordCreditOk().catch(() => {});
   if (response.stop_reason === "refusal") {
     throw new Error("The model declined to analyse these materials. Review the documents and try again.");

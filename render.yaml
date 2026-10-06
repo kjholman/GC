@@ -30,8 +30,10 @@ services:
         sync: false
       - key: ANTHROPIC_MODEL
         value: claude-opus-5-5
+      - key: ANTHROPIC_FAST_MODEL
+        value: claude-sonnet-5-5
       - key: ANALYSIS_EFFORT
-        value: high
+        value: medium
       - key: ENABLE_WEB_RESEARCH
         value: "true"
       # TEMPORARY testing aid. Turn off (false) before real use.

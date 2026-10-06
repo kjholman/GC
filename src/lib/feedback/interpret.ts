@@ -28,7 +28,7 @@ export async function interpretFeedback(feedbackId: string): Promise<void> {
     `In their words: "${f.comment}"`,
   ].filter(Boolean).join("\n");
   try {
-    const { data } = await structuredCall({ schema: FeedbackLessonSchema, effort: "low", maxTokens: 8000, content: [{ type: "text", text }] });
+    const { data } = await structuredCall({ schema: FeedbackLessonSchema, tier: "fast", step: "feedback lesson", effort: "low", maxTokens: 8000, content: [{ type: "text", text }] });
     await db.analysisFeedback.update({
       where: { id: feedbackId },
       data: { lesson: plainPunctuation(data.lesson).slice(0, 1000), appliesTo: plainPunctuation(data.appliesTo).slice(0, 200), interpretedAt: new Date() },

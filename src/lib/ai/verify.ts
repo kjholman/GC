@@ -286,7 +286,8 @@ export function automatedChecks(
 export async function modelFactCheck(args: { memo: Memo; docs: ContentBlock[]; research: string | null; precedentsText: string | null }): Promise<Verification> {
   const { data } = await structuredCall({
     schema: VerificationSchema,
-    effort: "high",
+    step: "fact-check",
+    effort: "medium",
     maxTokens: 32000,
     content: [
       ...args.docs,

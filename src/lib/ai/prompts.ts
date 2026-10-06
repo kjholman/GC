@@ -471,7 +471,7 @@ ${hist}${ex ? `\n\n## Memos the partners have endorsed as the standard to emulat
 }
 
 export const RESEARCH_PROMPT = `
-Prepare a science and regulatory research brief for the Genesys Capital investment team on the company in the attached materials. Use web search to verify claims and add context. Do not restate the deck. Founders, patents, market size and competitors are covered by separate research passes, so do not duplicate them.
+Prepare a science and regulatory research brief for the Genesys Capital investment team on the company in the materials provided (deck or company dossier). Use web search to verify claims and add context. Do not restate the deck. Founders, patents, market size and competitors are covered by separate research passes, so do not duplicate them.
 
 Cover each of the following concisely, with source URLs inline:
 1. **Target and mechanism:** strength of human-genetic or clinical validation; the key literature, including negative results and retractions.
@@ -483,7 +483,7 @@ Stay under 1,000 words. If you cannot find something, say so. Do not speculate b
 `.trim();
 
 export const FOUNDER_RESEARCH_PROMPT = `
-Research the founders, executives, board members and key advisors named in the attached materials for the Genesys Capital investment team. Confine yourself to **public professional information only**: no personal life, family, health or other private matters.
+Research the founders, executives, board members and key advisors named in the materials provided (deck or company dossier) for the Genesys Capital investment team. Confine yourself to **public professional information only**: no personal life, family, health or other private matters.
 
 For each person, find:
 1. **Career and education:** current and past roles, with dates; degrees and institutions. Confirm whether these match the deck.
@@ -502,7 +502,7 @@ Keep it to about 1,200 words.
 `.trim();
 
 export const IP_RESEARCH_PROMPT = `
-Research the intellectual property position of the company in the attached materials for the Genesys Capital investment team.
+Research the intellectual property position of the company in the materials provided (deck or company dossier) for the Genesys Capital investment team.
 
 1. **Company patents:** search Google Patents, WIPO PATENTSCOPE, Espacenet, USPTO and CIPO by:
    - company name
@@ -523,7 +523,7 @@ Keep it to about 1,000 words.
 `.trim();
 
 export const MARKET_RESEARCH_PROMPT = `
-Research the market for the lead product in the attached materials for the Genesys Capital investment team. Build the evidence a bottom-up market model needs.
+Research the market for the lead product in the materials provided (deck or company dossier) for the Genesys Capital investment team. Build the evidence a bottom-up market model needs.
 
 1. **Epidemiology:** prevalence and incidence of the target indication in the U.S., EU and Canada, from authoritative sources (CDC, NIH, WHO, Global Burden of Disease, peer-reviewed studies, Statistics Canada, Canadian disease registries). Break it down to the diagnosed, eligible and treated population where possible.
 2. **Standard of care:** the current treatment paradigm or clinical workflow, relevant guidelines, and where the product would sit.
@@ -549,6 +549,7 @@ Classify the life-science opportunity in the attached materials so it can be mat
 - **stage:** development stage.
 - **tags:** 5-12 lowercase keywords covering target, mechanism, therapeutic area, technology, business model and geography, e.g. "nlrp3", "inflammation", "cardiometabolic", "oral", "university-spinout", "ontario".
 - **digest:** a 120-200 word factual summary of what the company is and what it claims, with any key numbers.
+- **researchDossier:** 500-900 words that let a researcher who never sees the deck investigate the company. Copy facts exactly as the materials state them, under these headings: Company (legal name, website, location, founding year); Product and science (lead asset, target or mechanism, modality, indication, development stage); Key data and claims (numbers as stated, with page references); People (every founder, executive, board member and advisor named, with role and stated background); Intellectual property (every patent or application number, title and owner as given); Market claims (market size figures and sources the deck cites); Competitors named in the materials; Financing (round sought, amount, prior investors). Write "not stated" where the materials are silent. Never add facts that are not in the materials.
 `.trim();
 
 export const INTERPRET_FEEDBACK_PROMPT = `
@@ -580,7 +581,7 @@ export function asOfInstruction(year: number | null): string {
 }
 
 export const COMPETITOR_SWEEP_PROMPT = `
-Run a full competitive sweep for the Genesys Capital investment team on the company in the attached materials. The partners want to know who else is doing, or has tried, the same thing, and what happened to them.
+Run a full competitive sweep for the Genesys Capital investment team on the company in the materials provided (deck or company dossier). The partners want to know who else is doing, or has tried, the same thing, and what happened to them.
 
 **Search widely. Cover:**
 - **Direct competitors:** the same target or mechanism, or the same product for the same use.

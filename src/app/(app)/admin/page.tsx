@@ -1,11 +1,11 @@
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth/session";
-import { env } from "@/lib/env";
 import { Card, PageHeader, SectionTitle, cx, fmtDate, relTime } from "@/components/ui";
 import { describeEvent } from "@/lib/auditText";
 import { AddUsersForm, UserRow } from "./AdminForms";
 import { CreditPanel } from "./CreditPanel";
-import { BILLING_URL, estimatedSpend, getAiStatus } from "@/lib/ai/credit";
+import { BILLING_URL, getAiStatus, measuredSpend } from "@/lib/ai/credit";
+import { env } from "@/lib/env";
 
 
 export default async function AdminPage() {
@@ -14,7 +14,7 @@ export default async function AdminPage() {
     db.user.findMany({ orderBy: [{ active: "desc" }, { email: "asc" }] }),
     db.auditLog.findMany({ orderBy: { createdAt: "desc" }, take: 100, include: { user: { select: { email: true, name: true } } } }),
     getAiStatus(),
-    estimatedSpend(),
+    measuredSpend(),
     db.analysis.count({ where: { status: "PAUSED" } }),
   ]);
   // Resolve the deals, people and documents mentioned in the log to readable names.
@@ -67,6 +67,9 @@ export default async function AdminPage() {
             monthUsd={spend.monthUsd}
             allTimeUsd={spend.allTimeUsd}
             analysesThisMonth={spend.analysesThisMonth}
+            perAnalysisUsd={spend.perAnalysisUsd}
+            byPurpose={spend.byPurpose}
+            models={{ main: env.anthropicModel, fast: env.anthropicFastModel, effort: env.analysisEffort }}
             paused={paused}
             billingUrl={BILLING_URL}
           />

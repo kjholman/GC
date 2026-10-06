@@ -9,6 +9,7 @@ import type { AnalysisTrigger, DealStatus, DocumentKind } from "@prisma/client";
 import { db } from "../db";
 import { FEEDBACK_AREA_IDS, FEEDBACK_AREA_LABEL } from "../feedback/options";
 import { interpretFeedback } from "../feedback/interpret";
+import { withMeter } from "../ai/usage";
 import { audit } from "../audit";
 import { requireRole, requireUser } from "../auth/session";
 import { runAnalysis } from "../ai/analyst";
@@ -315,7 +316,7 @@ export async function submitFeedbackAction(analysisId: string, _: ActionState, f
   });
   // Turn the review into a lesson for future analyses, in the background.
   after(async () => {
-    await interpretFeedback(created.id);
+    await withMeter({ purpose: "feedback lessons" }, () => interpretFeedback(created.id));
   });
   await db.activity.create({
     data: {
