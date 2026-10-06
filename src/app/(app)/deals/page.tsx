@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { Pagination, pageParam } from "@/components/Pagination";
 import { PipelineFilters } from "./PipelineFilters";
 import { DealLogo } from "@/components/DealLogo";
-import { Meme } from "@/components/Meme";
+import { MemeScene } from "@/components/MemeScene";
 import { Button, Card, Empty, PageHeader, REC_META, STATUS_META, ScoreRing, StatusBadge, cx, fmtDate } from "@/components/ui";
 
 
@@ -138,7 +138,7 @@ export default async function DealsPage({ searchParams }: PageProps<"/deals">) {
 
       {deals.length === 0 ? (
         <div className="flex flex-col items-center gap-5 py-6">
-          <Meme kind="EMPTY" size={240} />
+          <MemeScene scene="petri" size={240} />
           <Empty title="No deals match">Try another status or clear some filters.</Empty>
         </div>
       ) : (

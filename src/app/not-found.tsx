@@ -1,10 +1,10 @@
 import Link from "next/link";
-import { Meme } from "@/components/Meme";
+import { MemeScene } from "@/components/MemeScene";
 
 export default function NotFound() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-6 bg-mist px-4 text-center">
-      <Meme kind="NOT_FOUND" size={280} />
+      <MemeScene scene="retracted" size={280} />
       <div>
         <h1 className="font-display text-[26px] font-semibold text-navy-900">Page not found</h1>
         <p className="mt-1 text-[14px] text-muted">The link may be old, or the deal may have been removed.</p>

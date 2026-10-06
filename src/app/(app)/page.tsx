@@ -4,6 +4,7 @@ import type { DealStatus } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/session";
 import { Greeting } from "@/components/Greeting";
+import { DECK_CLAIMS, MemeScene } from "@/components/MemeScene";
 import { Button, Card, Empty, PageHeader, SectionTitle, STATUS_META, ScoreRing, StatusBadge, cx, relTime } from "@/components/ui";
 
 
@@ -38,6 +39,8 @@ export default async function Overview() {
   const fromEmail = user.email.split("@")[0].split(/[._-]/)[0];
   const raw = user.name?.trim().split(/\s+/)[0] || fromEmail;
   const firstName = raw.charAt(0).toUpperCase() + raw.slice(1);
+  // A different deck claim each day.
+  const todaysClaim = DECK_CLAIMS[dayNumber() % DECK_CLAIMS.length];
   const torontoHour = Number(new Date().toLocaleString("en-CA", { hour: "numeric", hour12: false, timeZone: "America/Toronto" }));
   const serverGreeting = torontoHour < 12 ? "Good morning" : torontoHour < 18 ? "Good afternoon" : "Good evening";
 
@@ -136,6 +139,10 @@ export default async function Overview() {
 
         <div className="space-y-8">
           <Card>
+            <SectionTitle eyebrow="Overheard in diligence" title="Slide of the day" />
+            <MemeScene scene="deck" top={todaysClaim.slide} bottom={todaysClaim.reaction} size={272} className="mx-auto -mt-2" />
+          </Card>
+          <Card>
             <SectionTitle eyebrow="The Sharminator" title="In progress" action={<AnalystAvatar size={44} />} />
             {running.length === 0 ? (
               <p className="text-[13px] text-muted">No analyses running.</p>
@@ -179,4 +186,9 @@ export default async function Overview() {
       </div>
     </>
   );
+}
+
+/** Days since 1970, so the slide of the day changes at midnight UTC. */
+function dayNumber() {
+  return Math.floor(new Date().getTime() / 86_400_000);
 }

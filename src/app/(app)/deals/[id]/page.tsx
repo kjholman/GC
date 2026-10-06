@@ -8,7 +8,7 @@ import { Button, Card, REC_META, ScoreRing, SectionTitle, StatusBadge, cx, fmtDa
 import { AnalysisProgress } from "./AnalysisProgress";
 import { DealLogo } from "@/components/DealLogo";
 import { AnalystAvatar } from "@/components/Analyst";
-import { Meme } from "@/components/Meme";
+import { MemeScene } from "@/components/MemeScene";
 import { refreshSlug } from "@/lib/deals/slug";
 import { GapsView, SourcesList, VersionHistory, collectWebSources, type VersionRow } from "./History";
 import { LogoEditor } from "./LogoEditor";
@@ -195,7 +195,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
               )}
             </div>
             <div className="flex items-center gap-4">
-              <Meme kind="PAUSED" size={140} className="hidden sm:block" />
+              <MemeScene scene="runway" size={150} className="hidden sm:block" />
               <ResumeButton analysisId={paused.id} />
             </div>
           </div>
@@ -236,7 +236,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
             ))}
           </ul>
         </Card>
-        <Meme kind="RUNNING" size={240} className="mx-auto md:mx-0" />
+        <MemeScene scene="slide31" size={240} className="mx-auto md:mx-0" />
         </div>
       ) : (
       <div className="grid grid-cols-1 gap-10 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -387,7 +387,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
           {memo && shown && (
             <Card>
               <div className="eyebrow mb-3">The Sharminator says</div>
-              <Meme kind={memo.recommendation} size={272} className="mx-auto" />
+              <MemeScene scene={({ REJECT: "mice", PENDING_INFO: "blot", ADVANCE_TO_DILIGENCE: "pvalue" } as const)[memo.recommendation]} size={272} className="mx-auto" />
             </Card>
           )}
           <Card>
