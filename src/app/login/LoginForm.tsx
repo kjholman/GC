@@ -41,7 +41,7 @@ export function LoginForm({ people }: { people: LoginPerson[] }) {
                 aria-checked={picked === p.id}
                 disabled={!p.enabled}
                 onClick={() => setPicked(p.id)}
-                title={p.enabled ? `${p.fullName}, ${p.title}` : `${p.fullName}: sign-in not set up yet`}
+                title={p.enabled ? [p.fullName, p.title].filter(Boolean).join(", ") : `${p.fullName}: sign-in not set up yet`}
                 className={cx(
                   "flex flex-col items-center gap-1.5 rounded-xl border p-2.5 transition-colors",
                   picked === p.id ? "border-brand-600 bg-brand-100/60 ring-2 ring-brand-500/30" : "border-line hover:border-navy-700",

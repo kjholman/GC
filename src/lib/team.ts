@@ -13,4 +13,5 @@ export const TEAM: TeamMember[] = [
   { id: "jen", name: "Jen", fullName: "Jennifer Williams", title: "Partner and Chief Financial Officer", email: null },
   { id: "lori", name: "Laurie", fullName: "Laurie Mak", title: "Associate", email: null },
   { id: "steph", name: "Steph", fullName: "Stephanie Legere", title: "Associate", email: null },
+  { id: "christine", name: "Christine", fullName: "Christine", title: "", email: null },
 ];
