@@ -65,6 +65,9 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
   const slug = deal.slug ?? (await refreshSlug(deal.id));
   if (id !== slug) redirect(`/deals/${slug}${typeof sp.v === "string" ? `?v=${sp.v}` : ""}`);
   // Older deals: look for a logo the first time the page is opened.
+  const portfolioCompany = deal.portfolioCompanyId
+    ? await db.portfolioCompany.findUnique({ where: { id: deal.portfolioCompanyId }, select: { name: true, yearInvested: true } })
+    : null;
   // Spreadsheets the company sent (financial models, cap tables), offered for download under Financials.
   const spreadsheets = deal.documents.filter(
     (d) => d.kind === "FINANCIAL_MODEL" || /spreadsheet|excel|csv/.test(d.mimeType) || /\.(xlsx?|xlsm|csv|numbers)$/i.test(d.filename),
@@ -141,6 +144,15 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
         <div className="min-w-0">
           <div className="mb-3 flex flex-wrap items-center gap-3">
             <DealStatusBadge status={deal.status} latestAnalysis={latest?.status} finishedCount={completed.length} />
+            {portfolioCompany && (
+              <Link
+                href="/knowledge"
+                title={`Genesys invested${portfolioCompany.yearInvested ? ` in ${portfolioCompany.yearInvested}` : ""}. Analysed as a follow-on decision.`}
+                className="rounded-full border border-brand-300 bg-brand-100/60 px-2.5 py-0.5 text-[11.5px] font-medium text-brand-700 hover:border-brand-500"
+              >
+                Genesys portfolio company{portfolioCompany.yearInvested ? ` · invested ${portfolioCompany.yearInvested}` : ""}
+              </Link>
+            )}
             {deal.sector && <span className="text-[12.5px] text-muted">{deal.sector}</span>}
             {deal.modality && <span className="text-[12.5px] text-muted">· {deal.modality}</span>}
           </div>

@@ -1,6 +1,6 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
-import type { Analysis, DealStatus, Document, Prisma } from "@prisma/client";
+import type { Analysis, DealStatus, Document, PortfolioCompany, Prisma } from "@prisma/client";
 import { db } from "../db";
 import { env } from "../env";
 import { FIRM_SETTINGS, getFirmSettings } from "../training/settings";
@@ -10,6 +10,7 @@ import { FALLBACK_BETA, anthropic, structuredCall, textOf, type ContentBlock } f
 import { plainPunctuation } from "./style";
 import { isCreditError, recordCreditOk, recordCreditProblem } from "./credit";
 import { meteredUsd, recordUsage, withMeter } from "./usage";
+import { findPortfolioMatch } from "../deals/portfolio";
 import { cleanDomain, inspectLogo, logoFromDeckPdf, logoFromWebsite, websiteFromText } from "../deals/logo";
 import { refreshSlug } from "../deals/slug";
 import { sendAnalysisProblem, sendAnalysisReady } from "../mailer";
@@ -458,6 +459,8 @@ export async function underwrite(args: {
   prior?: PriorWithFeedback[];
   analystContext?: string | null;
   instructions?: string | null;
+  /** Set when the company is already in the Genesys portfolio. */
+  portfolioContext?: string | null;
   backtest?: { year: number | null };
   corrections?: string;
   mode?: "structured" | "json";
@@ -471,6 +474,7 @@ export async function underwrite(args: {
       : `Screen this opportunity (${args.companyName}) and write the investment memo. This is the first analysis of this deal, so leave versionDelta as an empty string.`,
     args.backtest ? asOfInstruction(args.backtest.year) : "",
     args.analystContext ? `\n## Note from the Genesys team\n${args.analystContext}` : "",
+    args.portfolioContext ? `\n${args.portfolioContext}` : "",
     args.instructions
       ? `\n## Instructions from the Genesys team for this version\nFollow these. They say what to focus on or do differently from earlier versions. Where they conflict with a default in your guidance, the team's instruction wins, except that every claim must still be sourced and the founder email must still never mention AI or internal scores.\n${args.instructions}`
       : "",
@@ -698,6 +702,7 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
     // Fingerprint the deal (once, or again when new materials arrive) to find precedents.
     let probe: { sector: string | null; modality: string | null; indication: string | null; tags: string[] } = deal;
     const placeholder = hasPlaceholderName(deal);
+    let portfolioContext: string | null = null;
     const failedResearch: string[] = [];
     let dossier: string | null = deal.researchDossier;
     // The company profile is rebuilt only when the materials changed since it was made.
@@ -748,6 +753,24 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
     } else {
       await logStep(analysisId, "Re-using the company profile built earlier (no new materials since)", "info");
       if (deal.dossierDocsKey == null) await db.deal.update({ where: { id: deal.id }, data: { dossierDocsKey: profileKey } });
+    }
+    // An existing Genesys investment? Then this is a follow-on decision, not a new screen.
+    const latestDeal = await db.deal.findUnique({ where: { id: deal.id }, select: { companyName: true, website: true } });
+    const portfolioMatch = await findPortfolioMatch({
+      names: [companyName, latestDeal?.companyName],
+      websites: [latestDeal?.website, websiteFromText(deal.documents.map((d) => d.plainText ?? d.extractedText ?? "").join("\n"), companyName)],
+    });
+    if (portfolioMatch) {
+      const portfolioFiles = await db.knowledgeFile.findMany({ where: { portfolioCompanyId: portfolioMatch.id, status: "READY" }, select: { filename: true, summary: true } });
+      portfolioContext = portfolioBlock(portfolioMatch, portfolioFiles);
+      if (deal.portfolioCompanyId !== portfolioMatch.id) await db.deal.update({ where: { id: deal.id }, data: { portfolioCompanyId: portfolioMatch.id } });
+      await logStep(
+        analysisId,
+        `Recognised as an existing Genesys portfolio company: ${portfolioMatch.name}${portfolioMatch.yearInvested ? ` (invested ${portfolioMatch.yearInvested})` : ""}. Assessing it as a follow-on investment, using the firm's record${portfolioFiles.length ? ` and ${plural(portfolioFiles.length, "file")} on file` : ""}`,
+        "info",
+      );
+    } else if (deal.portfolioCompanyId) {
+      await db.deal.update({ where: { id: deal.id }, data: { portfolioCompanyId: null } });
     }
     // Company logo (website on file, website in the deck, web search, then the deck's title slide).
     // At most hourly (opening the deal also triggers it), so resumes and re-runs don't repeat the search.
@@ -941,6 +964,7 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
       firmContext,
       analystContext: analysis.analystContext,
       instructions: analysis.instructions,
+      portfolioContext,
     };
     if (analysis.instructions) await logStep(analysisId, `Following the team's instructions: "${analysis.instructions.slice(0, 280)}${analysis.instructions.length > 280 ? "…" : ""}"`, "info");
     await logStep(analysisId, prior.length ? "Writing the updated memo with the new information" : "Writing the memo: science, team, IP, market, financials and fit with Genesys", "start");
@@ -1265,4 +1289,31 @@ function pickSector(current: string | null, found: string | null | undefined): s
   const vague = (v: string | null | undefined) => !v || /^(other|unknown|n\/?a|tbd|unclear)$/i.test(v.trim());
   if (!vague(current)) return current;
   return vague(found) ? (current ?? found ?? null) : found!;
+}
+
+/** What the firm already knows about a portfolio company, framed for a follow-on decision. */
+function portfolioBlock(c: PortfolioCompany, files: { filename: string; summary: string | null }[]): string {
+  const facts = [
+    c.yearInvested ? `Invested: ${c.yearInvested}` : null,
+    c.stageAtEntry ? `Stage at entry: ${c.stageAtEntry}` : null,
+    c.checkSize ? `Genesys investment: ${c.checkSize}` : null,
+    c.roundSize ? `Round at entry: ${c.roundSize}` : null,
+    c.entryValuation ? `Valuation at entry: ${c.entryValuation}` : null,
+    c.ownership ? `Ownership: ${c.ownership}` : null,
+    c.coInvestors ? `Co-investors: ${c.coInvestors}` : null,
+    `Status: ${c.outcome.toLowerCase().replaceAll("_", " ")}${c.outcomeNotes ? ` (${c.outcomeNotes})` : ""}`,
+    c.exitValue ? `Exit or current value: ${c.exitValue}` : null,
+    c.returnMultiple ? `Return so far: ${c.returnMultiple}` : null,
+  ].filter(Boolean);
+  return `## This is an existing Genesys portfolio company: ${c.name}
+Genesys has already invested. Treat these materials as a follow-on decision (a new round, a pro-rata or a bridge), not a first screen:
+- Open the executive summary by saying it is an existing portfolio company and what Genesys already holds.
+- Judge progress against what was expected at the original investment: milestones hit or missed, cash used, team changes.
+- Weigh the follow-on on its merits and on protecting the existing position (pro-rata rights, dilution, signalling to other investors if Genesys does not participate).
+- In portfolioFit, describe the existing position; do not list ${c.name} as a comparable investment.
+- Do not request information the firm already holds as an investor (board materials, prior financing documents); request only what is new.
+
+What the firm has on record:
+${facts.map((f) => `- ${f}`).join("\n")}
+- Description: ${c.description}${c.lessons ? `\n- Partner notes: ${c.lessons}` : ""}${files.length ? `\n\nFrom the firm's files on ${c.name}:\n${files.map((f) => `- ${f.filename}: ${f.summary ?? "(no summary)"}`).join("\n")}` : ""}`;
 }

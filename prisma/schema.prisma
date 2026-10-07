@@ -116,6 +116,8 @@ model Deal {
   /// Factual summary of the submitted materials, given to the web-research passes instead of the full deck.
   /// What the automatic logo lookup found or why it found nothing, shown on the deal.
   logoNote        String?
+  /// Set when the deal is a company Genesys already invested in (a follow-on decision, not a new screen).
+  portfolioCompanyId String?
   researchDossier String?
   /// The documents the research dossier was built from (sorted ids), so it is rebuilt only when they change.
   dossierDocsKey  String?
