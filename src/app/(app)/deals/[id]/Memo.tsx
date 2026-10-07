@@ -60,9 +60,54 @@ function Bullets({ items, marker = "•" }: { items: string[]; marker?: string }
   );
 }
 
-export function MemoView({ memo, firstAnalysis = false }: { memo: Memo; firstAnalysis?: boolean }) {
+/**
+ * How much of the memo rests on independent research versus the company's own
+ * materials, from the evidence ledger, so a reader can see it isn't just the deck.
+ */
+function SourcingSummary({ memo, webSourceCount }: { memo: Memo; webSourceCount: number }) {
+  const ev = memo.evidence ?? [];
+  if (!ev.length) return null;
+  const groups = [
+    { key: "independent", label: "Independent research online", cls: "bg-brand-500", n: ev.filter((e) => e.sourceType === "RESEARCH_BRIEF" || e.sourceType === "COMPETITOR_SWEEP").length },
+    { key: "deck", label: "Company's own materials", cls: "bg-navy-700", n: ev.filter((e) => e.sourceType === "DECK_OR_MATERIALS").length },
+    { key: "firm", label: "Genesys records and benchmarks", cls: "bg-[#c9a227]", n: ev.filter((e) => e.sourceType === "PRECEDENT" || e.sourceType === "FIRM_CONTEXT" || e.sourceType === "BENCHMARK").length },
+    { key: "reasoning", label: "Analysis and background knowledge", cls: "bg-line-strong", n: ev.filter((e) => e.sourceType === "ANALYST_INFERENCE" || e.sourceType === "GENERAL_KNOWLEDGE").length },
+  ].filter((g) => g.n > 0);
+  const unconfirmed = ev.filter((e) => e.sourceType === "DECK_OR_MATERIALS" && e.status === "COMPANY_CLAIM").length;
+  const pct = (n: number) => Math.round((n / ev.length) * 100);
+  return (
+    <Card>
+      <div className="eyebrow mb-1">How this memo was sourced</div>
+      <p className="mb-3 text-[13px] text-ink-soft">
+        {ev.length} material claims, checked against {webSourceCount} web source{webSourceCount === 1 ? "" : "s"} found by the Sharminator&apos;s own research, not just the deck.
+      </p>
+      <div className="flex h-2.5 overflow-hidden rounded-full bg-line">
+        {groups.map((g) => <div key={g.key} className={g.cls} style={{ width: `${pct(g.n)}%` }} title={`${g.label}: ${g.n}`} />)}
+      </div>
+      <ul className="mt-3 grid grid-cols-1 gap-x-6 gap-y-1 text-[12.5px] sm:grid-cols-2">
+        {groups.map((g) => (
+          <li key={g.key} className="flex items-center gap-2 text-ink-soft">
+            <span className={cx("h-2 w-2 shrink-0 rounded-full", g.cls)} />
+            {g.label}
+            <span className="ml-auto whitespace-nowrap pl-2 tabular text-ink">{g.n} · {pct(g.n)}%</span>
+          </li>
+        ))}
+      </ul>
+      {unconfirmed > 0 && (
+        <p className="mt-3 text-[12.5px] text-warn">
+          {unconfirmed === 1
+            ? "1 claim from the company could not be confirmed independently; it is marked as a company claim in the evidence list."
+            : `${unconfirmed} claims from the company could not be confirmed independently; they are marked as company claims in the evidence list.`}
+        </p>
+      )}
+    </Card>
+  );
+}
+
+export function MemoView({ memo, firstAnalysis = false, webSourceCount = 0 }: { memo: Memo; firstAnalysis?: boolean; webSourceCount?: number }) {
   return (
     <div className="space-y-8">
+      <SourcingSummary memo={memo} webSourceCount={webSourceCount} />
       <Card className={cx("border-l-4", memo.worthOurTime.verdict ? "border-l-pos" : "border-l-neg")}>
         <div className="eyebrow mb-2">Is this worth our time?</div>
         <div className="flex items-start gap-4">

@@ -321,6 +321,11 @@ This memo drives decisions about real capital and real founders. An unsupported 
   - ANALYST_INFERENCE: your reasoning from other evidence. Name those evidence ids in sourceRef.
 - **Quotes must be exact.** They are checked character-for-character against the source text. If you cannot quote exactly, set quote to null and status to NEEDS_VERIFICATION.
 - **Status.** Founder assertions that the materials do not substantiate are COMPANY_CLAIM, even when they appear in the deck. Use VERIFIED_IN_SOURCE only when the source itself provides the evidence (data, citation or document), not merely an assertion.
+- **Check the deck against independent sources.** The deck is the company's own account. For every material claim it makes (data, trials, regulatory status, partners, funding, traction, team background, IP, market size), look for the matching finding in the research brief and competitor sweep, and say what they show:
+  - Confirmed: cite the independent source (RESEARCH_BRIEF or COMPETITOR_SWEEP), not the deck.
+  - Contradicted: say so plainly in the relevant section, cite both, and treat it as a key risk or red flag.
+  - Not found publicly: keep the deck as the source, set status to COMPANY_CLAIM, and write "not independently confirmed".
+  - The executive summary and the scorecard should rest on independent evidence wherever the research provides it; a score that rests only on the company's own claims must say so.
 - **Never fabricate.** Do not invent a URL, publication, trial ID, deal value, competitor, funding round, investor, person or quote. Cite only URLs that appear in the research brief or the competitive sweep.
 - **Cite only Genesys companies you were given.** Every Genesys investment or past decision you cite must appear in the firm context or precedents above.
 - **Gaps become requests.** If something important is unknown, say so plainly and add an information request. Do not fill gaps with plausible-sounding detail.
@@ -520,6 +525,26 @@ For each person, find:
 - Cite a source URL for every fact.
 - If you cannot find someone, or cannot confirm a claim, say so explicitly. Never infer someone's background.
 - Be careful with common names: confirm identity through institution, field or company before attributing anything.
+
+Keep it to about 1,200 words.
+`.trim();
+
+export const COMPANY_RESEARCH_PROMPT = `
+Build an independent public record of the company in the materials provided (deck or company dossier) for the Genesys Capital investment team. The point is to check the company's own story against what outside sources say, not to repeat the deck.
+
+Search for, with a source URL for every fact:
+1. **Identity:** legal name, former names, founding year, location, website; whether the company and its website exist as described.
+2. **Funding history:** announced rounds, amounts, dates, lead and other investors, grants and non-dilutive funding (government programmes, foundations, research councils). Note anything the deck omits or describes differently.
+3. **Clinical and regulatory record:** trial registrations (ClinicalTrials.gov, Health Canada, EU CTR, ISRCTN) with IDs, phase, status and enrolment; FDA or Health Canada designations, clearances, approvals, warning letters or recalls.
+4. **Partnerships and customers:** announced licences, collaborations, pilots, distribution deals or sales, with partner names and dates. Check whether partners mentioned in the deck have confirmed them publicly.
+5. **News and track record:** press coverage, awards, accelerator programmes, leadership changes, layoffs, pivots, litigation, disputes or regulatory actions.
+6. **Signals of scale:** headcount (for example from the company's own team page or professional networks), office locations, job postings.
+
+Finish with **Deck claims checked:** a list of the deck's most important factual claims (funding, partners, trials, regulatory status, traction), each marked CONFIRMED (with the source), CONTRADICTED (with the source and what it says) or NOT FOUND publicly.
+
+**Rules:**
+- Cite a source URL for every fact. Never infer or fill gaps; say plainly when you find nothing.
+- Be careful with similar company names: confirm identity through location, people or technology before attributing anything.
 
 Keep it to about 1,200 words.
 `.trim();

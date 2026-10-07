@@ -25,6 +25,7 @@ import {
   FOUNDER_RESEARCH_PROMPT,
   IP_RESEARCH_PROMPT,
   MARKET_RESEARCH_PROMPT,
+  COMPANY_RESEARCH_PROMPT,
   competitorBlock,
   FINGERPRINT_PROMPT,
   METHODOLOGY,
@@ -55,7 +56,9 @@ async function notifyStarter(userId: string | null, send: (to: string, firstName
   }
 }
 
-const PASS_LABEL: Record<Pass, string> = { science: "science and regulatory", founders: "founder and management", ip: "patent and IP", market: "market" };
+const PASS_LABEL: Record<Pass, string> = { science: "science and regulatory", founders: "founder and management", ip: "patent and IP", market: "market", company: "company track record" };
+/** The web research passes every analysis runs (plus the competitor sweep). */
+const PASSES = ["science", "founders", "ip", "market", "company"] as const;
 
 const RECOMMENDATION_TEXT: Record<Memo["recommendation"], string> = {
   REJECT: "recommends declining",
@@ -575,7 +578,7 @@ const MEMO_SECTION_LABEL: Record<string, string> = {
   evidence: "evidence and sources for each claim",
 };
 
-type Pass = "science" | "founders" | "ip" | "market";
+type Pass = (typeof PASSES)[number];
 export type Checkpoint = {
   research?: Partial<Record<Pass, string>>;
   sweep?: { notes: string; sweep: CompetitorSweep };
@@ -651,7 +654,7 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
   // its log is kept and everything it finished is reused, so it carries on rather than restarts.
   const done = (analysis.checkpoint ?? {}) as Checkpoint;
   const carriedOver = [
-    ...(["science", "founders", "ip", "market"] as Pass[]).filter((k) => done.research?.[k]).map((k) => PASS_LABEL[k] + " research"),
+    ...[...PASSES].filter((k) => done.research?.[k]).map((k) => PASS_LABEL[k] + " research"),
     ...(done.sweep ? ["competitor sweep"] : []),
     ...(done.draft ? ["draft memo"] : []),
     ...(done.checked ? [done.checked.final ? "fact-checked memo" : "fact-check"] : []),
@@ -841,7 +844,7 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
       (fresh(store.passes?.[k]?.at) ? store.passes?.[k]?.text : undefined) ??
       (refresh ? undefined : usable.map((a) => (a.checkpoint as Checkpoint | null)?.research?.[k]).find(Boolean));
     const passes: Partial<Record<Pass, string>> = {};
-    for (const k of ["science", "founders", "ip", "market"] as Pass[]) {
+    for (const k of PASSES) {
       const v = own.research?.[k] ?? priorPass(k);
       if (v) passes[k] = v;
     }
@@ -857,16 +860,16 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
 
     // Research found on earlier versions but not yet on the deal is copied across, keeping its date.
     const foundAt = new Date(researchFrom?.completedAt ?? researchFrom?.createdAt ?? Date.now()).toISOString();
-    const backfill = (["science", "founders", "ip", "market"] as Pass[]).filter((k) => passes[k] && !store.passes?.[k]);
+    const backfill = [...PASSES].filter((k) => passes[k] && !store.passes?.[k]);
     if (backfill.length || (sweepDone && !store.sweep)) {
       await saveDealResearch(deal.id, {
         passes: Object.fromEntries(backfill.map((k) => [k, { text: passes[k]!, at: foundAt }])),
         ...(sweepDone && !store.sweep ? { sweep: { ...sweepDone, at: foundAt } } : {}),
       });
     }
-    const missing = legacy ? [] : (["science", "founders", "ip", "market"] as Pass[]).filter((k) => !passes[k]);
+    const missing = legacy ? [] : [...PASSES].filter((k) => !passes[k]);
     if (legacy || missing.length < 4 || sweepDone) {
-      const names = [...(legacy ? ["all four research areas"] : (["science", "founders", "ip", "market"] as Pass[]).filter((k) => passes[k]).map((k) => PASS_LABEL[k])), ...(sweepDone ? ["the competitor sweep"] : [])];
+      const names = [...(legacy ? ["the earlier research"] : [...PASSES].filter((k) => passes[k]).map((k) => PASS_LABEL[k])), ...(sweepDone ? ["the competitor sweep"] : [])];
       if (names.length) await logStep(analysisId, `Re-using research already done: ${names.join(", ")}`, "info");
     }
     if (env.webResearchEnabled && (missing.length || !sweepDone)) {
@@ -903,11 +906,16 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
       ];
       const run = (k: Pass): Promise<string | null> =>
         k === "science" ? researchBrief(companyName, input)
-        : diligenceResearch(`research: ${k === "ip" ? "patents" : k}`, k === "founders" ? FOUNDER_RESEARCH_PROMPT : k === "ip" ? IP_RESEARCH_PROMPT : MARKET_RESEARCH_PROMPT, companyName, input);
+        : diligenceResearch(
+            `research: ${k === "ip" ? "patents" : k}`,
+            k === "founders" ? FOUNDER_RESEARCH_PROMPT : k === "ip" ? IP_RESEARCH_PROMPT : k === "company" ? COMPANY_RESEARCH_PROMPT : MARKET_RESEARCH_PROMPT,
+            companyName,
+            input,
+          );
       const [, swept] = await Promise.all([
         Promise.all(
           missing.map((k) =>
-            soft(k === "founders" ? "founder" : k === "ip" ? "patent" : k, run(k), finished(`the ${PASS_LABEL[k]} research`), async (v: string) => {
+            soft(k === "founders" ? "founder" : k === "ip" ? "patent" : k === "company" ? "company track record" : k, run(k), finished(`the ${PASS_LABEL[k]} research`), async (v: string) => {
               passes[k] = v;
               await saveCheckpoint(analysisId, {}, { [k]: v });
               await saveDealResearch(deal.id, { passes: { [k]: { text: v, at: new Date().toISOString() } } });
@@ -937,6 +945,7 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
         ["Founders and management research", passes.founders],
         ["Intellectual property research", passes.ip],
         ["Market and epidemiology research", passes.market],
+        ["Company track record (independent sources, with the deck's claims checked)", passes.company],
       ] as [string, string | undefined][]
     ).filter(([, v]) => v) as [string, string][];
     const research: string | null = legacy ?? (sections.length ? sections.map(([h, v]) => `## ${h}\n\n${v}`).join("\n\n") : null);

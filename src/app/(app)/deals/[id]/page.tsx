@@ -328,7 +328,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
             <Tabs
               key={shown!.id}
               tabs={[
-                { id: "memo", label: "Investment memo", content: <MemoView memo={memo} firstAnalysis={!deal.analyses.some((a) => a.version < shown!.version && a.status === "COMPLETE")} /> },
+                { id: "memo", label: "Investment memo", content: <MemoView memo={memo} webSourceCount={webSources.length} firstAnalysis={!deal.analyses.some((a) => a.version < shown!.version && a.status === "COMPLETE")} /> },
                 { id: "gaps", label: "Gaps to close", badge: memo.gaps?.length || undefined, content: <GapsView memo={memo} /> },
                 { id: "market", label: "Market", content: <MarketView memo={memo} /> },
                 { id: "ip", label: "IP", badge: memo.intellectualProperty.assets?.length, content: <IPView memo={memo} /> },
