@@ -15,7 +15,7 @@ import { formatUsd, spendByDeal } from "@/lib/ai/usage";
 import { GapsView, PassReasons, SourcesList, VersionHistory, collectWebSources, type VersionRow } from "./History";
 import { LogoEditor } from "./LogoEditor";
 import { RemoveDocument } from "./RemoveDocument";
-import { ensureDealLogo } from "@/lib/ai/analyst";
+import { ensureDealLogo, fmtElapsed } from "@/lib/ai/analyst";
 import { after } from "next/server";
 import { StepLog, asSteps } from "./StepLog";
 import { CopyButton } from "./CopyButton";
@@ -93,6 +93,15 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
 
   const rounds = [...new Set(deal.documents.map((d) => d.round))];
   const dealSpend = (await spendByDeal([deal.id])).get(deal.id) ?? 0;
+  // Each analysis's measured spend (every AI request it made, including resumed attempts).
+  const spendRows = await db.aiUsage.groupBy({ by: ["analysisId"], where: { analysisId: { in: deal.analyses.map((a) => a.id) } }, _sum: { usd: true } });
+  const spendOf = new Map(spendRows.map((r) => [r.analysisId, r._sum.usd ?? 0]));
+  // Time the analysis spent working: the sum of its recorded stages, or start to finish.
+  const workedMs = (a: { timings: unknown; startedAt: Date | null; completedAt: Date | null }) => {
+    const t = Array.isArray(a.timings) ? (a.timings as { stage: string; ms: number }[]).filter((x) => !/^(Memo|Correction): /.test(x.stage)) : [];
+    if (t.length) return t.reduce((n, x) => n + x.ms, 0);
+    return a.startedAt && a.completedAt ? a.completedAt.getTime() - a.startedAt.getTime() : null;
+  };
   const runs = deal.analyses.filter((a) => a.status !== "QUEUED").length;
   const people = await db.user.findMany({ where: { id: { in: deal.analyses.map((a) => a.createdById).filter((x): x is string => !!x) } }, select: { id: true, name: true, email: true } });
   const asc = [...deal.analyses].reverse();
@@ -102,7 +111,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
     return {
       id: a.id, version: a.version, trigger: a.trigger, status: a.status, createdAt: a.createdAt, completedAt: a.completedAt,
       recommendation: a.recommendation, overallScore: a.overallScore, versionDelta: (a.memo as Memo | null)?.versionDelta ?? null,
-      analystContext: a.analystContext, by: who ? who.name ?? who.email.split("@")[0] : null, costUsd: a.costUsd,
+      analystContext: a.analystContext, by: who ? who.name ?? who.email.split("@")[0] : null, costUsd: spendOf.get(a.id) ?? a.costUsd,
       newFiles: deal.documents.filter((d) => d.createdAt > prevStart && d.createdAt <= a.createdAt).map((d) => d.filename),
       files: deal.documents.filter((d) => d.createdAt <= a.createdAt).map((d) => d.filename),
       startedAt: a.startedAt,
@@ -194,6 +203,18 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
               <div className="mt-1 text-[12px] text-muted">
                 {memo.conviction.toLowerCase()} conviction · v{shown.version} · {fmtDate(shown.completedAt)}
               </div>
+              {(() => {
+                const usd = spendOf.get(shown.id) ?? shown.costUsd;
+                const ms = workedMs(shown);
+                if (!usd && !ms) return null;
+                return (
+                  <div className="mt-0.5 text-[12px] text-muted">
+                    This analysis: {usd ? `AI cost ${formatUsd(usd)}` : ""}
+                    {usd && ms ? " · " : ""}
+                    {ms ? `${fmtElapsed(ms)} of work` : ""}
+                  </div>
+                );
+              })()}
             </div>
             <ScoreRing score={memo.overallScore} size={96} />
           </div>
