@@ -1,13 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import {
-  addHistoricalDealAction,
-  deleteHistoricalDealAction,
-  importArchiveCsvAction,
-  retryIngestAction,
-  type TrainState,
-} from "@/lib/training/actions";
+import { addHistoricalDealAction, deleteHistoricalDealAction, importArchiveCsvAction, retryIngestAction, type TrainState, addPastDealToPortfolioAction, attachDeckAction } from "@/lib/training/actions";
 import { Button, Card, Field, cx, inputCls } from "@/components/ui";
 import { useConfirm } from "@/components/Confirm";
 
@@ -97,5 +91,45 @@ export function ArchiveRowActions({ id, name, failed }: { id: string; name: stri
         Remove
       </button>
     </div>
+  );
+}
+
+/** "Add to portfolio" for an invested past deal with no portfolio record. */
+export function AddToPortfolioButton({ id }: { id: string }) {
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  return (
+    <span className="text-[12.5px]">
+      <button
+        type="button"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          const r = await addPastDealToPortfolioAction(id);
+          setMsg({ ok: r.ok, text: r.message ?? r.error ?? "" });
+          setBusy(false);
+        }}
+        className="font-medium text-navy-700 hover:underline"
+      >
+        {busy ? "Adding…" : "Add to the portfolio"}
+      </button>
+      {msg && <span className={cx("ml-2", msg.ok ? "text-pos" : "text-neg")}>{msg.text}</span>}
+    </span>
+  );
+}
+
+/** Attach the original deck so the deal can be replayed in accuracy tests. */
+export function AttachDeckForm({ id }: { id: string }) {
+  const [state, action, pending] = useActionState<TrainState, FormData>(attachDeckAction.bind(null, id), { ok: false });
+  const [name, setName] = useState<string | null>(null);
+  return (
+    <form action={action} className="flex flex-wrap items-center gap-2 text-[12.5px]">
+      <label className="cursor-pointer rounded-lg border border-line-strong px-3 py-1.5 font-medium text-navy-800 hover:border-navy-700">
+        {name ?? "Choose the original deck"}
+        <input type="file" name="deck" accept=".pdf,.pptx,.docx,image/*" className="hidden" onChange={(e) => setName(e.target.files?.[0]?.name ?? null)} />
+      </label>
+      <Button type="submit" disabled={!name || pending} className="!px-3 !py-1.5">{pending ? "Attaching…" : "Attach"}</Button>
+      <Status s={state} />
+    </form>
   );
 }

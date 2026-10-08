@@ -360,3 +360,48 @@ export async function saveFirmSettingsAction(_: TrainState, fd: FormData): Promi
   revalidatePath("/training/prompt");
   return { ok: true, message: "Saved. These parameters apply to every analysis from now on." };
 }
+
+// ─── Linking past deals to the portfolio, and attaching decks ───────────────
+
+/** Creates the portfolio record for a past deal Genesys invested in (unverified until a partner checks it). */
+export async function addPastDealToPortfolioAction(id: string): Promise<TrainState> {
+  const user = await requireRole("PARTNER");
+  const h = await db.historicalDeal.findUnique({ where: { id } });
+  if (!h) return { ok: false, error: "Past deal not found." };
+  const { coreName } = await import("../deals/portfolio");
+  const existing = (await db.portfolioCompany.findMany({ select: { name: true } })).find((c) => coreName(c.name) === coreName(h.companyName));
+  if (existing) return { ok: false, error: `${existing.name} is already in the portfolio.` };
+  const c = await db.portfolioCompany.create({
+    data: {
+      name: h.companyName,
+      sector: h.sector ?? "Therapeutics",
+      modality: h.modality,
+      indication: h.indication,
+      description: (h.digest ?? h.decisionRationale).slice(0, 600),
+      yearInvested: h.decisionYear,
+      stageAtEntry: h.stage,
+      outcome: h.outcome,
+      outcomeNotes: h.outcomeNotes,
+      verified: false,
+    },
+  });
+  await audit("portfolio.created", { userId: user.id, entity: "PortfolioCompany", entityId: c.id, meta: { name: c.name, changes: [{ field: "Company", from: "(none)", to: `${c.name} (from past deals)` }] } });
+  revalidatePath("/training/archive");
+  revalidatePath("/knowledge");
+  return { ok: true, message: `${c.name} added to the portfolio. Add its financials in the Knowledge base.` };
+}
+
+/** Attaches the original deck to a past deal so it can be used in accuracy tests. */
+export async function attachDeckAction(id: string, _: TrainState, fd: FormData): Promise<TrainState> {
+  const user = await requireRole("PARTNER");
+  const file = fd.get("deck");
+  if (!(file instanceof File) || file.size === 0) return { ok: false, error: "Choose the deck file." };
+  if (!isDeckCandidate(file)) return { ok: false, error: "Use a PDF, PowerPoint, Word or image file under 500 MB." };
+  const deck = await prepareDeck(file);
+  const h = await db.historicalDeal.update({ where: { id }, data: deck });
+  await audit("training.archive_deck_added", { userId: user.id, entity: "HistoricalDeal", entityId: id, meta: { name: h.companyName, changes: [{ field: "Original deck", from: "(none)", to: file.name }] } });
+  scheduleIngest([id]);
+  revalidatePath("/training/archive");
+  revalidatePath("/training/backtests");
+  return { ok: true, message: "Deck attached. This deal can now be used in accuracy tests." };
+}

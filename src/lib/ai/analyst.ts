@@ -406,8 +406,26 @@ export async function buildFirmContext(opts: { excludeDealId?: string } = {}) {
     lesson: f.lesson,
     appliesTo: f.appliesTo,
   }));
-  return firmContextBlock({ settings, principles, calibration, portfolio, pipeline, firmDocs, portfolioFiles });
+  // Keep the firm context to a fixed budget (about 30,000 tokens) so a growing portfolio,
+  // archive of reviews or document library never crowds out the deal itself. When over,
+  // trim the least decision-relevant detail first, step by step.
+  const clip = (t: string | null | undefined, n: number) => (t && t.length > n ? `${t.slice(0, n - 1)}…` : t);
+  const steps = [
+    () => ({ firmDocs, portfolioFiles, calibration, portfolio, pipeline }),
+    () => ({ firmDocs: firmDocs.slice(0, 15).map((d) => ({ ...d, summary: clip(d.summary, 1200)! })), portfolioFiles: Object.fromEntries(Object.entries(portfolioFiles).map(([k, v]) => [k, v.slice(0, 1).map((x) => ({ ...x, summary: clip(x.summary, 600)! }))])), calibration, portfolio, pipeline: pipeline.slice(0, 25) }),
+    () => ({ firmDocs: firmDocs.slice(0, 10).map((d) => ({ ...d, summary: clip(d.summary, 800)! })), portfolioFiles: {}, calibration: calibration.slice(0, 25), portfolio: portfolio.map((p) => ({ ...p, description: clip(p.description, 300)!, outcomeNotes: clip(p.outcomeNotes, 200) ?? null, lessons: clip(p.lessons, 400) ?? null })), pipeline: pipeline.slice(0, 15) }),
+    () => ({ firmDocs: firmDocs.slice(0, 6).map((d) => ({ ...d, summary: clip(d.summary, 500)! })), portfolioFiles: {}, calibration: calibration.slice(0, 15), portfolio: portfolio.map((p) => ({ ...p, description: clip(p.description, 160)!, outcomeNotes: clip(p.outcomeNotes, 120) ?? null, lessons: clip(p.lessons, 240) ?? null })), pipeline: pipeline.slice(0, 10) }),
+  ];
+  let block = "";
+  for (const step of steps) {
+    block = firmContextBlock({ settings, principles, ...step() });
+    if (block.length <= FIRM_CONTEXT_BUDGET) break;
+  }
+  return block;
 }
+
+/** Characters of firm context per analysis (roughly 30,000 tokens). */
+const FIRM_CONTEXT_BUDGET = 120_000;
 
 export function systemBlocks(firmContext: string): Anthropic.Beta.BetaTextBlockParam[] {
   return [

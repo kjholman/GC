@@ -12,13 +12,53 @@ export default async function ExemplarsPage({ searchParams }: PageProps<"/traini
   const user = await requireUser();
   const canEdit = hasRole(user.role, "PARTNER");
   const exemplars = await db.exemplar.findMany({ orderBy: { createdAt: "desc" } });
+  // Finished memos not yet turned into examples, latest version per deal, for one-click correcting.
+  const used = new Set(exemplars.map((e) => e.sourceAnalysisId).filter(Boolean));
+  const candidates = canEdit
+    ? (
+        await db.analysis.findMany({
+          where: { status: "COMPLETE" },
+          orderBy: { completedAt: "desc" },
+          take: 60,
+          select: { id: true, version: true, recommendation: true, overallScore: true, completedAt: true, dealId: true, deal: { select: { companyName: true, sector: true } }, feedback: { select: { verdict: true } } },
+        })
+      )
+        .filter((a, i, all) => !used.has(a.id) && all.findIndex((b) => b.dealId === a.dealId) === i)
+        .slice(0, 8)
+    : [];
   return (
     <div>
       <p className="mb-6 max-w-3xl text-[14px] leading-relaxed text-ink-soft">
-        Example memos are memos the partners have corrected and approved as the standard to follow. When a new deal resembles one, GAIA studies it before writing. To create one, open any deal and choose <span className="font-medium text-ink">Correct this memo and save as an example</span>.
+        Example memos are memos the partners have corrected and approved as the standard to follow. When a new deal resembles one, GAIA studies it before writing. The best ones to pick are memos where GAIA was wrong or only partly right: correcting those teaches it the most.
       </p>
+      {candidates.length > 0 && (
+        <Card className="mb-8">
+          <div className="eyebrow mb-1 text-brand-600">Create an example memo</div>
+          <h3 className="font-display text-[20px] font-semibold text-navy-900">Pick a finished memo to correct</h3>
+          <p className="mt-1 mb-4 text-[13px] text-ink-soft">You fix the verdict, score and the parts GAIA got wrong, then add a note on why. It takes about five minutes.</p>
+          <ul className="divide-y divide-line">
+            {candidates.map((a) => {
+              const disagreed = a.feedback.some((f) => f.verdict !== "AGREE");
+              return (
+                <li key={a.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                  <span className="min-w-0">
+                    <span className="block font-medium text-navy-900">{a.deal.companyName} <span className="text-[12px] font-normal text-muted">v{a.version}</span></span>
+                    <span className="block text-[12.5px] text-muted">
+                      {[a.deal.sector, a.recommendation ? REC_META[a.recommendation]?.label : null, a.overallScore != null ? `score ${a.overallScore}` : null, fmtDate(a.completedAt)].filter(Boolean).join(" · ")}
+                      {disagreed && <span className="ml-2 text-warn">● A partner disagreed: a good one to correct</span>}
+                    </span>
+                  </span>
+                  <Link href={`/training/exemplars/new?analysis=${a.id}`} className="shrink-0 rounded-lg border border-line-strong px-3 py-1.5 text-[13px] font-medium text-navy-800 hover:border-navy-700">
+                    Correct this memo →
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </Card>
+      )}
       {exemplars.length === 0 ? (
-        <Empty title="No example memos yet">Open a deal with a finished memo and choose “Correct this memo and save as an example”.</Empty>
+        <Empty title="No example memos yet">{candidates.length ? "Pick a finished memo above to create the first one." : "Once GAIA has finished a memo, it will appear here to correct."}</Empty>
       ) : (
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           {exemplars.slice((page - 1) * PAGE, page * PAGE).map((e) => (

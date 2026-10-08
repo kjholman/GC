@@ -12,17 +12,42 @@ export default async function BacktestsPage({ searchParams }: PageProps<"/traini
   const PAGE = 20;
   const user = await requireUser();
   const canRun = hasRole(user.role, "PARTNER");
-  const [runs, runTotal, eligible] = await Promise.all([
+  const [runs, runTotal, eligible, totalPast, byDecision] = await Promise.all([
     db.backtestRun.findMany({ orderBy: { createdAt: "desc" }, skip: (page - 1) * PAGE, take: PAGE }),
     db.backtestRun.count(),
     db.historicalDeal.count({ where: { ingestStatus: "READY", deckData: { not: null } } }),
+    db.historicalDeal.count(),
+    db.historicalDeal.groupBy({ by: ["decision"], where: { ingestStatus: "READY", deckData: { not: null } }, _count: true }),
   ]);
+  const n = (d: string) => byDecision.find((x) => x.decision === d)?._count ?? 0;
+  const missing = totalPast - eligible;
   return (
     <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_360px]">
       <div>
         <p className="mb-6 max-w-3xl text-[14px] leading-relaxed text-ink-soft">
           An accuracy test has GAIA re-screen past deals using only the original decks. It never sees the partners&rsquo; memo or decision, and only looks at precedents from earlier years. Its calls are then compared with what Genesys actually decided. Run another test after changing principles, example memos or firm settings to see whether the change helped.
         </p>
+        <Card className="mb-6">
+          <div className="eyebrow mb-1">Ready to test</div>
+          <div className="flex flex-wrap items-end gap-8">
+            <div>
+              <div className="font-display text-[36px] font-semibold leading-none tabular text-navy-900">{eligible}</div>
+              <div className="mt-1 text-[12.5px] text-muted">past deals with their original deck</div>
+            </div>
+            <div className="text-[13px] text-ink-soft">
+              {n("INVESTED")} invested · {n("PASSED_AFTER_DILIGENCE")} passed after diligence · {n("PASSED_AT_SCREENING")} declined at screening
+            </div>
+          </div>
+          {missing > 0 && (
+            <p className="mt-3 text-[13px] text-ink-soft">
+              {missing} past deal{missing === 1 ? " has" : "s have"} no deck yet, so {missing === 1 ? "it" : "they"} can&apos;t be replayed.{" "}
+              <Link href="/training/archive?nodeck=1" className="font-medium text-navy-700 hover:underline">Attach decks →</Link>
+            </p>
+          )}
+          {eligible > 0 && (n("INVESTED") === 0 || n("PASSED_AT_SCREENING") + n("PASSED_AFTER_DILIGENCE") === 0) && (
+            <p className="mt-2 text-[12.5px] text-warn">For a fair test, include both deals Genesys invested in and deals it passed on.</p>
+          )}
+        </Card>
         {runs.length === 0 ? (
           <Empty title="No accuracy tests yet">{eligible ? "Start one from the panel on the right." : "First add past deals with their original decks under Past deals."}</Empty>
         ) : (

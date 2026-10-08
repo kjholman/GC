@@ -1,7 +1,9 @@
 import { db } from "@/lib/db";
 import { hasRole, requireUser } from "@/lib/auth/session";
 import { Card, Empty, cx } from "@/components/ui";
-import { AddHistoricalForm, ArchiveRowActions, ImportCsvForm } from "./ArchiveForms";
+import Link from "next/link";
+import { AddHistoricalForm, AddToPortfolioButton, ArchiveRowActions, AttachDeckForm, ImportCsvForm } from "./ArchiveForms";
+import { coreName } from "@/lib/deals/portfolio";
 import { Pagination, pageParam } from "@/components/Pagination";
 import { KnowledgeFiles, type KFile } from "@/components/KnowledgeFiles";
 import { formatBytes } from "@/lib/knowledge/files";
@@ -14,7 +16,11 @@ const DECISION: Record<string, { label: string; cls: string }> = {
 };
 
 export default async function ArchivePage({ searchParams }: PageProps<"/training/archive">) {
-  const page = pageParam((await searchParams).page);
+  const sp = await searchParams;
+  const page = pageParam(sp.page);
+  const q = typeof sp.q === "string" ? sp.q.trim().toLowerCase() : "";
+  const decision = typeof sp.decision === "string" ? sp.decision : "";
+  const noDeck = sp.nodeck === "1";
   const PAGE = 25;
   const user = await requireUser();
   const canEdit = hasRole(user.role, "PARTNER");
@@ -25,7 +31,16 @@ export default async function ArchivePage({ searchParams }: PageProps<"/training
       sector: true, modality: true, indication: true, tags: true, digest: true, deckFilename: true, ingestStatus: true, ingestError: true,
     },
   });
-  const pageDeals = deals.slice((page - 1) * PAGE, page * PAGE);
+  const portfolioNames = new Set((await db.portfolioCompany.findMany({ select: { name: true } })).map((c) => coreName(c.name)));
+  const all = deals;
+  const shown = all.filter(
+    (d) =>
+      (!q || [d.companyName, d.sector, d.modality, d.indication, d.decisionRationale].some((v) => v?.toLowerCase().includes(q))) &&
+      (!decision || d.decision === decision) &&
+      (!noDeck || !d.deckFilename),
+  );
+  const pageDeals = shown.slice((page - 1) * PAGE, page * PAGE);
+  const qs = (p: number) => `/training/archive?${new URLSearchParams({ ...(q ? { q } : {}), ...(decision ? { decision } : {}), ...(noDeck ? { nodeck: "1" } : {}), page: String(p) })}`;
   const kfiles = await db.knowledgeFile.findMany({
     where: { historicalDealId: { in: pageDeals.map((d) => d.id) } },
     orderBy: { createdAt: "desc" },
@@ -43,12 +58,25 @@ export default async function ArchivePage({ searchParams }: PageProps<"/training
         <p className="mb-6 max-w-3xl text-[14px] leading-relaxed text-ink-soft">
           For each new deck, GAIA looks up the most similar past deals here: what the partners decided, why, and how it turned out. Original decks attached here are also used for accuracy tests. Include deals Genesys <em>declined</em>; they matter as much as investments.
         </p>
+        {all.length > 0 && (
+          <form className="mb-4 flex flex-wrap items-center gap-2 text-[13px]">
+            <input name="q" defaultValue={q} placeholder="Search company, sector, reason…" aria-label="Search past deals" className="h-9 w-full rounded-lg border border-line-strong bg-paper px-3 sm:w-72" />
+            <select name="decision" defaultValue={decision} aria-label="Decision" className="h-9 rounded-lg border border-line-strong bg-paper px-3">
+              <option value="">Any decision</option>
+              {Object.entries(DECISION).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+            </select>
+            <label className="flex items-center gap-1.5 text-ink-soft"><input type="checkbox" name="nodeck" value="1" defaultChecked={noDeck} className="accent-navy-900" /> Missing a deck</label>
+            <button className="h-9 rounded-lg bg-navy-900 px-3 font-medium text-white">Filter</button>
+            {(q || decision || noDeck) && <Link href="/training/archive" className="text-navy-700 hover:underline">Clear</Link>}
+            <span className="ml-auto text-[12px] text-muted">{shown.length} of {all.length} · {all.filter((d) => d.deckFilename).length} with decks</span>
+          </form>
+        )}
         {deals.length === 0 ? (
           <Empty title="No past deals yet">Import them from a spreadsheet, or add them one at a time.</Empty>
         ) : (
           <Card pad={false}>
             <ul className="divide-y divide-line">
-              {deals.slice((page - 1) * PAGE, page * PAGE).map((d) => (
+              {pageDeals.map((d) => (
                 <li key={d.id} className="px-6 py-4">
                   <details className="group">
                     <summary className="flex cursor-pointer list-none flex-wrap items-center gap-4">
@@ -58,6 +86,9 @@ export default async function ArchivePage({ searchParams }: PageProps<"/training
                         </div>
                         <div className="truncate text-[12.5px] text-muted">{[d.sector, d.modality, d.indication].filter(Boolean).join(" · ") || "Details not recorded"}</div>
                       </div>
+                      {d.decision === "INVESTED" && portfolioNames.has(coreName(d.companyName)) && (
+                        <span className="rounded-full border border-brand-300 bg-brand-100/60 px-2 py-0.5 text-[10.5px] font-medium text-brand-700">In portfolio</span>
+                      )}
                       <span className={cx("rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]", DECISION[d.decision].cls)}>{DECISION[d.decision].label}</span>
                       <span className="w-24 text-right text-[11.5px] text-muted">{d.outcome.replaceAll("_", " ").toLowerCase()}</span>
                       <span className={cx("w-24 text-right text-[11.5px]", d.ingestStatus === "READY" ? "text-pos" : d.ingestStatus === "FAILED" ? "text-neg" : "text-warn")}>
@@ -84,13 +115,25 @@ export default async function ArchivePage({ searchParams }: PageProps<"/training
                         {d.deckFilename && <p className="mb-2 text-[12.5px] text-ink-soft">Original deck: {d.deckFilename}</p>}
                         <KnowledgeFiles scope="PAST_DEAL" targetId={d.id} files={filesByDeal.get(d.id) ?? []} canEdit={canEdit} compact hint="Memos, data, notes, anything about this deal. Any number, any format, any size." />
                       </div>
+                      {canEdit && !d.deckFilename && (
+                        <div className="md:col-span-2">
+                          <div className="eyebrow mb-1.5">Original deck</div>
+                          <p className="mb-2 text-[12.5px] text-muted">Attach the deck the partners saw so this deal can be replayed in accuracy tests.</p>
+                          <AttachDeckForm id={d.id} />
+                        </div>
+                      )}
+                      {canEdit && d.decision === "INVESTED" && !portfolioNames.has(coreName(d.companyName)) && (
+                        <div className="md:col-span-2 rounded-lg bg-mist px-3 py-2 text-[12.5px] text-ink-soft">
+                          Genesys invested, but {d.companyName} isn&apos;t in the Knowledge base portfolio yet. <AddToPortfolioButton id={d.id} />
+                        </div>
+                      )}
                       {canEdit && <div className="md:col-span-2"><ArchiveRowActions id={d.id} name={d.companyName} failed={d.ingestStatus === "FAILED"} /></div>}
                     </div>
                   </details>
                 </li>
               ))}
             </ul>
-            <div className="border-t border-line px-5"><Pagination page={page} pageSize={PAGE} total={deals.length} href={(p) => `/training/archive?page=${p}`} /></div>
+            <div className="border-t border-line px-5"><Pagination page={page} pageSize={PAGE} total={shown.length} href={qs} /></div>
           </Card>
         )}
       </div>
