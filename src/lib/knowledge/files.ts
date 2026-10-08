@@ -127,7 +127,9 @@ export async function processKnowledgeFile(fileId: string): Promise<void> {
           ? `Document: "${f.filename}", filed under one of Genesys's portfolio companies. Report what it says about that company (in portfolioCompanies), and leave the other lists empty.`
           : `Document: "${f.filename}".`,
       );
-      if (found) await recordSuggestions(found, { label: f.filename, fileId: f.id, onlyCompanyId: f.scope === "PORTFOLIO" ? f.portfolioCompanyId : null });
+      const uploader = f.uploadedById ? await db.user.findUnique({ where: { id: f.uploadedById }, select: { name: true, email: true } }) : null;
+      const label = uploader ? `${f.filename}, uploaded by ${uploader.name ?? uploader.email.split("@")[0]}` : f.filename;
+      if (found) await recordSuggestions(found, { label, fileId: f.id, onlyCompanyId: f.scope === "PORTFOLIO" ? f.portfolioCompanyId : null });
     }
   } catch (err) {
     console.error("[knowledge] could not read file", fileId, err);

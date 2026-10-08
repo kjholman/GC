@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { deletePrincipleAction, savePrincipleAction, togglePrincipleAction, type AdminState } from "@/lib/admin/actions";
 import { Button, Card, cx, inputCls } from "@/components/ui";
 import { useConfirm } from "@/components/Confirm";
+import { confirmLeave, hasUnsavedChanges } from "@/components/UnsavedGuard";
 
 type P = { id: string; title: string; body: string; active: boolean };
 
@@ -64,7 +65,7 @@ export function Principles({ principles, canEdit }: { principles: P[]; canEdit: 
         ))}
       </ol>
       {canEdit && (
-        <form key={k} action={async (fd) => { await action(fd); setK((n) => n + 1); }} className="grid grid-cols-1 gap-3 border-t border-line pt-5 md:grid-cols-[240px_1fr_auto]">
+        <form data-unsaved-guard key={k} action={async (fd) => { await action(fd); setK((n) => n + 1); }} className="grid grid-cols-1 gap-3 border-t border-line pt-5 md:grid-cols-[240px_1fr_auto]">
           <input name="title" placeholder="e.g. Composition-of-matter IP" className={inputCls} />
           <input name="body" placeholder="e.g. We do not lead single-asset therapeutics deals without composition-of-matter protection." className={inputCls} />
           <Button type="submit" disabled={pending}>Add principle</Button>
@@ -78,14 +79,24 @@ export function Principles({ principles, canEdit }: { principles: P[]; canEdit: 
 }
 
 function EditPrinciple({ p, onDone }: { p: P; onDone: () => void }) {
+  const confirm = useConfirm();
   const [state, action, pending] = useActionState<AdminState, FormData>(savePrincipleAction.bind(null, p.id), { ok: false });
   return (
-    <form action={async (fd) => { await action(fd); onDone(); }} className="space-y-2">
+    <form data-unsaved-guard action={async (fd) => { await action(fd); onDone(); }} className="space-y-2">
       <input name="title" defaultValue={p.title} className={inputCls} />
       <textarea name="body" defaultValue={p.body} rows={3} className={inputCls} />
       <div className="flex gap-2">
         <Button type="submit" disabled={pending} className="!px-3 !py-1.5">Save</Button>
-        <button type="button" onClick={onDone} className="px-3 text-[13px] text-muted hover:text-ink">Cancel</button>
+        <button
+          type="button"
+          onClick={async (e) => {
+            if (hasUnsavedChanges(e.currentTarget.closest("form")?.parentElement) && !(await confirmLeave(confirm))) return;
+            onDone();
+          }}
+          className="px-3 text-[13px] text-muted hover:text-ink"
+        >
+          Cancel
+        </button>
       </div>
       {state.error && <p className="text-[13px] text-neg">{state.error}</p>}
     </form>

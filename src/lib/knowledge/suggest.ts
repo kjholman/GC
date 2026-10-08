@@ -197,8 +197,11 @@ export async function recordSuggestions(x: Extracted, source: { label: string; f
   return made;
 }
 
-/** Writes an accepted suggestion into the knowledge base. Returns a short description of what changed. */
-export async function applySuggestion(id: string, edited?: Record<string, string>): Promise<string> {
+export type Applied = { text: string; entity: string; entityId: string; before?: unknown; created?: boolean };
+const snap = (r: unknown) => (r == null ? null : JSON.parse(JSON.stringify(r)));
+
+/** Writes an accepted suggestion into the knowledge base. Returns what changed, with enough to undo it. */
+export async function applySuggestion(id: string, edited?: Record<string, string>): Promise<Applied> {
   const s = await db.knowledgeSuggestion.findUnique({ where: { id } });
   if (!s || s.status !== "PENDING") throw new Error("This suggestion has already been handled.");
   const data = { ...(s.data as Record<string, unknown>), ...(edited ?? {}) } as Record<string, string | number | null>;
@@ -214,29 +217,32 @@ export async function applySuggestion(id: string, edited?: Record<string, string
     case "PORTFOLIO_NEW": {
       const name = str("name");
       if (!name) throw new Error("A company name is needed.");
-      await db.portfolioCompany.create({ data: { ...companyData(), name, sector: str("sector") ?? "Therapeutics", description: str("description") ?? `${name}.`, verified: false } });
-      return `Added ${name} to the portfolio`;
+      const c = await db.portfolioCompany.create({ data: { ...companyData(), name, sector: str("sector") ?? "Therapeutics", description: str("description") ?? `${name}.`, verified: false } });
+      return { text: `Added ${name} to the portfolio`, entity: "PortfolioCompany", entityId: c.id, created: true };
     }
     case "PORTFOLIO_UPDATE": {
+      const before = await db.portfolioCompany.findUnique({ where: { id: s.targetId! } });
       const c = await db.portfolioCompany.update({ where: { id: s.targetId! }, data: { ...companyData(), seeded: false } });
-      return `Updated ${c.name}`;
+      return { text: `Updated ${c.name}`, entity: "PortfolioCompany", entityId: c.id, before: snap(before) };
     }
     case "PRINCIPLE":
-      await db.investmentPrinciple.create({ data: { title: str("title") ?? s.title, body: str("body") ?? "" } });
-      return `Added the principle "${s.title}"`;
-    case "SETTING":
+      const p = await db.investmentPrinciple.create({ data: { title: str("title") ?? s.title, body: str("body") ?? "" } });
+      return { text: `Added the principle "${s.title}"`, entity: "InvestmentPrinciple", entityId: p.id, created: true };
+    case "SETTING": {
+      const before = await db.firmSetting.findUnique({ where: { key: s.targetId! } });
       await db.firmSetting.upsert({ where: { key: s.targetId! }, create: { key: s.targetId!, value: str("value") ?? "" }, update: { value: str("value") ?? "" } });
-      return `Set ${s.title}`;
+      return { text: `Set ${s.title}`, entity: "FirmSetting", entityId: s.targetId!, before: before ? { value: before.value } : null };
+    }
     case "PAST_DEAL": {
       const decision = (DECISIONS as readonly string[]).includes(String(data.decision)) ? (data.decision as (typeof DECISIONS)[number]) : "PASSED_AT_SCREENING";
-      await db.historicalDeal.create({
+      const h = await db.historicalDeal.create({
         data: {
           companyName: str("companyName") ?? s.title, decision, decisionRationale: str("rationale") ?? "(rationale not recorded)",
           decisionYear: Number(data.year) || null, outcome: (OUTCOMES as readonly string[]).includes(String(data.outcome)) ? (data.outcome as PortfolioOutcome) : "UNKNOWN",
           sector: str("sector"),
         },
       });
-      return `Added ${s.title} to past deals`;
+      return { text: `Added ${s.title} to past deals`, entity: "HistoricalDeal", entityId: h.id, created: true };
     }
   }
   throw new Error("Unknown suggestion.");

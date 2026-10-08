@@ -66,7 +66,6 @@ export default async function AdminPage({ searchParams }: PageProps<"/administra
                 <th className="py-3 pr-4 pl-6 font-semibold">Person</th>
                 <th className="px-4 py-3 font-semibold">Status</th>
                 <th className="px-4 py-3 font-semibold">Last active</th>
-                <th className="py-3 pr-6 pl-4" />
               </tr>
             </thead>
             <tbody className="divide-y divide-line">

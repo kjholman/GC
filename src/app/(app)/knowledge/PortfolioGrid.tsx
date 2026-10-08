@@ -27,7 +27,7 @@ function missing(c: PortfolioCompany): string[] {
 }
 
 /** The portfolio, searchable and filterable, with "Fill from the web" on each company. */
-export function PortfolioGrid({ companies, files, canEdit }: { companies: PortfolioCompany[]; files: Record<string, KFile[]>; canEdit: boolean }) {
+export function PortfolioGrid({ companies, files, canEdit, updated = {} }: { companies: PortfolioCompany[]; files: Record<string, KFile[]>; canEdit: boolean; updated?: Record<string, string> }) {
   const [q, setQ] = useState("");
   const [outcome, setOutcome] = useState("");
   const [gaps, setGaps] = useState(false);
@@ -67,7 +67,7 @@ export function PortfolioGrid({ companies, files, canEdit }: { companies: Portfo
       </div>
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         {shown.map((c) => (
-          <CompanyCard key={c.id} c={c} files={files[c.id] ?? []} canEdit={canEdit} />
+          <CompanyCard key={c.id} c={c} files={files[c.id] ?? []} canEdit={canEdit} updated={updated[c.id]} />
         ))}
       </div>
       {!shown.length && <p className="py-8 text-center text-[13px] text-muted">No companies match. Clear the search or filters.</p>}
@@ -75,7 +75,7 @@ export function PortfolioGrid({ companies, files, canEdit }: { companies: Portfo
   );
 }
 
-function CompanyCard({ c, files, canEdit }: { c: PortfolioCompany; files: KFile[]; canEdit: boolean }) {
+function CompanyCard({ c, files, canEdit, updated }: { c: PortfolioCompany; files: KFile[]; canEdit: boolean; updated?: string }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const gaps = missing(c);
@@ -108,6 +108,10 @@ function CompanyCard({ c, files, canEdit }: { c: PortfolioCompany; files: KFile[
         </details>
       )}
       {msg && <p className="mt-2 text-[12.5px] text-pos">{msg}</p>}
+      <p className="mt-3 text-[11.5px] text-muted">
+        {updated ? `Last updated by ${updated}` : "No changes recorded yet"} ·{" "}
+        <a href={`/knowledge?history=${c.id}#changes`} className="text-navy-700 hover:underline">History</a>
+      </p>
       <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-4 text-[11.5px] text-muted">
         <span>
           {[c.stageAtEntry, c.yearInvested].filter(Boolean).join(" · ")}

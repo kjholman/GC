@@ -14,6 +14,8 @@ import { PortfolioGrid } from "./PortfolioGrid";
 import { Suggestions, type SuggestionView } from "./Suggestions";
 import { BatchImport } from "./BatchImport";
 import { DraftFromDocs } from "@/components/DraftFromDocs";
+import { TellGaia } from "./TellGaia";
+import { fmtDate } from "@/components/ui";
 
 export default async function KnowledgePage({ searchParams }: PageProps<"/knowledge">) {
   const user = await requireUser();
@@ -39,6 +41,18 @@ export default async function KnowledgePage({ searchParams }: PageProps<"/knowle
   for (const f of kfiles.filter((x) => x.scope === "PORTFOLIO" && x.portfolioCompanyId)) (filesByCompany[f.portfolioCompanyId!] ??= []).push(toK(f));
   const exits = companies.filter((c) => c.outcome === "ACQUIRED" || c.outcome === "IPO" || c.outcome === "MERGED");
   const activePrinciples = principles.filter((p) => p.active).length;
+
+  // Who last changed each portfolio company, and a per-company history view.
+  const lastChanges = await db.auditLog.findMany({
+    where: { entity: "PortfolioCompany", entityId: { in: companies.map((c) => c.id) } },
+    orderBy: { createdAt: "desc" },
+    distinct: ["entityId"],
+    select: { entityId: true, createdAt: true, user: { select: { name: true, email: true } } },
+  });
+  const updated: Record<string, string> = {};
+  for (const l of lastChanges) updated[l.entityId!] = `${l.user ? l.user.name ?? l.user.email.split("@")[0] : "GAIA"}, ${fmtDate(l.createdAt)}`;
+  const historyId = typeof sp.history === "string" ? sp.history : undefined;
+  const historyName = historyId ? companies.find((c) => c.id === historyId)?.name : undefined;
 
   // Suggestions, with what is on record now for comparison.
   const byId = new Map(companies.map((c) => [c.id, c]));
@@ -120,6 +134,16 @@ export default async function KnowledgePage({ searchParams }: PageProps<"/knowle
 
       {canEdit && <Suggestions items={suggestions} />}
 
+      {canEdit && (
+        <Card className="mb-8">
+          <SectionTitle eyebrow="Quick add" title="Tell GAIA something" />
+          <p className="-mt-3 mb-4 max-w-3xl text-[13.5px] leading-relaxed text-ink-soft">
+            A new round, an exit, a lesson from a board meeting, a rule the partners agreed: write it the way you would say it, or paste an email.
+          </p>
+          <TellGaia />
+        </Card>
+      )}
+
       <div id="add" className="scroll-mt-6" />
       <Card className="mb-8">
         <SectionTitle eyebrow="Add knowledge" title="Upload anything about Genesys" />
@@ -147,7 +171,7 @@ export default async function KnowledgePage({ searchParams }: PageProps<"/knowle
         <SectionTitle eyebrow={`${companies.length} companies · ${exits.length} exits`} title="Portfolio" />
       </div>
       <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <PortfolioGrid companies={companies} files={filesByCompany} canEdit={canEdit} />
+        <PortfolioGrid companies={companies} files={filesByCompany} canEdit={canEdit} updated={updated} />
         {canEdit && (
           <div>
             <div className="sticky top-10">
@@ -158,10 +182,13 @@ export default async function KnowledgePage({ searchParams }: PageProps<"/knowle
       </div>
       <div className="mt-10" id="changes">
         <ChangeLog
-          prefixes={["portfolio.", "principle.", "training.suggestion_accepted", "knowledge.files_added", "knowledge.file_removed", "knowledge.suggestion_accepted", "knowledge.imported"]}
+          prefixes={["portfolio.", "principle.", "training.suggestion_accepted", "knowledge."]}
           page={pageParam(sp.changes)}
-          href={(p) => `/knowledge?changes=${p}#changes`}
-          title="Changes to the knowledge base"
+          href={(p) => `/knowledge?changes=${p}${historyId ? `&history=${historyId}` : ""}#changes`}
+          title={historyName ? `Changes to ${historyName}` : "Changes to the knowledge base"}
+          entityId={historyId}
+          undoable={canEdit}
+          extra={historyName ? <p className="-mt-3 mb-4 text-[13px]"><Link href="/knowledge#changes" className="font-medium text-navy-700 hover:underline">Show all changes</Link></p> : null}
         />
       </div>
     </>

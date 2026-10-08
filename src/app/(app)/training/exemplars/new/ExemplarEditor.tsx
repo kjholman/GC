@@ -14,7 +14,7 @@ export function ExemplarEditor({ analysisId, companyName, version, memo }: { ana
     confirmLabel: "Save example",
   });
   return (
-    <form action={action} onSubmit={confirmSave} className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
+    <form data-unsaved-guard action={action} onSubmit={confirmSave} className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
       <div className="space-y-6">
         <Card>
           <div className="eyebrow mb-1 text-brand-600">Correcting memo v{version}</div>

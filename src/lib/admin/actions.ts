@@ -1,4 +1,5 @@
 "use server";
+import type { Prisma } from "@prisma/client";
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -126,7 +127,8 @@ export async function savePortfolioCompanyAction(id: string | null, _: AdminStat
     ? await db.portfolioCompany.update({ where: { id }, data })
     : await db.portfolioCompany.create({ data });
   const changes = diffFields(before, saved, PORTFOLIO_LABELS);
-  await audit(id ? "portfolio.updated" : "portfolio.created", { userId: user.id, entity: "PortfolioCompany", entityId: saved.id, meta: { name: saved.name, changes } });
+  // The full record before the change is kept so the change can be undone.
+  await audit(id ? "portfolio.updated" : "portfolio.created", { userId: user.id, entity: "PortfolioCompany", entityId: saved.id, meta: { name: saved.name, changes, ...(before ? { before: snapshot(before) } : {}) } });
   revalidatePath("/knowledge");
   return { ok: true, message: "Saved." };
 }
@@ -134,7 +136,7 @@ export async function savePortfolioCompanyAction(id: string | null, _: AdminStat
 export async function deletePortfolioCompanyAction(id: string) {
   const user = await requireRole("PARTNER");
   const removed = await db.portfolioCompany.delete({ where: { id } });
-  await audit("portfolio.deleted", { userId: user.id, entity: "PortfolioCompany", entityId: id, meta: { name: removed.name, changes: diffFields(removed, {}, PORTFOLIO_LABELS).map((c) => ({ ...c, to: "(removed)" })) } });
+  await audit("portfolio.deleted", { userId: user.id, entity: "PortfolioCompany", entityId: id, meta: { name: removed.name, before: snapshot(removed), changes: diffFields(removed, {}, PORTFOLIO_LABELS).map((c) => ({ ...c, to: "(removed)" })) } });
   revalidatePath("/knowledge");
 }
 
@@ -149,7 +151,7 @@ export async function savePrincipleAction(id: string | null, _: AdminState, form
     : await db.investmentPrinciple.create({ data: { title, body } });
   await audit(id ? "principle.updated" : "principle.created", {
     userId: user.id, entity: "InvestmentPrinciple", entityId: saved.id,
-    meta: { name: saved.title, changes: diffFields(before, saved, { title: "Title", body: "Principle" }) },
+    meta: { name: saved.title, changes: diffFields(before, saved, { title: "Title", body: "Principle" }), ...(before ? { before: snapshot(before) } : {}) },
   });
   revalidatePath("/knowledge");
   return { ok: true, message: "Principle saved. It applies to every analysis from now on." };
@@ -158,7 +160,7 @@ export async function savePrincipleAction(id: string | null, _: AdminState, form
 export async function deletePrincipleAction(id: string) {
   const user = await requireRole("PARTNER");
   const p = await db.investmentPrinciple.delete({ where: { id } });
-  await audit("principle.deleted", { userId: user.id, entity: "InvestmentPrinciple", entityId: id, meta: { name: p.title, changes: [{ field: "Principle", from: p.body, to: "(removed)" }] } });
+  await audit("principle.deleted", { userId: user.id, entity: "InvestmentPrinciple", entityId: id, meta: { name: p.title, before: snapshot(p), changes: [{ field: "Principle", from: p.body, to: "(removed)" }] } });
   revalidatePath("/knowledge");
 }
 
@@ -203,4 +205,9 @@ export async function checkCreditAction(): Promise<{ ok: boolean; message: strin
   await audit("admin.credit_checked", { userId: user.id, meta: { ok: result.ok } });
   revalidatePath("/administration");
   return { ok: result.ok, message };
+}
+
+/** A record as plain JSON (dates as strings), stored with a change so it can be undone. */
+function snapshot(rec: object): Prisma.InputJsonValue {
+  return JSON.parse(JSON.stringify(rec));
 }

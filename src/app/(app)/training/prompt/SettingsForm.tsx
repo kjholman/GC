@@ -15,7 +15,7 @@ export function SettingsForm({ settings, canEdit }: { settings: S[]; canEdit: bo
     confirmLabel: "Save settings",
   });
   return (
-    <form
+    <form data-unsaved-guard
       action={action}
       onSubmit={confirmSave}
       className="space-y-5"

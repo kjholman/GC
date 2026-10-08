@@ -1112,7 +1112,20 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
     const report = checked.report;
 
     // Gaps the app knows about for certain, added to the ones the memo identified.
+    // A memo that names nobody on the team must say so as a gap, never as a finding.
+    const noTeam = !(memo.team?.members?.length);
+    const teamGapListed = (memo.gaps ?? []).some((g) => /team|founder|management/i.test(`${g.area} ${g.gap}`));
     const systemGaps: Memo["gaps"] = [
+      ...(noTeam && !teamGapListed
+        ? [{
+            area: "Team",
+            gap: "The founders and management team could not be identified.",
+            whyItIsAGap: "Neither the materials nor public sources named the people running the company, so the team could not be assessed. This is missing information, not evidence that there is no team.",
+            howToClose: "Ask the company for the names, roles and CVs of its founders, executives and board, then re-run the analysis with that information.",
+            whoCanClose: "FOUNDERS" as const,
+            priority: "CRITICAL" as const,
+          }]
+        : []),
       ...failedResearch.map((label) => ({
         area: "Research",
         gap: `The ${label} web research could not be completed.`,

@@ -38,7 +38,7 @@ export function AddHistoricalForm() {
     <Card>
       <div className="eyebrow mb-1 text-brand-600">Single deal</div>
       <h3 className="mb-4 font-display font-semibold text-[20px] text-navy-900">Add a past decision</h3>
-      <form key={k} action={async (fd) => { await action(fd); setK((n) => n + 1); }} className="space-y-3">
+      <form data-unsaved-guard key={k} action={async (fd) => { await action(fd); setK((n) => n + 1); }} className="space-y-3">
         <Field label="Company"><input name="companyName" required className={inputCls} /></Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Decision">

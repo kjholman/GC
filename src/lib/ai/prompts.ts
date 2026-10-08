@@ -302,6 +302,7 @@ The overall score is your weighted judgement, not an average. At Genesys' stage,
 - Report factual concerns (undisclosed prior failures, litigation, sanctions, discrepancies with the deck) neutrally and with their source. Never speculate about character.
 - Assess founder-market fit, board quality, and the gaps the company must fill before its next financing. Specify hiring priorities and the reference calls the partners should make.
 - Use only public professional information.
+- **Never conclude that the company has no team.** A deck that names no one is a gap in the materials, not evidence that nobody runs the company. Use the founder research, which also searches online. If the team still cannot be identified, say so plainly ("The founders and management could not be identified from the materials or public sources"), score the team dimension as unknown rather than poor, add a CRITICAL gap in gaps explaining what is missing and how to close it, and add an information request asking for the team's names, roles and CVs.
 
 ## 8. Evidence and grounding (non-negotiable)
 This memo drives decisions about real capital and real founders. An unsupported claim is worse than an admitted gap.
@@ -516,7 +517,9 @@ Stay under 1,000 words. If you cannot find something, say so. Do not speculate b
 `.trim();
 
 export const FOUNDER_RESEARCH_PROMPT = `
-Research the founders, executives, board members and key advisors named in the materials provided (deck or company dossier) for the Genesys Capital investment team. Confine yourself to **public professional information only**: no personal life, family, health or other private matters.
+Research the founders, executives, board members and key advisors of the company in the materials provided (deck or company dossier) for the Genesys Capital investment team. Confine yourself to **public professional information only**: no personal life, family, health or other private matters.
+
+**First, identify the team.** Start with the people the materials name. If the materials name few or none, find the leadership yourself: search the company's own website (team, about and leadership pages), press releases, funding announcements, university spin-out and technology-transfer pages, patent inventors, grant records, conference talks and professional profiles. Confirm each person through the company, institution or technology before including them. List who you found and where.
 
 For each person, find:
 1. **Career and education:** current and past roles, with dates; degrees and institutions. Confirm whether these match the deck.

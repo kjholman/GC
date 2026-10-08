@@ -41,7 +41,7 @@ export function FollowUpPanel({ dealId, disabled, openRequests, awaitingFounders
         Upload what you received{openRequests ? ` against the ${openRequests} outstanding request${openRequests === 1 ? "" : "s"}` : ""}. GAIA
         re-analyses the deal using every document received so far, building on the previous version, and notes what changed.
       </p>
-      <form
+      <form data-unsaved-guard
         key={key}
         action={async (fd) => {
           await action(fd);
@@ -240,7 +240,7 @@ export function NoteForm({ dealId }: { dealId: string }) {
   const [state, action, pending] = useActionState<ActionState, FormData>(addNoteAction.bind(null, dealId), { ok: false });
   const [key, setKey] = useState(0);
   return (
-    <form
+    <form data-unsaved-guard
       key={key}
       action={async (fd) => {
         await action(fd);
@@ -316,7 +316,7 @@ export function FeedbackPanel({ analysisId, version, reviews }: { analysisId: st
           with other reviews, used to suggest new investment principles for the partners to approve.
         </p>
       ) : (
-        <form action={action} className="space-y-4">
+        <form data-unsaved-guard action={action} className="space-y-4">
           <div>
             <div className="mb-1.5 text-[12.5px] font-medium text-ink-soft">Overall</div>
             <input type="hidden" name="verdict" value={verdict} />
@@ -417,7 +417,7 @@ export function SignOffPanel({ analysisId, version, status, signedOff }: { analy
       <p className="mt-1.5 mb-4 text-[12.5px] leading-relaxed text-ink-soft">
         Review the memo and the fact-check against the source materials. The founder response is unlocked once you sign off.
       </p>
-      <form action={action} className="space-y-3">
+      <form data-unsaved-guard action={action} className="space-y-3">
         <label className="flex items-start gap-2 text-[12.5px] text-ink-soft">
           <input type="checkbox" name="acknowledge" className="mt-0.5 accent-navy-900" />
           I have reviewed this memo, its sources and the fact-check, and it is accurate to the best of my knowledge.

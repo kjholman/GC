@@ -64,6 +64,10 @@ export function describeEvent(
       const n = Array.isArray(meta.changes) ? meta.changes.length : 1;
       return t(`${actor} added ${n} file${n === 1 ? "" : "s"} to ${subject ?? "the knowledge base"}`);
     }
+    case "knowledge.suggestion_accepted": return t(`${actor} accepted a suggestion: ${typeof meta.name === "string" ? meta.name : "update"}${typeof meta.source === "string" ? ` (from ${meta.source})` : ""}`);
+    case "knowledge.note_added": return t(`${actor} told GAIA: ${typeof meta.name === "string" ? meta.name.replace(/^Note: /, "") : "a note"}`);
+    case "knowledge.undone": return t(`${actor} undid a change: ${typeof meta.name === "string" ? meta.name.replace(/^Undid: /, "") : ""}`.trim());
+    case "knowledge.imported": return t(`${actor} imported ${typeof meta.name === "string" ? meta.name : "a spreadsheet"}`);
     case "knowledge.file_removed": return t(`${actor} removed the file ${subject ?? ""}`.trim(), true);
     case "knowledge.file_downloaded": return t(`${actor} downloaded ${subject ?? "a knowledge base file"}`);
     case "principle.created": return t(`${actor} added the principle “${subject ?? "untitled"}”`);

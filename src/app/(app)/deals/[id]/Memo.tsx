@@ -672,6 +672,14 @@ export function TeamView({ memo }: { memo: Memo }) {
         <Paras text={t.assessment} />
         {t.founderMarketFit && <div className="mt-5"><KV label="Founder-market fit">{t.founderMarketFit}</KV></div>}
       </Card>
+      {!t.members?.length && (
+        <Card className="!border-[#efdcb4] bg-warn-bg">
+          <div className="text-[14px] font-medium text-warn">Team not yet identified</div>
+          <p className="mt-1 text-[13.5px] leading-relaxed text-ink-soft">
+            The materials and GAIA&apos;s online search didn&apos;t name the people running this company. That is missing information, not a finding that there is no team. It is listed under Gaps, with a request to the company for names, roles and CVs.
+          </p>
+        </Card>
+      )}
       {t.members?.length > 0 && (
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           {t.members.map((p, i) => (

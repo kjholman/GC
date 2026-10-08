@@ -15,7 +15,7 @@ const STEPS = [
 export function NewDealForm() {
   const [state, action, pending] = useActionState<ActionState, FormData>(createDealAction, { ok: false });
   return (
-    <form action={action} className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
+    <form data-unsaved-guard action={action} className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
       <div className="space-y-6">
         <Card>
           <div className="eyebrow mb-4">Materials</div>

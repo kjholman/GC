@@ -77,13 +77,17 @@ export async function acceptSuggestionAction(id: string, edited?: Record<string,
   try {
     const { applySuggestion } = await import("./suggest");
     const s = await db.knowledgeSuggestion.findUnique({ where: { id } });
-    const what = await applySuggestion(id, edited);
+    const applied = await applySuggestion(id, edited);
     await db.knowledgeSuggestion.update({ where: { id }, data: { status: "ACCEPTED", resolvedAt: new Date(), resolvedById: user.id } });
-    await audit("knowledge.suggestion_accepted", { userId: user.id, entity: "KnowledgeSuggestion", entityId: id, meta: { name: what, source: s?.sourceLabel } });
-    if (s?.kind === "PAST_DEAL") {
-      const h = await db.historicalDeal.findFirst({ where: { companyName: (s.data as { companyName?: string }).companyName ?? s.title }, orderBy: { createdAt: "desc" } });
-      if (h) after(() => withMeter({ purpose: "past-deal reading" }, () => ingestHistoricalDeal(h.id)));
-    }
+    // Recorded against the record it changed, with what was there before, so it can be undone.
+    await audit("knowledge.suggestion_accepted", {
+      userId: user.id,
+      entity: applied.entity,
+      entityId: applied.entityId,
+      meta: { name: applied.text, source: s?.sourceLabel, created: !!applied.created, ...(applied.before !== undefined ? { before: applied.before as never } : {}) },
+    });
+    if (s?.kind === "PAST_DEAL") after(() => withMeter({ purpose: "past-deal reading" }, () => ingestHistoricalDeal(applied.entityId)));
+    const what = applied.text;
     revalidatePath("/knowledge");
     revalidatePath("/training", "layout");
     return { ok: true, message: what };
@@ -233,4 +237,79 @@ export async function draftFromDocumentsAction(): Promise<UploadState> {
   revalidatePath("/knowledge");
   revalidatePath("/training/prompt");
   return n ? { ok: true, message: `${n} suggestion${n === 1 ? "" : "s"} drafted. Review them at the top of the Knowledge base.` } : { ok: true, message: "Nothing new found in the documents." };
+}
+
+// ─── Undo ───────────────────────────────────────────────────────────────────
+
+type Snap = Record<string, unknown>;
+/** A stored record without the columns that can't or shouldn't be written back. */
+const restorable = (r: Snap) => {
+  const { id, createdAt, updatedAt, ...rest } = r;
+  void id; void createdAt; void updatedAt;
+  return rest;
+};
+
+/** Changes that can be undone: edits, removals and additions in the knowledge base. */
+export async function undoChangeAction(auditId: string): Promise<UploadState> {
+  const user = await requireRole("PARTNER");
+  const log = await db.auditLog.findUnique({ where: { id: auditId } });
+  if (!log?.entityId) return { ok: false, error: "That change can't be undone." };
+  const meta = (log.meta ?? {}) as { name?: string; before?: Snap | null; created?: boolean; undone?: boolean };
+  if (meta.undone) return { ok: false, error: "That change was already undone." };
+  const id = log.entityId;
+  const created = log.action.endsWith(".created") || meta.created === true;
+  try {
+    switch (log.entity) {
+      case "PortfolioCompany":
+        if (created) await db.portfolioCompany.delete({ where: { id } });
+        else if (meta.before && log.action.endsWith(".deleted")) await db.portfolioCompany.create({ data: { ...(restorable(meta.before) as Snap), id } as never });
+        else if (meta.before) await db.portfolioCompany.update({ where: { id }, data: restorable(meta.before) as never });
+        else return { ok: false, error: "This change was made before undo was available." };
+        break;
+      case "InvestmentPrinciple":
+        if (created) await db.investmentPrinciple.delete({ where: { id } });
+        else if (meta.before && log.action.endsWith(".deleted")) await db.investmentPrinciple.create({ data: { ...(restorable(meta.before) as Snap), id } as never });
+        else if (meta.before) await db.investmentPrinciple.update({ where: { id }, data: restorable(meta.before) as never });
+        else return { ok: false, error: "This change was made before undo was available." };
+        break;
+      case "FirmSetting":
+        if (meta.before && typeof meta.before.value === "string") await db.firmSetting.update({ where: { key: id }, data: { value: meta.before.value } });
+        else await db.firmSetting.delete({ where: { key: id } });
+        break;
+      case "HistoricalDeal":
+        if (created) await db.historicalDeal.delete({ where: { id } });
+        else return { ok: false, error: "That change can't be undone." };
+        break;
+      default:
+        return { ok: false, error: "That change can't be undone." };
+    }
+  } catch {
+    return { ok: false, error: "It has changed again since, or no longer exists, so it can't be undone automatically." };
+  }
+  await db.auditLog.update({ where: { id: auditId }, data: { meta: { ...(meta as object), undone: true } as never } });
+  await audit("knowledge.undone", { userId: user.id, entity: log.entity ?? undefined, entityId: id, meta: { name: `Undid: ${meta.name ?? log.action}` } });
+  revalidatePath("/knowledge");
+  revalidatePath("/training", "layout");
+  return { ok: true, message: "Undone." };
+}
+
+/** "Tell GAIA": a note in plain English, turned into suggestions attributed to whoever wrote it. */
+export async function noteToKnowledgeAction(_: UploadState, fd: FormData): Promise<UploadState> {
+  const user = await requireRole("PARTNER");
+  const text = String(fd.get("note") ?? "").trim().slice(0, 30_000);
+  if (text.length < 15) return { ok: false, error: "Write a little more: what happened, which company, which numbers." };
+  const who = user.name ?? user.email.split("@")[0];
+  const { extractKnowledge, recordSuggestions } = await import("./suggest");
+  const n = await withMeter({ purpose: "knowledge extraction" }, async () => {
+    const found = await extractKnowledge(
+      [{ type: "text", text: `## Note from ${who}, a member of the Genesys Capital team\n\n${text}` }],
+      "This is a note from a Genesys team member. 'We' means Genesys Capital.",
+    );
+    return found ? recordSuggestions(found, { label: `a note from ${who}` }) : 0;
+  });
+  await audit("knowledge.note_added", { userId: user.id, meta: { name: `Note: ${text.slice(0, 120)}${text.length > 120 ? "…" : ""}` } });
+  revalidatePath("/knowledge");
+  return n
+    ? { ok: true, message: `GAIA found ${n} thing${n === 1 ? "" : "s"} to add. Review ${n === 1 ? "it" : "them"} in Suggestions above.` }
+    : { ok: true, message: "Thanks. GAIA didn't find a specific company, principle or setting to update in that note." };
 }

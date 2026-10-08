@@ -5,6 +5,7 @@ import type { PortfolioCompany } from "@prisma/client";
 import { deletePortfolioCompanyAction, savePortfolioCompanyAction, type AdminState } from "@/lib/admin/actions";
 import { Button, Card, Field, inputCls } from "@/components/ui";
 import { useConfirm, useConfirmSubmit } from "@/components/Confirm";
+import { confirmLeave, hasUnsavedChanges } from "@/components/UnsavedGuard";
 
 export function PortfolioForm({ company, onSaved }: { company: PortfolioCompany | null; onSaved?: () => void }) {
   const [state, action, pending] = useActionState<AdminState, FormData>(
@@ -23,7 +24,7 @@ export function PortfolioForm({ company, onSaved }: { company: PortfolioCompany 
     <Card>
       <div className="eyebrow mb-1 text-brand-600">{company ? "Edit record" : "Add to record"}</div>
       <h3 className="mb-5 font-display font-semibold text-[20px] text-navy-900">{company ? company.name : "Portfolio company"}</h3>
-      <form
+      <form data-unsaved-guard
         action={action}
         onSubmit={confirmSave}
         className="space-y-4"
@@ -95,13 +96,19 @@ export function DeleteCompanyButton({ id, name }: { id: string; name: string }) 
 
 export function EditCompanyDialog({ company }: { company: PortfolioCompany }) {
   const [open, setOpen] = useState(false);
+  const confirm = useConfirm();
+  // Closing with unsaved edits asks first.
+  const close = async (el: Element | null) => {
+    if (hasUnsavedChanges(el) && !(await confirmLeave(confirm))) return;
+    setOpen(false);
+  };
   return (
     <>
       <button className="text-navy-700 hover:underline" onClick={() => setOpen(true)}>Edit</button>
       {open && (
         <div
           className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-navy-950/40 p-10"
-          onClick={(e) => e.target === e.currentTarget && setOpen(false)}
+          onClick={(e) => e.target === e.currentTarget && close(e.currentTarget)}
         >
           <div className="w-full max-w-lg">
             <PortfolioForm company={company} onSaved={() => setOpen(false)} />

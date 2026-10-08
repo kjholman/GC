@@ -8,6 +8,7 @@ import { getAiStatus, recheckCreditIfFlagged } from "@/lib/ai/credit";
 import { resumeAllPaused } from "@/lib/deals/scheduler";
 import { after } from "next/server";
 import { CreditBanner } from "@/components/CreditBanner";
+import { UnsavedGuard } from "@/components/UnsavedGuard";
 import { SharminatorEasterEgg } from "@/components/SharminatorEasterEgg";
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
@@ -67,6 +68,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
         <div className="mx-auto max-w-[1280px]">{children}</div>
       </main>
       <SharminatorEasterEgg />
+      <UnsavedGuard />
     </div>
   );
 }
