@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ANALYST_NAME, AnalystAvatar } from "@/components/Analyst";
+import { ANALYST_NAME } from "@/components/Analyst";
 import type { DealStatus } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/session";
@@ -58,7 +58,7 @@ export default async function Overview() {
         subtitle="Your deal flow at a glance: what needs a decision, what is awaiting founders, and what GAIA is working on."
         actions={
           <Link href="/deals/new">
-            <Button>Screen a new deck</Button>
+            <Button>Start a new analysis</Button>
           </Link>
         }
       />
@@ -142,7 +142,7 @@ export default async function Overview() {
             <MemeScene scene="deck" top={todaysClaim.slide} bottom={todaysClaim.reaction} size={272} className="mx-auto -mt-2" />
           </Card>
           <Card>
-            <SectionTitle eyebrow="GAIA" title="In progress" action={<AnalystAvatar size={44} />} />
+            <SectionTitle eyebrow="GAIA" title="In progress" />
             {running.length === 0 ? (
               <p className="text-[13px] text-muted">No analyses running.</p>
             ) : (

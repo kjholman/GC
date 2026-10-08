@@ -10,7 +10,7 @@ import { Pagination, pageParam } from "@/components/Pagination";
 
 
 export default async function AdminPage({ searchParams }: PageProps<"/administration">) {
-  const me = await requireRole("ADMIN");
+  await requireRole("ADMIN");
   const page = pageParam((await searchParams).page);
   const LOG_PAGE = 25;
   // Last activity: sessions stay open for days, so the last sign-in alone goes stale.
@@ -64,7 +64,6 @@ export default async function AdminPage({ searchParams }: PageProps<"/administra
             <thead>
               <tr className="border-y border-line text-[11px] uppercase tracking-[0.12em] text-muted">
                 <th className="py-3 pr-4 pl-6 font-semibold">Person</th>
-                <th className="px-4 py-3 font-semibold">Status</th>
                 <th className="px-4 py-3 font-semibold">Last active</th>
               </tr>
             </thead>
@@ -77,7 +76,6 @@ export default async function AdminPage({ searchParams }: PageProps<"/administra
                     lastActive: lastActive(u) ? fmtDate(lastActive(u), true) : "Never",
                     lastActiveHint: u.lastLoginAt ? `Last signed in ${fmtDate(u.lastLoginAt, true)}` : "Has never signed in",
                   }}
-                  isSelf={u.id === me.id}
                 />
               ))}
             </tbody>

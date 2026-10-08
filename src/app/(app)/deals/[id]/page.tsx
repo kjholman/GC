@@ -27,6 +27,7 @@ import type { VerificationReport } from "@/lib/ai/verify";
 import { DiligenceView, FinancialsView, FitView, IPView, MarketView, MemoView, Paras, RequestsView, TeamView } from "./Memo";
 import { PrintButton } from "./PrintButton";
 import { Tabs } from "./Tabs";
+import { FounderAsk } from "./FounderAsk";
 
 const KIND_LABEL: Record<string, string> = {
   PITCH_DECK: "Pitch deck",
@@ -324,6 +325,9 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
             <div className="mb-8">
               <VerificationBanner report={report} signedOff={signedOff ? { by: signedOff.by, at: signedOff.at } : null} />
             </div>
+            {isLatestShown && (deal.status === "PENDING_INFO" || memo.recommendation === "PENDING_INFO") && memo.informationRequests.length > 0 && (
+              <div className="mb-8"><FounderAsk memo={memo} hasEmail={memo.recommendation !== "REJECT" && !!memo.founderEmail.body.trim()} /></div>
+            )}
             {memo.recommendation !== "ADVANCE_TO_DILIGENCE" && <div className="mb-8"><PassReasons memo={memo} /></div>}
             <Tabs
               key={shown!.id}
@@ -512,7 +516,9 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
             </ul>
           </Card>
           {(memo || !inFlight) && (
-            <FollowUpPanel key={`fu-${awaitingFounders}`} dealId={deal.id} disabled={!!inFlight} openRequests={memo?.informationRequests.length ?? 0} awaitingFounders={awaitingFounders} />
+            <div id="founders-replied" className="scroll-mt-6">
+              <FollowUpPanel key={`fu-${awaitingFounders}`} dealId={deal.id} disabled={!!inFlight} openRequests={memo?.informationRequests.length ?? 0} awaitingFounders={awaitingFounders} />
+            </div>
           )}
           {shown && (
             <SignOffPanel key={`so-${shown.id}`} analysisId={shown.id} version={shown.version} status={shown.verificationStatus} signedOff={signedOff} />

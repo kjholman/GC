@@ -111,7 +111,7 @@ export default async function DealsPage({ searchParams }: PageProps<"/deals">) {
         subtitle="Every opportunity the team has screened, with GAIA's latest recommendation."
         actions={
           <Link href="/deals/new">
-            <Button>Screen a new deck</Button>
+            <Button>Start a new analysis</Button>
           </Link>
         }
       />

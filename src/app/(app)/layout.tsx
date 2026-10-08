@@ -16,7 +16,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   const items = [
     { href: "/", label: "Overview", icon: "overview" },
     { href: "/deals", label: "Deal pipeline", icon: "pipeline" },
-    { href: "/deals/new", label: "New screening", icon: "new" },
+    { href: "/deals/new", label: "New analysis", icon: "new" },
     { href: "/knowledge", label: "Knowledge base", icon: "knowledge" },
     { href: "/training", label: "Training Studio", icon: "training" },
     ...(hasRole(user.role, "ADMIN") ? [{ href: "/administration", label: "Administration", icon: "admin" }] : []),
