@@ -276,6 +276,12 @@ export async function undoChangeAction(auditId: string): Promise<UploadState> {
         if (meta.before && typeof meta.before.value === "string") await db.firmSetting.update({ where: { key: id }, data: { value: meta.before.value } });
         else await db.firmSetting.delete({ where: { key: id } });
         break;
+      case "FundingStage":
+        if (created) await db.fundingStage.delete({ where: { id } });
+        else if (meta.before && log.action.endsWith(".deleted")) await db.fundingStage.create({ data: { ...(restorable(meta.before) as Snap), id } as never });
+        else if (meta.before) await db.fundingStage.update({ where: { id }, data: restorable(meta.before) as never });
+        else return { ok: false, error: "This change was made before undo was available." };
+        break;
       case "HistoricalDeal":
         if (created) await db.historicalDeal.delete({ where: { id } });
         else return { ok: false, error: "That change can't be undone." };

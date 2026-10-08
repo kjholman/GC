@@ -7,7 +7,7 @@ export default async function TrainingHistoryPage({ searchParams }: PageProps<"/
   const sp = await searchParams;
   return (
     <ChangeLog
-      prefixes={["training.", "principle.", "portfolio.", "knowledge.files_added", "knowledge.file_removed"]}
+      prefixes={["training.", "principle.", "stage.", "portfolio.", "knowledge.files_added", "knowledge.file_removed"]}
       page={pageParam(sp.page)}
       href={(p) => `/training/history?page=${p}`}
       title="Changes to the Training Studio and knowledge base"

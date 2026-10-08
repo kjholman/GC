@@ -21,7 +21,7 @@ export default async function KnowledgePage({ searchParams }: PageProps<"/knowle
   const user = await requireUser();
   const sp = await searchParams;
   const canEdit = hasRole(user.role, "PARTNER");
-  const [companies, principles, feedbackCount, kfiles, settingsSaved, pastDeals, pastWithDecks, pending] = await Promise.all([
+  const [companies, principles, feedbackCount, kfiles, settingsSaved, pastDeals, pastWithDecks, pending, stageRows] = await Promise.all([
     db.portfolioCompany.findMany({ orderBy: [{ outcome: "asc" }, { name: "asc" }] }),
     db.investmentPrinciple.findMany({ orderBy: { createdAt: "asc" } }),
     db.analysisFeedback.count(),
@@ -34,6 +34,7 @@ export default async function KnowledgePage({ searchParams }: PageProps<"/knowle
     db.historicalDeal.count(),
     db.historicalDeal.count({ where: { deckFilename: { not: null } } }),
     db.knowledgeSuggestion.findMany({ where: { status: "PENDING" }, orderBy: { createdAt: "asc" }, take: 60 }),
+    db.fundingStage.findMany({ select: { confirmed: true } }),
   ]);
   const toK = (f: (typeof kfiles)[number]): KFile => ({ id: f.id, filename: f.filename, size: formatBytes(f.sizeBytes), status: f.status, summary: f.summary });
   const firmFiles = kfiles.filter((f) => f.scope === "FIRM").map(toK);
@@ -76,10 +77,12 @@ export default async function KnowledgePage({ searchParams }: PageProps<"/knowle
   const pct = (n: number, of: number) => (of ? Math.min(1, n / of) : 0);
   const health = [
     { label: "Firm settings confirmed", done: settingsSaved, of: FIRM_SETTINGS.length, href: "/training/prompt", todo: `Confirm ${FIRM_SETTINGS.length - settingsSaved} firm setting${FIRM_SETTINGS.length - settingsSaved === 1 ? "" : "s"} (cheque size, mandate, return hurdle)` },
+    { label: "Funding stages confirmed", done: stageRows.filter((x) => x.confirmed).length, of: stageRows.length, href: "/training/stages", todo: "Confirm the cheque, round size, valuation and milestones Genesys expects at each funding stage" },
     { label: "Investment principles", done: activePrinciples, of: 8, href: "#principles", todo: "Add the partnership's standing rules, or import them from the template" },
     { label: "Firm documents read", done: firmFiles.filter((f) => f.status === "READY").length, of: 3, href: "#add", todo: "Upload the fund strategy, LP reports or portfolio reviews; GAIA suggests updates from them" },
     { label: "Portfolio companies on record", done: companies.length, of: Math.max(10, companies.length), href: "#add", todo: "Upload a portfolio list or import the portfolio template" },
     { label: "Portfolio websites", done: companies.filter((c) => c.website).length, of: companies.length, href: "#portfolio", todo: "Add websites so GAIA recognises companies that pitch again (try Fill from the web)" },
+    { label: "Portfolio entry stages", done: companies.filter((c) => c.stageAtEntry).length, of: companies.length, href: "#portfolio", todo: "Record the funding stage each company was at when Genesys invested" },
     { label: "Portfolio financials", done: companies.filter((c) => c.checkSize || c.entryValuation).length, of: companies.length, href: "#portfolio", todo: "Add investment, valuation and returns so GAIA can benchmark deal terms" },
     { label: "Lessons from exits", done: exits.filter((c) => c.lessons).length, of: exits.length, href: "#portfolio", todo: "Record what the partnership learned from each exit" },
     { label: "Past deals in the archive", done: pastDeals, of: Math.max(30, pastDeals), href: "/training/archive", todo: "Import past decisions, including deals Genesys passed on" },

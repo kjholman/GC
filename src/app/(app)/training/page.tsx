@@ -6,7 +6,7 @@ import { FIRM_SETTINGS } from "@/lib/training/settings";
 
 
 export default async function TrainingOverview() {
-  const [archive, archiveWithDecks, exemplars, feedback, principles, lastRun, runs, finishedMemos, settingsSaved] = await Promise.all([
+  const [archive, archiveWithDecks, exemplars, feedback, principles, lastRun, runs, finishedMemos, settingsSaved, stagesOpen] = await Promise.all([
     db.historicalDeal.count({ where: { ingestStatus: "READY" } }),
     db.historicalDeal.count({ where: { ingestStatus: "READY", deckData: { not: null } } }),
     db.exemplar.count({ where: { active: true } }),
@@ -16,6 +16,7 @@ export default async function TrainingOverview() {
     db.backtestRun.findMany({ where: { status: "COMPLETE" }, orderBy: { completedAt: "asc" }, take: 12 }),
     db.analysis.count({ where: { status: "COMPLETE" } }),
     db.firmSetting.count({ where: { key: { in: FIRM_SETTINGS.map((x) => x.key) } } }),
+    db.fundingStage.count({ where: { confirmed: false } }),
   ]);
   const m = lastRun?.metrics as BacktestMetrics | undefined;
   // Targets sized for a firm of Genesys's scale: enough to matter, reachable in a few sittings.
@@ -28,6 +29,7 @@ export default async function TrainingOverview() {
   // The next most useful things to do, in order.
   const steps = [
     settingsSaved < FIRM_SETTINGS.length && { href: "/training/prompt", text: `Confirm the firm settings (${settingsSaved} of ${FIRM_SETTINGS.length} done): cheque size, mandate, return hurdle` },
+    stagesOpen > 0 && { href: "/training/stages", text: `Confirm the funding stage playbook (${stagesOpen} stage${stagesOpen === 1 ? "" : "s"} still on starting values): cheque, round size, valuation and milestones by stage` },
     archive < 40 && { href: "/training/archive", text: `Add past deals (${archive} so far): download the template, list deals you invested in and passed on, and why` },
     archiveWithDecks < Math.min(15, archive) && { href: "/training/backtests", text: `Attach original decks to past deals (${archiveWithDecks} have one) so accuracy tests can run` },
     archiveWithDecks >= 5 && !lastRun && { href: "/training/backtests", text: "Run the first accuracy test to see how often GAIA agrees with the partners" },

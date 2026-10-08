@@ -604,3 +604,24 @@ model KnowledgeSuggestion {
 
   @@index([status])
 }
+
+/// How Genesys invests at each funding stage. GAIA benchmarks every deal's round against its stage.
+model FundingStage {
+  id             String   @id @default(cuid())
+  name           String
+  position       Int      @default(0)
+  /// CORE, SELECTIVE or OUT
+  scope          String   @default("CORE")
+  role           String?
+  cheque         String?
+  roundSize      String?
+  valuation      String?
+  ownership      String?
+  entryEvidence  String?
+  milestones     String?
+  redFlags       String?
+  notes          String?
+  confirmed      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}

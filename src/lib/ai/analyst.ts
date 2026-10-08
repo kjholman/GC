@@ -363,7 +363,7 @@ export async function competitorSweep(companyName: string, docs: ContentBlock[])
 
 /** system[1]: firm parameters, principles, calibration, portfolio and recent decisions. */
 export async function buildFirmContext(opts: { excludeDealId?: string } = {}) {
-  const [settings, principles, feedback, portfolio, pipeline, files] = await Promise.all([
+  const [settings, principles, feedback, portfolio, pipeline, files, stages] = await Promise.all([
     getFirmSettings(),
     db.investmentPrinciple.findMany({ where: { active: true }, orderBy: { createdAt: "asc" } }),
     db.analysisFeedback.findMany({
@@ -387,6 +387,7 @@ export async function buildFirmContext(opts: { excludeDealId?: string } = {}) {
       take: 80,
       select: { scope: true, portfolioCompanyId: true, filename: true, summary: true },
     }),
+    db.fundingStage.findMany({ orderBy: [{ position: "asc" }, { createdAt: "asc" }] }),
   ]);
   const firmDocs = files.filter((f) => f.scope === "FIRM").slice(0, 30).map((f) => ({ filename: f.filename, summary: f.summary! }));
   const portfolioFiles: Record<string, { filename: string; summary: string }[]> = {};
@@ -418,7 +419,7 @@ export async function buildFirmContext(opts: { excludeDealId?: string } = {}) {
   ];
   let block = "";
   for (const step of steps) {
-    block = firmContextBlock({ settings, principles, ...step() });
+    block = firmContextBlock({ settings, principles, stages, ...step() });
     if (block.length <= FIRM_CONTEXT_BUDGET) break;
   }
   return block;

@@ -5,7 +5,7 @@ import { Card, SectionTitle, cx, fmtDate } from "./ui";
 import { Pagination } from "./Pagination";
 import { UndoButton } from "./UndoButton";
 
-const UNDOABLE_ENTITIES = new Set(["PortfolioCompany", "InvestmentPrinciple", "FirmSetting", "HistoricalDeal"]);
+const UNDOABLE_ENTITIES = new Set(["PortfolioCompany", "InvestmentPrinciple", "FirmSetting", "HistoricalDeal", "FundingStage"]);
 
 /** Paginated history of who changed what, with before → after for each field. */
 export async function ChangeLog({ prefixes, page, href, title, eyebrow = "Change history", pageSize = 20, entityId, undoable = false, extra }: {

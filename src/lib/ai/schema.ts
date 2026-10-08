@@ -188,7 +188,7 @@ export const MemoSchema = z.object({
 
   financials: z.object({
     askAndUseOfFunds: z.string(),
-    valuationView: z.string().describe("Pre-money reasonableness against comparable rounds."),
+    valuationView: z.string().describe("Pre-money reasonableness against comparable rounds and the Genesys range for this funding stage."),
     burnAndRunway: z.string(),
     capitalToNextInflection: z.string(),
     projectionsCritique: z.string(),

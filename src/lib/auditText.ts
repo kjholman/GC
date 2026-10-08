@@ -72,6 +72,9 @@ export function describeEvent(
     case "knowledge.file_downloaded": return t(`${actor} downloaded ${subject ?? "a knowledge base file"}`);
     case "principle.created": return t(`${actor} added the principle “${subject ?? "untitled"}”`);
     case "principle.updated": return t(`${actor} edited the principle “${subject ?? "untitled"}”`);
+    case "stage.created": return t(`${actor} added the funding stage “${subject ?? "untitled"}”`);
+    case "stage.updated": return t(`${actor} edited the funding stage “${subject ?? "untitled"}”`);
+    case "stage.deleted": return t(`${actor} removed the funding stage “${subject ?? "untitled"}”`);
     case "principle.toggled": return t(`${actor} ${meta.active ? "turned on" : "turned off"} the principle “${subject ?? "untitled"}”`, !meta.active);
     case "training.archive_added": return t(`${actor} added a past deal to the deal archive`);
     case "training.archive_imported": return t(`${actor} imported ${typeof meta.rows === "number" ? meta.rows : "several"} past deals into the archive`);

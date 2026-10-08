@@ -387,6 +387,8 @@ export type FirmContext = {
   firmDocs?: { filename: string; summary: string }[];
   /** Summaries of files attached to each portfolio company, keyed by company id. */
   portfolioFiles?: Record<string, { filename: string; summary: string }[]>;
+  /** How Genesys invests at each funding stage. */
+  stages?: { name: string; scope: string; role: string | null; cheque: string | null; roundSize: string | null; valuation: string | null; ownership: string | null; entryEvidence: string | null; milestones: string | null; redFlags: string | null; notes: string | null; confirmed: boolean }[];
 };
 
 /** system[1]: everything the partners teach the analyst. */
@@ -429,11 +431,34 @@ export function firmContextBlock(ctx: FirmContext): string {
     ? ctx.pipeline.map((d) => `- ${d.companyName} (${d.sector ?? "n/a"}): ${d.status.toLowerCase()}${d.latestScore != null ? `, score ${d.latestScore}` : ""}`).join("\n")
     : "(none yet)";
 
+  const scopeText: Record<string, string> = { CORE: "core focus", SELECTIVE: "selective", OUT: "follow-on only; no new positions" };
+  const stages = (ctx.stages ?? [])
+    .map((st) => {
+      const lines = [
+        st.role && `Genesys's role: ${st.role}`,
+        st.cheque && `Genesys cheque: ${st.cheque}`,
+        st.roundSize && `Typical round size: ${st.roundSize}`,
+        st.valuation && `Typical valuation: ${st.valuation}`,
+        st.ownership && `Ownership target: ${st.ownership}`,
+        st.entryEvidence && `Must already be true to invest: ${st.entryEvidence}`,
+        st.milestones && `The round should achieve: ${st.milestones}`,
+        st.redFlags && `Red flags: ${st.redFlags}`,
+        st.notes && `Notes: ${st.notes}`,
+      ].filter(Boolean);
+      return `### ${st.name} (${scopeText[st.scope] ?? st.scope}${st.confirmed ? "" : "; starting values, not yet confirmed by a partner"})\n${lines.map((l) => `- ${l}`).join("\n")}`;
+    })
+    .join("\n\n");
+
   return `# Firm context (set by the Genesys partners)
 
 ## Firm parameters
 ${settings}
+${stages ? `
+## How Genesys invests at each funding stage
+Decide which stage this round is (use the deck's own label only if the company's evidence matches it; a "Series A" with seed-stage data is a seed round). Then benchmark the deal against that stage below: the round size, pre-money valuation, the cheque and ownership Genesys would get, whether the company already has what this stage requires, and whether the money reaches the milestones this stage should reach. Put the comparison in financials.askAndUseOfFunds, financials.valuationView and financials.capitalToNextInflection, naming the stage and the figures. Name every red flag that applies in the risks. If the stage is follow-on only and the company is not in the portfolio, say it is outside the mandate. Where a stage shows starting values, treat its ranges as a guide, not firm policy.
 
+${stages}
+` : ""}
 ## Investment principles
 These are standing rules set by the partnership. Apply each one. If a deal conflicts with a principle, name the principle in your rationale.
 ${principles}

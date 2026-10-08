@@ -38,7 +38,7 @@ export function PortfolioForm({ company, onSaved }: { company: PortfolioCompany 
           <Field label="Modality"><input name="modality" defaultValue={company?.modality ?? ""} className={inputCls} /></Field>
           <Field label="Indication"><input name="indication" defaultValue={company?.indication ?? ""} className={inputCls} /></Field>
           <Field label="Year invested"><input name="yearInvested" type="number" defaultValue={company?.yearInvested ?? ""} className={inputCls} /></Field>
-          <Field label="Entry stage"><input name="stageAtEntry" defaultValue={company?.stageAtEntry ?? ""} className={inputCls} /></Field>
+          <Field label="Entry stage"><input name="stageAtEntry" list="funding-stage-names" placeholder="e.g. Seed" defaultValue={company?.stageAtEntry ?? ""} className={inputCls} /><datalist id="funding-stage-names">{["Pre-seed", "Seed", "Series A", "Series B", "Series C and later"].map((n) => <option key={n} value={n} />)}</datalist></Field>
           <Field label="Outcome">
             <select name="outcome" defaultValue={company?.outcome ?? "ACTIVE"} className={inputCls}>
               <option value="ACTIVE">Active</option>

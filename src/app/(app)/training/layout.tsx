@@ -18,8 +18,9 @@ export default async function TrainingLayout({ children }: LayoutProps<"/trainin
           { href: "/training/exemplars", label: "Example memos" },
           { href: "/training/calibration", label: "Partner feedback" },
           { href: "/training/backtests", label: "Accuracy tests" },
+          { href: "/training/stages", label: "Funding stages" },
           { href: "/training/prompt", label: "Firm settings" },
-          { href: "/training/history", label: "Change history" },
+          { href: "/training/history", label: "History" },
         ]}
       />
       {children}
