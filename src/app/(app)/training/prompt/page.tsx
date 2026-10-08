@@ -5,6 +5,7 @@ import { ANALYST_PROFILE, METHODOLOGY } from "@/lib/ai/prompts";
 import { VERIFIER_PROMPT } from "@/lib/ai/verify";
 import { Card, SectionTitle } from "@/components/ui";
 import { SettingsForm } from "./SettingsForm";
+import { DraftFromDocs } from "@/components/DraftFromDocs";
 
 
 export default async function PromptPage() {
@@ -20,6 +21,12 @@ export default async function PromptPage() {
     <div className="space-y-8">
       <Card>
         <SectionTitle eyebrow="Firm settings" title="What every memo is measured against" />
+        {hasRole(user.role, "PARTNER") && (
+          <div className="-mt-2 mb-5">
+            <p className="mb-2 text-[13px] text-ink-soft">Let GAIA draft these from the firm documents in the Knowledge base. Each draft appears as a suggestion for a partner to accept or edit.</p>
+            <DraftFromDocs />
+          </div>
+        )}
         <SettingsForm settings={settings.map((s) => ({ key: s.key, label: s.label, help: s.help, value: s.value, confirmed: s.confirmed }))} canEdit={hasRole(user.role, "PARTNER")} />
       </Card>
       <Card>

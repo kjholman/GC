@@ -152,7 +152,7 @@ export async function fingerprint(docs: ContentBlock[]): Promise<Fingerprint> {
 }
 
 /** Agentic web research with server-side search/fetch; returns sourced notes. */
-async function webResearch(step: string, prompt: string, input: ContentBlock[], limits: { search: number; fetch: number }): Promise<string | null> {
+export async function webResearch(step: string, prompt: string, input: ContentBlock[], limits: { search: number; fetch: number }): Promise<string | null> {
   const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: "user", content: [...input, { type: "text", text: prompt }] }];
   for (let turn = 0; turn < 6; turn++) {
     const stream = anthropic().beta.messages.stream({

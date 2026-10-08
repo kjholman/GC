@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { savePrincipleAction, togglePrincipleAction, type AdminState } from "@/lib/admin/actions";
+import { deletePrincipleAction, savePrincipleAction, togglePrincipleAction, type AdminState } from "@/lib/admin/actions";
 import { Button, Card, cx, inputCls } from "@/components/ui";
 import { useConfirm } from "@/components/Confirm";
 
@@ -10,6 +10,7 @@ type P = { id: string; title: string; body: string; active: boolean };
 export function Principles({ principles, canEdit }: { principles: P[]; canEdit: boolean }) {
   const [state, action, pending] = useActionState<AdminState, FormData>(savePrincipleAction.bind(null, null), { ok: false });
   const [k, setK] = useState(0);
+  const [editing, setEditing] = useState<string | null>(null);
   const confirm = useConfirm();
   return (
     <Card>
@@ -24,10 +25,28 @@ export function Principles({ principles, canEdit }: { principles: P[]; canEdit: 
           <li key={p.id} className={cx("flex gap-4 py-3.5", !p.active && "opacity-45")}>
             <span className="font-display font-semibold text-[17px] text-brand-500 tabular">{String(i + 1).padStart(2, "0")}</span>
             <div className="flex-1">
-              <div className="text-[14px] font-medium text-navy-900">{p.title}</div>
-              <p className="mt-0.5 text-[13.5px] leading-relaxed text-ink-soft">{p.body}</p>
+              {editing === p.id ? (
+                <EditPrinciple p={p} onDone={() => setEditing(null)} />
+              ) : (
+                <>
+                  <div className="text-[14px] font-medium text-navy-900">{p.title}</div>
+                  <p className="mt-0.5 text-[13.5px] leading-relaxed text-ink-soft">{p.body}</p>
+                </>
+              )}
             </div>
-            {canEdit && (
+            {canEdit && editing !== p.id && (
+              <span className="flex shrink-0 gap-3 self-start text-[12px]">
+              <button type="button" onClick={() => setEditing(p.id)} className="text-navy-700 hover:underline">Edit</button>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (await confirm({ title: `Delete “${p.title}”?`, body: "Analyses stop applying it. The deletion is recorded in the change log.", confirmLabel: "Delete", danger: true }))
+                    await deletePrincipleAction(p.id);
+                }}
+                className="text-neg hover:underline"
+              >
+                Delete
+              </button>
               <button
                 onClick={async () => {
                   const ok = await confirm(
@@ -36,9 +55,10 @@ export function Principles({ principles, canEdit }: { principles: P[]; canEdit: 
                       : { title: `Turn on “${p.title}”?`, body: "Every analysis from now on will apply this principle.", confirmLabel: "Turn on" },
                   );
                   if (ok) await togglePrincipleAction(p.id, !p.active);
-                }} className="self-start text-[12px] text-navy-700 hover:underline">
-                {p.active ? "Disable" : "Enable"}
+                }} className="text-navy-700 hover:underline">
+                {p.active ? "Turn off" : "Turn on"}
               </button>
+              </span>
             )}
           </li>
         ))}
@@ -54,5 +74,20 @@ export function Principles({ principles, canEdit }: { principles: P[]; canEdit: 
         </form>
       )}
     </Card>
+  );
+}
+
+function EditPrinciple({ p, onDone }: { p: P; onDone: () => void }) {
+  const [state, action, pending] = useActionState<AdminState, FormData>(savePrincipleAction.bind(null, p.id), { ok: false });
+  return (
+    <form action={async (fd) => { await action(fd); onDone(); }} className="space-y-2">
+      <input name="title" defaultValue={p.title} className={inputCls} />
+      <textarea name="body" defaultValue={p.body} rows={3} className={inputCls} />
+      <div className="flex gap-2">
+        <Button type="submit" disabled={pending} className="!px-3 !py-1.5">Save</Button>
+        <button type="button" onClick={onDone} className="px-3 text-[13px] text-muted hover:text-ink">Cancel</button>
+      </div>
+      {state.error && <p className="text-[13px] text-neg">{state.error}</p>}
+    </form>
   );
 }

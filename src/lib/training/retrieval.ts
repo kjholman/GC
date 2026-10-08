@@ -12,12 +12,50 @@ type Probe = { sector?: string | null; modality?: string | null; indication?: st
 
 const STOP = new Set(["and", "the", "of", "for", "with", "in", "to", "a", "an", "or", "based", "therapy", "therapeutics"]);
 
+/**
+ * Words that mean the same thing in a deck, so "cancer" matches "oncology" and
+ * "NASH" matches "MASH". Each word maps to one canonical term.
+ */
+const SYNONYMS: Record<string, string[]> = {
+  oncology: ["cancer", "cancers", "tumor", "tumour", "tumors", "tumours", "carcinoma", "neoplasm", "oncologic", "solid", "leukemia", "leukaemia", "lymphoma", "myeloma"],
+  mash: ["nash", "nafld", "masld", "steatohepatitis", "fatty", "liver"],
+  cardiovascular: ["cardiac", "heart", "cardio", "cardiology", "vascular", "hypertension", "atherosclerosis", "hfpef", "hfref"],
+  neurology: ["neuro", "neurological", "cns", "brain", "neurodegenerative", "neurodegeneration", "alzheimer", "alzheimers", "parkinson", "parkinsons", "als", "epilepsy"],
+  psychiatry: ["depression", "mental", "psychiatric", "anxiety", "schizophrenia", "ptsd"],
+  antibody: ["antibodies", "mab", "mabs", "monoclonal", "adc", "bispecific"],
+  oligonucleotide: ["sirna", "rnai", "antisense", "aso", "oligo", "mrna"],
+  gene: ["aav", "lentiviral", "crispr", "editing", "genetic"],
+  cell: ["cart", "car", "nk", "stem", "allogeneic", "autologous"],
+  device: ["devices", "implant", "implantable", "catheter", "instrument", "surgical", "wearable"],
+  diagnostic: ["diagnostics", "dx", "assay", "assays", "biomarker", "screening", "imaging", "liquid", "biopsy"],
+  metabolic: ["diabetes", "diabetic", "t2d", "obesity", "obese", "glp", "insulin", "weight"],
+  fibrosis: ["fibrotic", "ipf", "scarring"],
+  inflammation: ["inflammatory", "autoimmune", "immunology", "immune", "nlrp3", "arthritis", "lupus", "psoriasis", "ibd", "crohn", "colitis"],
+  infectious: ["infection", "infections", "antimicrobial", "antibiotic", "antibiotics", "bacterial", "antiviral", "viral", "fungal", "vaccine", "vaccines", "amr"],
+  ophthalmology: ["ophthalmic", "eye", "retinal", "retina", "ocular", "macular", "glaucoma"],
+  renal: ["kidney", "nephrology", "ckd"],
+  respiratory: ["pulmonary", "lung", "lungs", "asthma", "copd"],
+  dermatology: ["skin", "dermal", "dermatologic", "topical", "wound"],
+  rare: ["orphan", "ultra"],
+  radiopharmaceutical: ["radioligand", "radiotherapeutic", "radionuclide", "radiopharma", "theranostic"],
+  digital: ["software", "app", "ai", "algorithm", "saas", "platform"],
+  pain: ["analgesic", "analgesia", "opioid", "nociception"],
+};
+const CANON = new Map<string, string>();
+for (const [canon, words] of Object.entries(SYNONYMS)) {
+  CANON.set(canon, canon);
+  for (const w of words) CANON.set(w, canon);
+}
+const canonical = (t: string) => CANON.get(t) ?? CANON.get(t.replace(/s$/, "")) ?? t.replace(/(ies)$/, "y").replace(/([^s])s$/, "$1");
+
 function tokens(s: string | null | undefined): Set<string> {
   return new Set(
     (s ?? "")
       .toLowerCase()
       .split(/[^a-z0-9]+/)
-      .filter((t) => t.length > 2 && !STOP.has(t)),
+      .filter((t) => t.length > 1 && !STOP.has(t))
+      .map(canonical)
+      .filter((t) => t.length > 2 || CANON.has(t)),
   );
 }
 
@@ -28,7 +66,8 @@ function overlap(a: Set<string>, b: Set<string>) {
 export function similarity(probe: Probe, cand: Probe): { score: number; why: string } {
   const reasons: string[] = [];
   let score = 0;
-  if (probe.sector && cand.sector && probe.sector.toLowerCase() === cand.sector.toLowerCase()) {
+  const sameSector = (a: string, b: string) => a.toLowerCase() === b.toLowerCase() || [...tokens(a)].sort().join(" ") === [...tokens(b)].sort().join(" ");
+  if (probe.sector && cand.sector && sameSector(probe.sector, cand.sector)) {
     score += 3;
     reasons.push(`same sector (${cand.sector})`);
   }
@@ -70,6 +109,12 @@ export async function findPrecedents(
     }),
     db.exemplar.findMany({ where: { active: true } }),
   ]);
+  const portfolio = opts.beforeYear ? [] : await db.portfolioCompany.findMany({ select: { name: true, sector: true, modality: true, indication: true, outcome: true } });
+  const rankedPortfolio = portfolio
+    .map((c) => ({ ...c, ...similarity(probe, c) }))
+    .filter((c) => c.score >= 4)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 4);
 
   const rankedHist = historical
     .map((h) => ({ ...h, ...similarity(probe, h) }))
@@ -89,6 +134,7 @@ export async function findPrecedents(
       outcome: h.outcome, outcomeNotes: h.outcomeNotes, sector: h.sector, modality: h.modality, indication: h.indication,
       stage: h.stage, digest: h.digest, why: h.why,
     })),
+    portfolio: rankedPortfolio.map((c) => ({ name: c.name, outcome: c.outcome, why: c.why })),
     exemplars: rankedEx.map((e) => ({
       id: e.id, title: e.title, recommendation: e.recommendation, overallScore: e.overallScore,
       partnerCommentary: e.partnerCommentary, memo: e.memo, why: e.why,

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ChangeLog } from "@/components/ChangeLog";
 import { pageParam } from "@/components/Pagination";
 import { db } from "@/lib/db";
@@ -5,24 +6,20 @@ import { hasRole, requireUser } from "@/lib/auth/session";
 import { Card, PageHeader, SectionTitle, cx } from "@/components/ui";
 import { KnowledgeFiles, type KFile } from "@/components/KnowledgeFiles";
 import { formatBytes } from "@/lib/knowledge/files";
+import { FIELD_LABEL } from "@/lib/knowledge/suggest";
+import { FIRM_SETTINGS } from "@/lib/training/settings";
 import { Principles } from "./Principles";
-import { DeleteCompanyButton, EditCompanyDialog, PortfolioForm } from "./PortfolioForm";
-
-
-const OUTCOME: Record<string, { label: string; cls: string }> = {
-  ACQUIRED: { label: "Acquired", cls: "bg-pos-bg text-pos" },
-  IPO: { label: "IPO", cls: "bg-info-bg text-info" },
-  MERGED: { label: "Merged", cls: "bg-info-bg text-info" },
-  ACTIVE: { label: "Active", cls: "bg-brand-100 text-brand-600" },
-  WOUND_DOWN: { label: "Wound down", cls: "bg-neg-bg text-neg" },
-  UNKNOWN: { label: "Outcome n/a", cls: "bg-[#f1efea] text-muted" },
-};
+import { PortfolioForm } from "./PortfolioForm";
+import { PortfolioGrid } from "./PortfolioGrid";
+import { Suggestions, type SuggestionView } from "./Suggestions";
+import { BatchImport } from "./BatchImport";
+import { DraftFromDocs } from "@/components/DraftFromDocs";
 
 export default async function KnowledgePage({ searchParams }: PageProps<"/knowledge">) {
   const user = await requireUser();
   const sp = await searchParams;
   const canEdit = hasRole(user.role, "PARTNER");
-  const [companies, principles, feedbackCount, kfiles] = await Promise.all([
+  const [companies, principles, feedbackCount, kfiles, settingsSaved, pastDeals, pastWithDecks, pending] = await Promise.all([
     db.portfolioCompany.findMany({ orderBy: [{ outcome: "asc" }, { name: "asc" }] }),
     db.investmentPrinciple.findMany({ orderBy: { createdAt: "asc" } }),
     db.analysisFeedback.count(),
@@ -31,84 +28,126 @@ export default async function KnowledgePage({ searchParams }: PageProps<"/knowle
       orderBy: { createdAt: "desc" },
       select: { id: true, scope: true, portfolioCompanyId: true, filename: true, sizeBytes: true, status: true, summary: true },
     }),
+    db.firmSetting.count({ where: { key: { in: FIRM_SETTINGS.map((x) => x.key) } } }),
+    db.historicalDeal.count(),
+    db.historicalDeal.count({ where: { deckFilename: { not: null } } }),
+    db.knowledgeSuggestion.findMany({ where: { status: "PENDING" }, orderBy: { createdAt: "asc" }, take: 60 }),
   ]);
   const toK = (f: (typeof kfiles)[number]): KFile => ({ id: f.id, filename: f.filename, size: formatBytes(f.sizeBytes), status: f.status, summary: f.summary });
   const firmFiles = kfiles.filter((f) => f.scope === "FIRM").map(toK);
-  const filesFor = (companyId: string) => kfiles.filter((f) => f.portfolioCompanyId === companyId).map(toK);
-  const exits = companies.filter((c) => c.outcome === "ACQUIRED" || c.outcome === "IPO" || c.outcome === "MERGED").length;
+  const filesByCompany: Record<string, KFile[]> = {};
+  for (const f of kfiles.filter((x) => x.scope === "PORTFOLIO" && x.portfolioCompanyId)) (filesByCompany[f.portfolioCompanyId!] ??= []).push(toK(f));
+  const exits = companies.filter((c) => c.outcome === "ACQUIRED" || c.outcome === "IPO" || c.outcome === "MERGED");
+  const activePrinciples = principles.filter((p) => p.active).length;
+
+  // Suggestions, with what is on record now for comparison.
+  const byId = new Map(companies.map((c) => [c.id, c]));
+  const suggestions: SuggestionView[] = pending.map((s) => {
+    const data = s.data as Record<string, unknown>;
+    const current = s.targetId ? (byId.get(s.targetId) as Record<string, unknown> | undefined) : undefined;
+    const label = (k: string) =>
+      s.kind === "PRINCIPLE" ? (k === "title" ? "Title" : "Principle")
+      : s.kind === "SETTING" ? "Value"
+      : s.kind === "PAST_DEAL" ? ({ companyName: "Company", year: "Year", decision: "Decision", rationale: "Rationale", outcome: "Outcome", sector: "Sector" } as Record<string, string>)[k] ?? k
+      : FIELD_LABEL[k] ?? k;
+    return {
+      id: s.id, kind: s.kind, title: s.title, sourceLabel: s.sourceLabel,
+      fields: Object.entries(data)
+        .filter(([, v]) => v != null && v !== "")
+        .map(([k, v]) => ({ key: k, label: label(k), value: String(v), current: current?.[k] != null ? String(current[k]) : null, long: ["description", "lessons", "outcomeNotes", "body", "rationale", "value"].includes(k) })),
+    };
+  });
+
+  // Knowledge health: what GAIA uses, how complete it is, and the next thing to add.
+  const pct = (n: number, of: number) => (of ? Math.min(1, n / of) : 0);
+  const health = [
+    { label: "Firm settings confirmed", done: settingsSaved, of: FIRM_SETTINGS.length, href: "/training/prompt", todo: `Confirm ${FIRM_SETTINGS.length - settingsSaved} firm setting${FIRM_SETTINGS.length - settingsSaved === 1 ? "" : "s"} (cheque size, mandate, return hurdle)` },
+    { label: "Investment principles", done: activePrinciples, of: 8, href: "#principles", todo: "Add the partnership's standing rules, or import them from the template" },
+    { label: "Firm documents read", done: firmFiles.filter((f) => f.status === "READY").length, of: 3, href: "#add", todo: "Upload the fund strategy, LP reports or portfolio reviews; GAIA suggests updates from them" },
+    { label: "Portfolio companies on record", done: companies.length, of: Math.max(10, companies.length), href: "#add", todo: "Upload a portfolio list or import the portfolio template" },
+    { label: "Portfolio websites", done: companies.filter((c) => c.website).length, of: companies.length, href: "#portfolio", todo: "Add websites so GAIA recognises companies that pitch again (try Fill from the web)" },
+    { label: "Portfolio financials", done: companies.filter((c) => c.checkSize || c.entryValuation).length, of: companies.length, href: "#portfolio", todo: "Add investment, valuation and returns so GAIA can benchmark deal terms" },
+    { label: "Lessons from exits", done: exits.filter((c) => c.lessons).length, of: exits.length, href: "#portfolio", todo: "Record what the partnership learned from each exit" },
+    { label: "Past deals in the archive", done: pastDeals, of: Math.max(30, pastDeals), href: "/training/archive", todo: "Import past decisions, including deals Genesys passed on" },
+    { label: "Past deals with decks", done: pastWithDecks, of: Math.max(10, pastDeals), href: "/training/archive", todo: "Attach original decks so accuracy tests can run" },
+    { label: "Partner reviews", done: feedbackCount, of: 20, href: "/deals", todo: "Review finished memos; each review becomes a lesson" },
+  ].filter((h) => h.of > 0);
+  const score = Math.round((health.reduce((n, h) => n + pct(h.done, h.of), 0) / health.length) * 100);
+  const next = health.filter((h) => pct(h.done, h.of) < 1).sort((a, b) => pct(a.done, a.of) - pct(b.done, b.of)).slice(0, 4);
 
   return (
     <>
       <PageHeader
         eyebrow="Institutional memory"
         title="Knowledge base"
-        subtitle="Genesys Capital's investment history. Every analysis benchmarks new opportunities against these companies and their outcomes. The more complete and candid this record, the sharper the analyst's judgement."
+        subtitle="What GAIA knows about Genesys: the portfolio, the partnership's principles and the firm's own documents. Every analysis draws on it. The quickest way to build it is to upload documents you already have and accept GAIA's suggestions."
       />
-      <div className="mb-8 grid grid-cols-2 gap-px md:grid-cols-4 overflow-hidden rounded-lg border border-line bg-line">
-        {[
-          ["Companies on record", companies.length],
-          ["Realised exits", exits],
-          ["Awaiting verification", companies.filter((c) => !c.verified).length],
-          ["Partner calibrations", feedbackCount],
-        ].map(([k, v]) => (
-          <div key={k} className="bg-paper px-6 py-5">
-            <div className="eyebrow">{k}</div>
-            <div className="mt-2 font-display font-semibold text-[34px] leading-none tabular text-navy-900">{v}</div>
-          </div>
-        ))}
-      </div>
 
-      <div className="mb-8">
+      <Card className="mb-8">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
+          <div>
+            <div className="eyebrow">Knowledge health</div>
+            <div className="mt-2 font-display text-[44px] font-semibold leading-none tabular text-navy-900">{score}%</div>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-line"><div className="h-full bg-brand-500" style={{ width: `${score}%` }} /></div>
+            <p className="mt-3 text-[12.5px] leading-relaxed text-muted">How complete the knowledge GAIA draws on is. Higher means sharper, more Genesys-specific memos.</p>
+          </div>
+          <div>
+            {next.length > 0 && (
+              <>
+                <div className="mb-2 text-[13px] font-medium text-navy-900">Most useful next steps</div>
+                <ol className="mb-4 space-y-1.5 text-[13.5px]">
+                  {next.map((h, i) => (
+                    <li key={h.label} className="flex gap-2">
+                      <span className="font-display font-semibold text-brand-500 tabular">{i + 1}</span>
+                      <Link href={h.href} className="text-navy-800 hover:underline">{h.todo}</Link>
+                    </li>
+                  ))}
+                </ol>
+              </>
+            )}
+            <ul className="grid grid-cols-1 gap-x-6 gap-y-1.5 text-[12.5px] sm:grid-cols-2">
+              {health.map((h) => (
+                <li key={h.label} className="flex items-center gap-2">
+                  <span className={cx("h-2 w-2 shrink-0 rounded-full", pct(h.done, h.of) >= 1 ? "bg-pos" : pct(h.done, h.of) > 0 ? "bg-warn" : "bg-line-strong")} />
+                  <span className="text-ink-soft">{h.label}</span>
+                  <span className="ml-auto tabular text-ink">{h.done}{h.label.startsWith("Portfolio companies") || h.label.startsWith("Past deals in") || h.label === "Partner reviews" || h.label === "Investment principles" || h.label === "Firm documents read" ? "" : ` of ${h.of}`}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </Card>
+
+      {canEdit && <Suggestions items={suggestions} />}
+
+      <div id="add" className="scroll-mt-6" />
+      <Card className="mb-8">
+        <SectionTitle eyebrow="Add knowledge" title="Upload anything about Genesys" />
+        <p className="-mt-3 mb-4 max-w-3xl text-[13.5px] leading-relaxed text-ink-soft">
+          Fund strategy, LP and portfolio reports, IC memos, quarterly updates, cap tables, spreadsheets: any format, any size. GAIA reads each file, uses it in every analysis, and suggests portfolio companies, principles and firm settings from it for you to accept.
+        </p>
+        <KnowledgeFiles scope="FIRM" files={firmFiles} canEdit={canEdit} />
+        {canEdit && firmFiles.some((f) => f.status === "READY") && (
+          <div className="mt-4"><DraftFromDocs label="Find more in these documents" /></div>
+        )}
+        {canEdit && (
+          <div className="mt-6 border-t border-line pt-5">
+            <div className="mb-1 text-[14px] font-medium text-navy-900">Or import a spreadsheet</div>
+            <p className="mb-2 text-[12.5px] text-muted">Download a template, fill it in (Excel or CSV), and upload it.</p>
+            <BatchImport />
+          </div>
+        )}
+      </Card>
+
+      <div className="mb-8" id="principles">
         <Principles principles={principles} canEdit={canEdit} />
       </div>
 
-      <Card className="mb-8">
-        <SectionTitle eyebrow="Firm documents" title="Documents every analysis can draw on" />
-        <p className="-mt-3 mb-4 max-w-3xl text-[13.5px] leading-relaxed text-ink-soft">
-          Fund strategy, investment theses, IC memos, portfolio reviews, anything that explains how Genesys thinks. GAIA reads each file and uses its summary in every analysis.
-        </p>
-        <KnowledgeFiles scope="FIRM" files={firmFiles} canEdit={canEdit} />
-      </Card>
-
+      <div id="portfolio" className="mb-3 flex items-end justify-between gap-3">
+        <SectionTitle eyebrow={`${companies.length} companies · ${exits.length} exits`} title="Portfolio" />
+      </div>
       <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-          {companies.map((c) => (
-            <Card key={c.id} className="flex flex-col">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h3 className="font-display font-semibold text-[20px] leading-tight text-navy-900">{c.name}</h3>
-                  <div className="mt-1 text-[12.5px] text-muted">
-                    {[c.sector, c.modality].filter(Boolean).join(" · ")}
-                  </div>
-                </div>
-                <span className={cx("shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]", OUTCOME[c.outcome].cls)}>
-                  {OUTCOME[c.outcome].label}
-                </span>
-              </div>
-              <p className="mt-3 text-[13.5px] leading-relaxed text-ink-soft">{c.description}</p>
-              {c.outcomeNotes && <p className="mt-2 text-[13px] leading-relaxed text-ink"><span className="text-muted">Outcome: </span>{c.outcomeNotes}</p>}
-              {c.lessons && <p className="mt-2 border-l-2 border-brand-500 pl-3 text-[13px] italic leading-relaxed text-ink">{c.lessons}</p>}
-              {(canEdit || filesFor(c.id).length > 0) && (
-                <details className="mt-3">
-                  <summary className="cursor-pointer text-[12.5px] font-medium text-navy-700">Files ({filesFor(c.id).length})</summary>
-                  <div className="mt-2"><KnowledgeFiles scope="PORTFOLIO" targetId={c.id} files={filesFor(c.id)} canEdit={canEdit} compact /></div>
-                </details>
-              )}
-              <div className="mt-auto flex items-center justify-between pt-4 text-[11.5px] text-muted">
-                <span>
-                  {[c.stageAtEntry, c.yearInvested].filter(Boolean).join(" · ")}
-                  {!c.verified && <span className="ml-2 text-warn">● Unverified</span>}
-                </span>
-                {canEdit && (
-                  <span className="flex gap-3">
-                    <EditCompanyDialog company={c} />
-                    <DeleteCompanyButton id={c.id} name={c.name} />
-                  </span>
-                )}
-              </div>
-            </Card>
-          ))}
-        </div>
+        <PortfolioGrid companies={companies} files={filesByCompany} canEdit={canEdit} />
         {canEdit && (
           <div>
             <div className="sticky top-10">
@@ -119,7 +158,7 @@ export default async function KnowledgePage({ searchParams }: PageProps<"/knowle
       </div>
       <div className="mt-10" id="changes">
         <ChangeLog
-          prefixes={["portfolio.", "principle.", "training.suggestion_accepted", "knowledge.files_added", "knowledge.file_removed"]}
+          prefixes={["portfolio.", "principle.", "training.suggestion_accepted", "knowledge.files_added", "knowledge.file_removed", "knowledge.suggestion_accepted", "knowledge.imported"]}
           page={pageParam(sp.changes)}
           href={(p) => `/knowledge?changes=${p}#changes`}
           title="Changes to the knowledge base"

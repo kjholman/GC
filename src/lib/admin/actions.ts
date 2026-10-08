@@ -155,6 +155,13 @@ export async function savePrincipleAction(id: string | null, _: AdminState, form
   return { ok: true, message: "Principle saved. It applies to every analysis from now on." };
 }
 
+export async function deletePrincipleAction(id: string) {
+  const user = await requireRole("PARTNER");
+  const p = await db.investmentPrinciple.delete({ where: { id } });
+  await audit("principle.deleted", { userId: user.id, entity: "InvestmentPrinciple", entityId: id, meta: { name: p.title, changes: [{ field: "Principle", from: p.body, to: "(removed)" }] } });
+  revalidatePath("/knowledge");
+}
+
 export async function togglePrincipleAction(id: string, active: boolean) {
   const user = await requireRole("PARTNER");
   const p = await db.investmentPrinciple.update({ where: { id }, data: { active } });

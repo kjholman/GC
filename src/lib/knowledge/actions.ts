@@ -68,3 +68,169 @@ export async function retryKnowledgeFileAction(id: string) {
   revalidatePath("/knowledge");
   revalidatePath("/training/archive");
 }
+
+// ─── Suggestions from documents and the web ─────────────────────────────────
+
+/** Accepts one suggestion (optionally with the partner's edits) and records it in the change log. */
+export async function acceptSuggestionAction(id: string, edited?: Record<string, string>): Promise<UploadState> {
+  const user = await requireRole("PARTNER");
+  try {
+    const { applySuggestion } = await import("./suggest");
+    const s = await db.knowledgeSuggestion.findUnique({ where: { id } });
+    const what = await applySuggestion(id, edited);
+    await db.knowledgeSuggestion.update({ where: { id }, data: { status: "ACCEPTED", resolvedAt: new Date(), resolvedById: user.id } });
+    await audit("knowledge.suggestion_accepted", { userId: user.id, entity: "KnowledgeSuggestion", entityId: id, meta: { name: what, source: s?.sourceLabel } });
+    if (s?.kind === "PAST_DEAL") {
+      const h = await db.historicalDeal.findFirst({ where: { companyName: (s.data as { companyName?: string }).companyName ?? s.title }, orderBy: { createdAt: "desc" } });
+      if (h) after(() => withMeter({ purpose: "past-deal reading" }, () => ingestHistoricalDeal(h.id)));
+    }
+    revalidatePath("/knowledge");
+    revalidatePath("/training", "layout");
+    return { ok: true, message: what };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+}
+
+export async function dismissSuggestionAction(id: string) {
+  const user = await requireRole("PARTNER");
+  await db.knowledgeSuggestion.update({ where: { id }, data: { status: "DISMISSED", resolvedAt: new Date(), resolvedById: user.id } });
+  revalidatePath("/knowledge");
+}
+
+/** Accepts every pending suggestion as GAIA proposed it. */
+export async function acceptAllSuggestionsAction(): Promise<UploadState> {
+  await requireRole("PARTNER");
+  const pending = await db.knowledgeSuggestion.findMany({ where: { status: "PENDING" }, orderBy: { createdAt: "asc" }, select: { id: true } });
+  let done = 0;
+  const problems: string[] = [];
+  for (const p of pending) {
+    const r = await acceptSuggestionAction(p.id);
+    if (r.ok) done++;
+    else if (r.error) problems.push(r.error);
+  }
+  return problems.length ? { ok: false, error: `${done} added; ${problems.length} couldn't be: ${problems[0]}` } : { ok: true, message: `${done} suggestion${done === 1 ? "" : "s"} added.` };
+}
+
+/** Looks a portfolio company up online and suggests the details the record is missing. */
+export async function fillFromWebAction(companyId: string): Promise<UploadState> {
+  await requireRole("PARTNER");
+  const c = await db.portfolioCompany.findUnique({ where: { id: companyId } });
+  if (!c) return { ok: false, error: "Company not found." };
+  const { webResearch } = await import("../ai/analyst");
+  const { extractKnowledge, recordSuggestions } = await import("./suggest");
+  const n = await withMeter({ purpose: "knowledge from the web" }, async () => {
+    const text = await webResearch(
+      "knowledge: web",
+      `Find public information about the company "${c.name}"${c.website ? ` (${c.website})` : ""}, a Genesys Capital portfolio company${c.sector ? ` in ${c.sector}` : ""}. Report, with a source URL for each fact: its website, what it does, modality and lead indication, funding rounds with amounts, dates and investors (including when Genesys Capital invested), its current status (operating, acquired, IPO, merged or closed) and any exit value or latest valuation. Say plainly what you cannot find.`,
+      [],
+      { search: 6, fetch: 3 },
+    );
+    if (!text) return 0;
+    const found = await extractKnowledge(
+      [{ type: "text", text: `## Web research on ${c.name}\n\n${text}` }],
+      `This is web research about ${c.name}, a company Genesys Capital has invested in. Report only ${c.name} in portfolioCompanies, and leave the other lists empty.`,
+    );
+    return found ? recordSuggestions(found, { label: `web research on ${c.name}`, onlyCompanyId: c.id }) : 0;
+  });
+  revalidatePath("/knowledge");
+  return n ? { ok: true, message: "Found new details online. Review them in Suggestions at the top of the page." } : { ok: true, message: "Nothing new found online for this company." };
+}
+
+// ─── Batch import from the CSV / Excel templates ────────────────────────────
+
+/** Imports portfolio companies or principles from a filled-in template. Existing companies are updated, not duplicated. */
+export async function importTableAction(kind: "portfolio" | "principles", _: UploadState, fd: FormData): Promise<UploadState> {
+  const user = await requireRole("PARTNER");
+  const file = fd.get("file");
+  if (!(file instanceof File) || file.size === 0) return { ok: false, error: "Choose the filled-in CSV or Excel file." };
+  const { readTable, headerKeys, TEMPLATES } = await import("./templates");
+  const { coreName } = await import("../deals/portfolio");
+  let rows: string[][];
+  try {
+    rows = await readTable(file);
+  } catch {
+    return { ok: false, error: "That file couldn't be read. Save it as .xlsx or .csv and try again." };
+  }
+  const t = TEMPLATES[kind];
+  if (rows.length < 2) return { ok: false, error: "The file has no rows below the header." };
+  const keys = headerKeys(rows[0], t);
+  const get = (r: string[], k: string) => {
+    const i = keys.indexOf(k);
+    const v = i >= 0 ? (r[i] ?? "").trim() : "";
+    return v || undefined;
+  };
+  const isExample = (r: string[]) => t.columns.every((c, i) => !c.example || (r[keys.indexOf(c.key)] ?? "").trim() === c.example || i > 2);
+  let created = 0, updated = 0;
+  const skipped: string[] = [];
+
+  if (kind === "principles") {
+    const existing = new Set((await db.investmentPrinciple.findMany({ select: { title: true } })).map((p) => coreName(p.title)));
+    for (const [n, r] of rows.slice(1).entries()) {
+      const title = get(r, "title"), body = get(r, "principle");
+      if (!title || !body) { skipped.push(`row ${n + 2}: needs a title and the principle`); continue; }
+      if (title === t.columns[0].example) continue;
+      if (existing.has(coreName(title))) { skipped.push(`row ${n + 2}: "${title}" is already a principle`); continue; }
+      await db.investmentPrinciple.create({ data: { title: title.slice(0, 200), body: body.slice(0, 3000) } });
+      existing.add(coreName(title));
+      created++;
+    }
+  } else {
+    const OUT: Record<string, string> = { active: "ACTIVE", acquired: "ACQUIRED", ipo: "IPO", merged: "MERGED", "wound down": "WOUND_DOWN", wound_down: "WOUND_DOWN", closed: "WOUND_DOWN", unknown: "UNKNOWN" };
+    const companies = await db.portfolioCompany.findMany();
+    for (const [n, r] of rows.slice(1).entries()) {
+      const name = get(r, "name");
+      if (!name) { skipped.push(`row ${n + 2}: no company name`); continue; }
+      if (isExample(r) && name === t.columns[0].example) continue;
+      const year = Number(get(r, "year_invested"));
+      const outcome = OUT[(get(r, "outcome") ?? "").toLowerCase()];
+      const data = {
+        website: get(r, "website"), sector: get(r, "sector"), modality: get(r, "modality"), indication: get(r, "indication"),
+        description: get(r, "description"), yearInvested: year > 1980 && year < 2100 ? year : undefined, stageAtEntry: get(r, "stage_at_entry"),
+        outcome: outcome as never, outcomeNotes: get(r, "outcome_notes"), checkSize: get(r, "genesys_investment"), roundSize: get(r, "round_size"),
+        entryValuation: get(r, "entry_valuation"), ownership: get(r, "ownership"), coInvestors: get(r, "co_investors"), exitValue: get(r, "exit_value"),
+        returnMultiple: get(r, "return"), lessons: get(r, "lessons"),
+      };
+      const match = companies.find((c) => coreName(c.name) === coreName(name));
+      if (match) {
+        await db.portfolioCompany.update({ where: { id: match.id }, data: { ...data, seeded: false } });
+        updated++;
+      } else {
+        const c = await db.portfolioCompany.create({ data: { ...data, name, sector: data.sector ?? "Therapeutics", description: data.description ?? `${name}.`, verified: true } });
+        companies.push(c);
+        created++;
+      }
+    }
+  }
+  await audit("knowledge.imported", { userId: user.id, meta: { name: `${t.title} import (${file.name})`, changes: [{ field: t.title, from: "", to: `${created} added, ${updated} updated` }] } });
+  revalidatePath("/knowledge");
+  const summary = `${created} added${updated ? `, ${updated} updated` : ""}.`;
+  return skipped.length ? { ok: created + updated > 0, message: `${summary} Skipped ${skipped.length}: ${skipped.slice(0, 3).join("; ")}${skipped.length > 3 ? "…" : ""}`, error: created + updated ? undefined : `Nothing imported. ${skipped.slice(0, 3).join("; ")}` } : { ok: true, message: summary };
+}
+
+/** Re-reads every firm document and suggests firm settings, principles and portfolio details from them. */
+export async function draftFromDocumentsAction(): Promise<UploadState> {
+  await requireRole("PARTNER");
+  const docs = await db.knowledgeFile.findMany({ where: { scope: "FIRM", status: "READY" }, select: { filename: true, extractedText: true, summary: true }, orderBy: { createdAt: "desc" } });
+  if (!docs.length) return { ok: false, error: "Upload firm documents first (fund strategy, LP reports, IC memos). GAIA drafts from those." };
+  let budget = 250_000;
+  const text = docs
+    .map((d) => {
+      const body = (d.extractedText ?? d.summary ?? "").slice(0, Math.max(0, budget));
+      budget -= body.length;
+      return body ? `## ${d.filename}\n${body}` : "";
+    })
+    .filter(Boolean)
+    .join("\n\n");
+  const { extractKnowledge, recordSuggestions } = await import("./suggest");
+  const n = await withMeter({ purpose: "knowledge extraction" }, async () => {
+    const found = await extractKnowledge(
+      [{ type: "text", text }],
+      "These are Genesys Capital's own documents. Focus on the firm settings (cheque size, ownership, reserves, return hurdle, mandate, screening bar, writing voice) and the investment principles they state, plus any portfolio companies.",
+    );
+    return found ? recordSuggestions(found, { label: `your ${docs.length} firm document${docs.length === 1 ? "" : "s"}` }) : 0;
+  });
+  revalidatePath("/knowledge");
+  revalidatePath("/training/prompt");
+  return n ? { ok: true, message: `${n} suggestion${n === 1 ? "" : "s"} drafted. Review them at the top of the Knowledge base.` } : { ok: true, message: "Nothing new found in the documents." };
+}

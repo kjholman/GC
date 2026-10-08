@@ -581,3 +581,26 @@ model KnowledgeFileChunk {
 
   @@unique([fileId, index])
 }
+
+/// Something GAIA found in an uploaded document or online that would improve the
+/// knowledge base. Nothing changes until a partner accepts it.
+model KnowledgeSuggestion {
+  id           String    @id @default(cuid())
+  /// PORTFOLIO_NEW, PORTFOLIO_UPDATE, PRINCIPLE, SETTING or PAST_DEAL
+  kind         String
+  /// The portfolio company being updated, or the firm setting key.
+  targetId     String?
+  title        String
+  /// The proposed values.
+  data         Json
+  /// Where it came from, e.g. "Fund III annual report.pdf" or "the company's website".
+  sourceLabel  String
+  sourceFileId String?
+  /// PENDING, ACCEPTED or DISMISSED
+  status       String    @default("PENDING")
+  createdAt    DateTime  @default(now())
+  resolvedAt   DateTime?
+  resolvedById String?
+
+  @@index([status])
+}

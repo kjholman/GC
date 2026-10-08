@@ -453,6 +453,8 @@ ${pipeline}`;
 export type Precedents = {
   historical: (Pick<HistoricalDeal, "id" | "companyName" | "decisionYear" | "decision" | "decisionRationale" | "outcome" | "outcomeNotes" | "sector" | "modality" | "indication" | "stage" | "digest"> & { why: string })[];
   exemplars: (Pick<Exemplar, "id" | "title" | "recommendation" | "overallScore" | "partnerCommentary" | "memo"> & { why: string })[];
+  /** The most similar Genesys portfolio companies (their full record is in the firm context). */
+  portfolio?: { name: string; outcome: string; why: string }[];
 };
 
 const DECISION_LABEL: Record<string, string> = {
@@ -463,7 +465,10 @@ const DECISION_LABEL: Record<string, string> = {
 
 /** user-message block: the past deals and endorsed memos most similar to this one. */
 export function precedentsBlock(p: Precedents): string | null {
-  if (!p.historical.length && !p.exemplars.length) return null;
+  if (!p.historical.length && !p.exemplars.length && !p.portfolio?.length) return null;
+  const similarPortfolio = p.portfolio?.length
+    ? `\n\n### Most similar Genesys portfolio companies\nTheir full record (terms, outcome, lessons) is in the portfolio history above. Compare this deal with them first.\n${p.portfolio.map((c) => `- ${c.name} (${c.outcome.toLowerCase().replace("_", " ")}): ${c.why}`).join("\n")}`
+    : "";
   const hist = p.historical
     .map(
       (h) =>
@@ -495,7 +500,7 @@ The deals below are the past Genesys decisions most similar to this one. Use the
 
 Do not anchor blindly: a precedent is evidence, not a rule.
 
-${hist}${ex ? `\n\n## Memos the partners have endorsed as the standard to emulate\nMatch their depth, judgement and tone.\n\n${ex}` : ""}`;
+${hist || "(No closely similar past decisions in the archive.)"}${similarPortfolio}${ex ? `\n\n## Memos the partners have endorsed as the standard to emulate\nMatch their depth, judgement and tone.\n\n${ex}` : ""}`;
 }
 
 export const RESEARCH_PROMPT = `

@@ -29,6 +29,9 @@ export function PortfolioForm({ company, onSaved }: { company: PortfolioCompany 
         className="space-y-4"
       >
         <Field label="Company"><input name="name" required defaultValue={company?.name} className={inputCls} /></Field>
+        <Field label="Website" hint="Lets GAIA recognise this company when it pitches again, and look it up online.">
+          <input name="website" defaultValue={company?.website ?? ""} placeholder="e.g. company.com" className={inputCls} />
+        </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Sector"><input name="sector" required defaultValue={company?.sector} placeholder="Therapeutics" className={inputCls} /></Field>
           <Field label="Modality"><input name="modality" defaultValue={company?.modality ?? ""} className={inputCls} /></Field>
@@ -64,7 +67,7 @@ export function PortfolioForm({ company, onSaved }: { company: PortfolioCompany 
           <textarea name="lessons" rows={3} defaultValue={company?.lessons ?? ""} className={inputCls} />
         </Field>
         <label className="flex items-center gap-2 text-[13px] text-ink-soft">
-          <input type="checkbox" name="verified" defaultChecked={company?.verified ?? true} className="accent-navy-900" />
+          <input type="checkbox" name="verified" defaultChecked={company?.verified ?? false} className="accent-navy-900" />
           Verified by the partnership
         </label>
         {state.error && <p className="text-[13px] text-neg">{state.error}</p>}

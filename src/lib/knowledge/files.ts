@@ -117,6 +117,18 @@ export async function processKnowledgeFile(fileId: string): Promise<void> {
       where: { id: fileId },
       data: { status: "READY", extractedText: body, summary: plainPunctuation(data.summary).slice(0, 3000) },
     });
+    // Firm and portfolio files: suggest what to add to the knowledge base from them.
+    if (f.scope !== "PAST_DEAL") {
+      const { extractKnowledge, recordSuggestions } = await import("./suggest");
+      const docContent: ContentBlock[] = content ?? [{ type: "document", source: { type: "text", media_type: "text/plain", data: body!.slice(0, 250_000) }, title: f.filename } as ContentBlock];
+      const found = await extractKnowledge(
+        docContent,
+        f.scope === "PORTFOLIO"
+          ? `Document: "${f.filename}", filed under one of Genesys's portfolio companies. Report what it says about that company (in portfolioCompanies), and leave the other lists empty.`
+          : `Document: "${f.filename}".`,
+      );
+      if (found) await recordSuggestions(found, { label: f.filename, fileId: f.id, onlyCompanyId: f.scope === "PORTFOLIO" ? f.portfolioCompanyId : null });
+    }
   } catch (err) {
     console.error("[knowledge] could not read file", fileId, err);
     await db.knowledgeFile.update({ where: { id: fileId }, data: { status: "FAILED" } }).catch(() => {});

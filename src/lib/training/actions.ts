@@ -106,31 +106,6 @@ export async function addHistoricalDealAction(_: TrainState, fd: FormData): Prom
   return { ok: true, message: `${companyName} added. The analyst is reading the materials.` };
 }
 
-/** Minimal RFC-4180 CSV parser (quoted fields, escaped quotes, CRLF). */
-function parseCsv(text: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let field = "";
-  let quoted = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (quoted) {
-      if (c === '"' && text[i + 1] === '"') { field += '"'; i++; }
-      else if (c === '"') quoted = false;
-      else field += c;
-    } else if (c === '"') quoted = true;
-    else if (c === ",") { row.push(field); field = ""; }
-    else if (c === "\n" || c === "\r") {
-      if (c === "\r" && text[i + 1] === "\n") i++;
-      row.push(field); field = "";
-      if (row.some((x) => x.trim())) rows.push(row);
-      row = [];
-    } else field += c;
-  }
-  row.push(field);
-  if (row.some((x) => x.trim())) rows.push(row);
-  return rows;
-}
 
 const DECISION_ALIASES: Record<string, HistoricalDecision> = {
   invested: "INVESTED", invest: "INVESTED", yes: "INVESTED",
@@ -141,19 +116,21 @@ const DECISION_ALIASES: Record<string, HistoricalDecision> = {
 export async function importArchiveCsvAction(_: TrainState, fd: FormData): Promise<TrainState> {
   const user = await requireRole("PARTNER");
   const csv = fd.get("csv");
-  if (!(csv instanceof File) || csv.size === 0) return { ok: false, error: "Attach the CSV file." };
+  if (!(csv instanceof File) || csv.size === 0) return { ok: false, error: "Attach the CSV or Excel file." };
   const decks = new Map(
     fd.getAll("decks").filter((f): f is File => f instanceof File && f.size > 0).map((f) => [f.name.toLowerCase(), f]),
   );
-  const rows = parseCsv(await csv.text());
-  if (rows.length < 2) return { ok: false, error: "The CSV has no data rows." };
-  const header = rows[0].map((h) => h.trim().toLowerCase().replace(/\s+/g, "_"));
+  // CSV or Excel, with either the column keys or their labels as headers.
+  const { readTable, headerKeys, TEMPLATES } = await import("../knowledge/templates");
+  const rows = await readTable(csv);
+  if (rows.length < 2) return { ok: false, error: "The file has no data rows." };
+  const header = headerKeys(rows[0], TEMPLATES["past-deals"]);
   const col = (r: string[], k: string) => {
     const i = header.indexOf(k);
     return i >= 0 ? r[i]?.trim() || null : null;
   };
   if (!header.includes("company") || !header.includes("decision")) {
-    return { ok: false, error: "The CSV needs at least 'company' and 'decision' columns. Download the template." };
+    return { ok: false, error: "The file needs at least 'company' and 'decision' columns. Download the template." };
   }
 
   const created: string[] = [];
@@ -373,6 +350,10 @@ export async function saveFirmSettingsAction(_: TrainState, fd: FormData): Promi
         create: { key: s.key, value: value.slice(0, 2000), updatedById: user.id },
         update: { value: value.slice(0, 2000), updatedById: user.id },
       });
+    } else if (was) {
+      // Cleared: back to the unconfirmed default, and recorded.
+      await db.firmSetting.delete({ where: { key: s.key } }).catch(() => {});
+      changes.push({ field: s.label, from: was, to: "(cleared; default used)" });
     }
   }
   await audit("training.firm_settings_saved", { userId: user.id, meta: { changes } });

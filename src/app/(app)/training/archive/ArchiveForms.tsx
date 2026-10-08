@@ -23,11 +23,12 @@ export function ImportCsvForm() {
       <div className="eyebrow mb-1 text-brand-600">Bulk import</div>
       <h3 className="font-display font-semibold text-[20px] text-navy-900">Import past deals</h3>
       <p className="mt-1.5 mb-4 text-[12.5px] leading-relaxed text-ink-soft">
-        Upload a spreadsheet (saved as CSV) with one row per deal, plus any files. Each file is matched to its row by the file name in the “deck_filename” column; list several names separated by semicolons.{" "}
-        <a href="/templates/deal-archive-template.csv" className="text-navy-700 underline">Download the template</a>
+        Fill in the template (Excel or CSV) with one row per deal, and attach any files. Each file is matched to its row by the file name in the “deck_filename” column; list several names separated by semicolons. Decisions can be written plainly, e.g. “Invested” or “Passed at screening”.{" "}
+        Template: <a href="/api/templates/past-deals?format=xlsx" download className="text-navy-700 underline">Excel</a> ·{" "}
+        <a href="/api/templates/past-deals?format=csv" download className="text-navy-700 underline">CSV</a>
       </p>
       <form action={action} className="space-y-3">
-        <Field label="Spreadsheet (CSV)"><input type="file" name="csv" accept=".csv" className="text-[13px]" /></Field>
+        <Field label="Spreadsheet (Excel or CSV)"><input type="file" name="csv" accept=".xlsx,.csv" className="text-[13px]" /></Field>
         <Field label="Files for these deals (optional, any number, any format)"><input type="file" name="decks" multiple className="text-[13px]" /></Field>
         <Status s={state} />
         <Button type="submit" disabled={pending} className="w-full">{pending ? "Importing…" : "Import"}</Button>
