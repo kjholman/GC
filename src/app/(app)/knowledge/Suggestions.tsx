@@ -4,6 +4,7 @@ import { useState } from "react";
 import { acceptAllSuggestionsAction, acceptSuggestionAction, dismissSuggestionAction } from "@/lib/knowledge/actions";
 import { Button, Card, cx, inputCls } from "@/components/ui";
 import { useConfirm } from "@/components/Confirm";
+import { usePaged } from "@/components/Pager";
 
 export type SuggestionView = {
   id: string;
@@ -26,6 +27,7 @@ export function Suggestions({ items }: { items: SuggestionView[] }) {
   const confirm = useConfirm();
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
+  const { shown, pager } = usePaged(items, 10);
   if (!items.length) return null;
   return (
     <Card className="mb-8 !border-brand-300">
@@ -52,10 +54,11 @@ export function Suggestions({ items }: { items: SuggestionView[] }) {
       </div>
       {note && <p className={cx("mt-3 text-[13px]", note.ok ? "text-pos" : "text-neg")}>{note.text}</p>}
       <ul className="mt-5 space-y-3">
-        {items.map((s) => (
+        {shown.map((s) => (
           <SuggestionRow key={s.id} s={s} busy={busy === s.id} onBusy={(v) => setBusy(v ? s.id : null)} onDone={(ok, text) => setNote({ ok, text })} />
         ))}
       </ul>
+      {pager}
     </Card>
   );
 }

@@ -11,8 +11,12 @@ import { Pagination, pageParam } from "@/components/Pagination";
 
 export default async function AdminPage({ searchParams }: PageProps<"/administration">) {
   await requireRole("ADMIN");
-  const page = pageParam((await searchParams).page);
+  const sp = await searchParams;
+  const page = pageParam(sp.page);
+  const peoplePage = pageParam(sp.people);
   const LOG_PAGE = 25;
+  const PEOPLE_PAGE = 20;
+  const qs = (people: number, log: number) => `/administration?${new URLSearchParams({ ...(people > 1 ? { people: String(people) } : {}), ...(log > 1 ? { page: String(log) } : {}) })}`;
   // Last activity: sessions stay open for days, so the last sign-in alone goes stale.
   const seen = await db.session.groupBy({ by: ["userId"], _max: { lastSeenAt: true } });
   const seenBy = new Map(seen.map((s) => [s.userId, s._max.lastSeenAt]));
@@ -68,7 +72,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/administra
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
-              {users.map((u) => (
+              {users.slice((peoplePage - 1) * PEOPLE_PAGE, peoplePage * PEOPLE_PAGE).map((u) => (
                 <UserRow
                   key={u.id}
                   user={{
@@ -81,6 +85,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/administra
             </tbody>
           </table>
           </div>
+          <div id="people" className="border-t border-line px-5 empty:hidden"><Pagination page={peoplePage} pageSize={PEOPLE_PAGE} total={users.length} href={(p) => `${qs(p, page)}#people`} /></div>
         </Card>
         <div className="space-y-8">
           <CreditPanel
@@ -118,7 +123,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/administra
             );
           })}
         </ul>
-        <div className="border-t border-line px-5"><Pagination page={page} pageSize={LOG_PAGE} total={logTotal} href={(p) => `/administration?page=${p}#activity`} /></div>
+        <div className="border-t border-line px-5"><Pagination page={page} pageSize={LOG_PAGE} total={logTotal} href={(p) => `${qs(peoplePage, p)}#activity`} /></div>
       </Card>
     </>
   );

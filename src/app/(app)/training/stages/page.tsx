@@ -1,11 +1,13 @@
 import { hasRole, requireUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { ChangeLog } from "@/components/ChangeLog";
+import { pageParam } from "@/components/Pagination";
 import { Card, SectionTitle } from "@/components/ui";
 import { StageList } from "./StageList";
 
-export default async function StagesPage() {
+export default async function StagesPage({ searchParams }: PageProps<"/training/stages">) {
   const user = await requireUser();
+  const changesPage = pageParam((await searchParams).changes);
   const canEdit = hasRole(user.role, "PARTNER");
   const [stages, portfolio] = await Promise.all([
     db.fundingStage.findMany({ orderBy: [{ position: "asc" }, { createdAt: "asc" }] }),
@@ -37,7 +39,7 @@ export default async function StagesPage() {
         canEdit={canEdit}
         stages={stages.map((s) => ({ ...s, createdAt: undefined, updatedAt: s.updatedAt.toISOString(), actual: actual[s.id] ?? [] }))}
       />
-      <ChangeLog prefixes={["stage."]} page={1} href={() => "/training/history"} title="Changes to the funding stages" undoable={canEdit} pageSize={10} />
+      <div id="changes"><ChangeLog prefixes={["stage."]} page={changesPage} href={(p) => `/training/stages?changes=${p}#changes`} title="Changes to the funding stages" undoable={canEdit} pageSize={10} /></div>
     </div>
   );
 }

@@ -28,6 +28,7 @@ import { DiligenceView, FinancialsView, FitView, IPView, MarketView, MemoView, P
 import { PrintButton } from "./PrintButton";
 import { Tabs } from "./Tabs";
 import { FounderAsk } from "./FounderAsk";
+import { Paged } from "@/components/Pager";
 
 const KIND_LABEL: Record<string, string> = {
   PITCH_DECK: "Pitch deck",
@@ -58,7 +59,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
         orderBy: { version: "desc" },
         include: { feedback: { orderBy: { createdAt: "asc" }, include: { user: { select: { name: true, email: true } } } } },
       },
-      activities: { orderBy: { createdAt: "desc" }, take: 60, include: { user: { select: { name: true, email: true } } } },
+      activities: { orderBy: { createdAt: "desc" }, take: 500, include: { user: { select: { name: true, email: true } } } },
     },
   });
   if (!deal) notFound();
@@ -292,14 +293,14 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
         <div className="grid grid-cols-1 gap-6 md:grid-cols-[minmax(0,1fr)_auto]">
         <Card pad={false}>
           <div className="px-6 pt-6"><SectionTitle eyebrow="While you wait" title="Materials received" /></div>
-          <ul className="divide-y divide-line border-t border-line">
+          <Paged as="ul" pageSize={10} className="divide-y divide-line border-t border-line" pagerClassName="border-t border-line px-5">
             {deal.documents.map((d) => (
               <li key={d.id} className="flex items-center gap-3 px-4 py-3 text-[13.5px] sm:px-6">
                 <a href={`/api/documents/${d.id}`} target="_blank" className="min-w-0 flex-1 truncate text-navy-800 hover:underline">{d.filename}</a>
                 <span className="shrink-0 whitespace-nowrap text-[12px] tabular text-muted">{(d.sizeBytes / 1024 / 1024).toFixed(1)} MB</span>
               </li>
             ))}
-          </ul>
+          </Paged>
         </Card>
         <MemeScene scene="slide31" size={240} className="mx-auto md:mx-0" />
         </div>
@@ -505,7 +506,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
             <div className="mb-3 flex items-baseline justify-between">
               <div className="eyebrow">Materials ({deal.documents.length})</div>
             </div>
-            <ul className="max-h-64 space-y-2 overflow-y-auto pr-1 text-[13px]">
+            <Paged as="ul" pageSize={8} className="space-y-2 text-[13px]" pagerClassName="mt-2 border-t border-line">
               {deal.documents.map((d) => (
                 <li key={d.id} className="flex items-baseline gap-2">
                   <a href={`/api/documents/${d.id}`} target="_blank" className="min-w-0 flex-1 truncate text-navy-800 hover:underline" title={d.filename}>{d.filename}</a>
@@ -513,7 +514,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
                   {!inFlight && <RemoveDocument id={d.id} filename={d.filename} />}
                 </li>
               ))}
-            </ul>
+            </Paged>
           </Card>
           {(memo || !inFlight) && (
             <div id="founders-replied" className="scroll-mt-6">
@@ -553,7 +554,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
           <Card>
             <div className="eyebrow mb-4">Deal log</div>
             <NoteForm dealId={deal.id} />
-            <ol className="mt-6 space-y-4">
+            <Paged as="ol" pageSize={10} className="mt-6 space-y-4" pagerClassName="mt-3 border-t border-line">
               {deal.activities.map((a) => (
                 <li key={a.id} className={cx("text-[13px]", a.type === "note" && "rounded-lg bg-brand-100/50 px-3 py-2")}>
                   <p className="leading-relaxed text-ink-soft">{a.message}</p>
@@ -562,7 +563,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
                   </div>
                 </li>
               ))}
-            </ol>
+            </Paged>
           </Card>
         </aside>
       </div>

@@ -1,6 +1,7 @@
 import type { Memo } from "@/lib/ai/schema";
 import type { VerificationReport } from "@/lib/ai/verify";
 import { Card, SectionTitle, cx } from "@/components/ui";
+import { PagedTable } from "@/components/Pager";
 
 const STATUS: Record<string, { label: string; cls: string; dot: string; blurb: string }> = {
   PASSED: { label: "Fact-check passed", cls: "border-[#c9e2d9] bg-pos-bg", dot: "bg-pos", blurb: "Every important claim was traced to a source. Nothing to fix." },
@@ -113,7 +114,12 @@ export function EvidenceLedger({ memo, report }: { memo: Memo; report: Verificat
         </div>
       </div>
       <div className="overflow-x-auto">
-      <table className="stack-sm w-full sm:min-w-[620px] text-left text-[13px]">
+      <PagedTable
+        pageSize={25}
+        className="stack-sm w-full sm:min-w-[620px] text-left text-[13px]"
+        bodyClassName="divide-y divide-line"
+        pagerClassName="border-t border-line px-5"
+        head={
         <thead>
           <tr className="border-y border-line text-[11px] uppercase tracking-[0.12em] text-muted">
             <th className="py-2.5 pr-3 pl-6 font-semibold">#</th>
@@ -122,8 +128,8 @@ export function EvidenceLedger({ memo, report }: { memo: Memo; report: Verificat
             <th className="py-2.5 pr-6 pl-3 font-semibold">Status</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-line">
-          {memo.evidence.map((e) => (
+        }
+        rows={memo.evidence.map((e) => (
             <tr key={e.id} id={`ev-${e.id}`} className={cx(flagged.has(e.id) && "bg-neg-bg/60")}>
               <td className="py-3 pr-3 pl-6 align-top font-mono text-[11.5px] text-muted">{e.id}</td>
               <td data-label="Claim" className="px-3 py-3 align-top">
@@ -140,8 +146,7 @@ export function EvidenceLedger({ memo, report }: { memo: Memo; report: Verificat
               </td>
             </tr>
           ))}
-        </tbody>
-      </table>
+      />
       </div>
     </Card>
   );

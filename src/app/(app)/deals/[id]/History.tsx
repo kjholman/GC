@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Memo } from "@/lib/ai/schema";
 import { Card, REC_META, SectionTitle, cx, fmtDate } from "@/components/ui";
+import { Paged } from "@/components/Pager";
 
 // ─── Gaps that need a person ────────────────────────────────────────────────
 
@@ -128,7 +129,7 @@ export function VersionHistory({ dealPath, rows, shownId }: { dealPath: string; 
       <p className="-mt-3 mb-6 text-[13.5px] text-ink-soft">
         Each version builds on the one before: GAIA receives the previous memo, its open requests and the team&apos;s feedback, and explains what changed.
       </p>
-      <ol className="relative space-y-6 border-l border-line pl-6">
+      <Paged as="ol" pageSize={10} className="relative space-y-6 border-l border-line pl-6" pagerClassName="mt-4 border-t border-line">
         {rows.map((r) => {
           const prev = finished.find((f) => f.version < r.version);
           const scoreDelta = r.overallScore != null && prev?.overallScore != null ? r.overallScore - prev.overallScore : null;
@@ -209,7 +210,7 @@ export function VersionHistory({ dealPath, rows, shownId }: { dealPath: string; 
             </li>
           );
         })}
-      </ol>
+      </Paged>
     </Card>
   );
 }
@@ -251,14 +252,14 @@ export function SourcesList({ documents, web }: {
       {web.length === 0 ? (
         <p className="text-[13px] text-muted">No web sources were used for this version.</p>
       ) : (
-        <ul className="space-y-1.5 text-[13px]">
+        <Paged as="ul" pageSize={25} className="space-y-1.5 text-[13px]" pagerClassName="mt-2 border-t border-line">
           {web.map((w) => (
             <li key={w.url} className="flex flex-wrap gap-x-2">
               <a href={w.url} target="_blank" rel="noreferrer" className="min-w-0 text-navy-800 hover:underline [overflow-wrap:anywhere]">{w.url.replace(/^https?:\/\/(www\.)?/, "")}</a>
               <span className="text-[12px] text-muted">{w.used.join(", ")}</span>
             </li>
           ))}
-        </ul>
+        </Paged>
       )}
     </Card>
   );

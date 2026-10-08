@@ -1,6 +1,7 @@
 import type { CompetitorSweep, Memo } from "@/lib/ai/schema";
 import { Card, SectionTitle, cx } from "@/components/ui";
 import { Paras } from "./Memo";
+import { Paged, PagedTable } from "@/components/Pager";
 
 const STATUS: Record<string, { label: string; cls: string }> = {
   ACTIVE: { label: "Active", cls: "bg-navy-50 text-navy-700" },
@@ -88,7 +89,7 @@ export function CompetitorsView({ sweep, memo }: { sweep: CompetitorSweep | null
 
       <Card pad={false}>
         <div className="px-6 pt-6"><SectionTitle eyebrow="Competitor sweep" title="Companies doing the same thing" /></div>
-        <ul className="divide-y divide-line border-t border-line">
+        <Paged as="ul" pageSize={10} className="divide-y divide-line border-t border-line" pagerClassName="border-t border-line px-5">
           {sorted.map((c) => {
             const leads = [...new Set(c.fundingRounds.flatMap((r) => r.leadInvestors))];
             return (
@@ -149,14 +150,19 @@ export function CompetitorsView({ sweep, memo }: { sweep: CompetitorSweep | null
               </li>
             );
           })}
-        </ul>
+        </Paged>
       </Card>
 
       {sweep.activeInvestors.length > 0 && (
         <Card pad={false}>
           <div className="px-6 pt-6"><SectionTitle eyebrow="Investor map" title="Who is funding this space" /></div>
           <div className="overflow-x-auto">
-          <table className="stack-sm w-full text-left text-[13px]">
+          <PagedTable
+            pageSize={15}
+            className="stack-sm w-full text-left text-[13px]"
+            bodyClassName="divide-y divide-line"
+            pagerClassName="border-t border-line px-5"
+            head={
             <thead>
               <tr className="border-y border-line text-[11px] uppercase tracking-[0.12em] text-muted">
                 <th className="py-2.5 pr-3 pl-6 font-semibold">Investor</th>
@@ -165,8 +171,8 @@ export function CompetitorsView({ sweep, memo }: { sweep: CompetitorSweep | null
                 <th className="py-2.5 pr-6 pl-3 font-semibold">Relevance to Genesys</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-line">
-              {sweep.activeInvestors.map((i) => (
+            }
+            rows={sweep.activeInvestors.map((i) => (
                 <tr key={i.name}>
                   <td data-label="Investor" className="py-3 pr-3 pl-6 align-top">
                     <div className="font-medium text-navy-900">{i.name}</div>
@@ -180,8 +186,7 @@ export function CompetitorsView({ sweep, memo }: { sweep: CompetitorSweep | null
                   <td data-label="Relevance to Genesys" className="py-3 pr-6 pl-3 align-top text-ink-soft">{i.relevance}</td>
                 </tr>
               ))}
-            </tbody>
-          </table>
+          />
           </div>
         </Card>
       )}

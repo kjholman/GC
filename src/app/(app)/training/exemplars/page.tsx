@@ -1,3 +1,4 @@
+import { Paged } from "@/components/Pager";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { hasRole, requireUser } from "@/lib/auth/session";
@@ -19,12 +20,11 @@ export default async function ExemplarsPage({ searchParams }: PageProps<"/traini
         await db.analysis.findMany({
           where: { status: "COMPLETE" },
           orderBy: { completedAt: "desc" },
-          take: 60,
+          take: 500,
           select: { id: true, version: true, recommendation: true, overallScore: true, completedAt: true, dealId: true, deal: { select: { companyName: true, sector: true } }, feedback: { select: { verdict: true } } },
         })
       )
         .filter((a, i, all) => !used.has(a.id) && all.findIndex((b) => b.dealId === a.dealId) === i)
-        .slice(0, 8)
     : [];
   return (
     <div>
@@ -36,7 +36,7 @@ export default async function ExemplarsPage({ searchParams }: PageProps<"/traini
           <div className="eyebrow mb-1 text-brand-600">Create an example memo</div>
           <h3 className="font-display text-[20px] font-semibold text-navy-900">Pick a finished memo to correct</h3>
           <p className="mt-1 mb-4 text-[13px] text-ink-soft">You fix the verdict, score and the parts GAIA got wrong, then add a note on why. It takes about five minutes.</p>
-          <ul className="divide-y divide-line">
+          <Paged as="ul" pageSize={8} className="divide-y divide-line" pagerClassName="border-t border-line">
             {candidates.map((a) => {
               const disagreed = a.feedback.some((f) => f.verdict !== "AGREE");
               return (
@@ -54,7 +54,7 @@ export default async function ExemplarsPage({ searchParams }: PageProps<"/traini
                 </li>
               );
             })}
-          </ul>
+          </Paged>
         </Card>
       )}
       {exemplars.length === 0 ? (

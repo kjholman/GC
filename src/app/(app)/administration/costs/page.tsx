@@ -1,3 +1,4 @@
+import { Paged } from "@/components/Pager";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth/session";
@@ -140,7 +141,7 @@ export default async function CostsPage({ searchParams }: PageProps<"/administra
           {byDeal.length === 0 ? (
             <p className="border-t border-line px-6 py-5 text-[13px] text-muted">No deal analyses in this period.</p>
           ) : (
-            <ul className="divide-y divide-line border-t border-line">
+            <Paged as="ul" pageSize={15} className="divide-y divide-line border-t border-line" pagerClassName="border-t border-line px-5">
               {byDeal.map((d) => (
                 <li key={d.id} className="flex items-center gap-4 px-6 py-3 text-[13.5px]">
                   <Link href={`/deals/${d.slug ?? d.id}`} className="w-48 shrink-0 truncate font-medium text-navy-900 hover:underline sm:w-64">{d.name}</Link>
@@ -149,7 +150,7 @@ export default async function CostsPage({ searchParams }: PageProps<"/administra
                   <span className="w-20 shrink-0 text-right tabular text-ink">{formatUsd(d.usd)}</span>
                 </li>
               ))}
-            </ul>
+            </Paged>
           )}
         </Card>
 
@@ -174,7 +175,8 @@ export default async function CostsPage({ searchParams }: PageProps<"/administra
           </Card>
           <Card>
             <SectionTitle eyebrow="Breakdown" title="By day" />
-            <ul className="max-h-96 space-y-1.5 overflow-y-auto pr-1 text-[12.5px]">
+            {!byDay.length && <p className="text-[12.5px] text-muted">Nothing yet.</p>}
+            <Paged as="ul" pageSize={14} className="space-y-1.5 text-[12.5px]" pagerClassName="mt-2 border-t border-line">
               {byDay.map((d) => (
                 <li key={d.day} className="flex items-center gap-3">
                   <span className="w-24 shrink-0 tabular text-muted">{d.day}</span>
@@ -182,8 +184,7 @@ export default async function CostsPage({ searchParams }: PageProps<"/administra
                   <span className="w-16 shrink-0 text-right tabular text-ink">{formatUsd(d.usd)}</span>
                 </li>
               ))}
-              {!byDay.length && <li className="text-muted">Nothing yet.</li>}
-            </ul>
+            </Paged>
           </Card>
         </div>
       </div>

@@ -6,6 +6,7 @@ import { Card, cx } from "@/components/ui";
 import { KnowledgeFiles, type KFile } from "@/components/KnowledgeFiles";
 import { fillFromWebAction } from "@/lib/knowledge/actions";
 import { DeleteCompanyButton, EditCompanyDialog } from "./PortfolioForm";
+import { usePaged } from "@/components/Pager";
 
 const OUTCOME: Record<string, { label: string; cls: string }> = {
   ACQUIRED: { label: "Acquired", cls: "bg-pos-bg text-pos" },
@@ -40,6 +41,7 @@ export function PortfolioGrid({ companies, files, canEdit, updated = {} }: { com
         (!gaps || missing(c).length > 0),
     );
   }, [companies, q, outcome, gaps]);
+  const { shown: page, pager } = usePaged(shown, 12);
 
   if (!companies.length) {
     return (
@@ -66,10 +68,11 @@ export function PortfolioGrid({ companies, files, canEdit, updated = {} }: { com
         <span className="ml-auto text-[12px] text-muted">{shown.length} of {companies.length}</span>
       </div>
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-        {shown.map((c) => (
+        {page.map((c) => (
           <CompanyCard key={c.id} c={c} files={files[c.id] ?? []} canEdit={canEdit} updated={updated[c.id]} />
         ))}
       </div>
+      {pager}
       {!shown.length && <p className="py-8 text-center text-[13px] text-muted">No companies match. Clear the search or filters.</p>}
     </div>
   );

@@ -5,6 +5,7 @@ import { deletePrincipleAction, savePrincipleAction, togglePrincipleAction, type
 import { Button, Card, cx, inputCls } from "@/components/ui";
 import { useConfirm } from "@/components/Confirm";
 import { confirmLeave, hasUnsavedChanges } from "@/components/UnsavedGuard";
+import { usePaged } from "@/components/Pager";
 
 type P = { id: string; title: string; body: string; active: boolean };
 
@@ -13,6 +14,7 @@ export function Principles({ principles, canEdit }: { principles: P[]; canEdit: 
   const [k, setK] = useState(0);
   const [editing, setEditing] = useState<string | null>(null);
   const confirm = useConfirm();
+  const { shown, offset, pager } = usePaged(principles, 15);
   return (
     <Card>
       <div className="eyebrow mb-1 text-brand-600">Applied to every analysis</div>
@@ -22,7 +24,7 @@ export function Principles({ principles, canEdit }: { principles: P[]; canEdit: 
       </p>
       {principles.length === 0 && <p className="mb-5 text-[13px] text-muted">No principles recorded yet.</p>}
       <ol className="mb-6 divide-y divide-line">
-        {principles.map((p, i) => (
+        {shown.map((p, j) => { const i = offset + j; return (
           <li key={p.id} className={cx("flex gap-4 py-3.5", !p.active && "opacity-45")}>
             <span className="font-display font-semibold text-[17px] text-brand-500 tabular">{String(i + 1).padStart(2, "0")}</span>
             <div className="flex-1">
@@ -62,8 +64,9 @@ export function Principles({ principles, canEdit }: { principles: P[]; canEdit: 
               </span>
             )}
           </li>
-        ))}
+        ); })}
       </ol>
+      {pager}
       {canEdit && (
         <form data-unsaved-guard key={k} action={async (fd) => { await action(fd); setK((n) => n + 1); }} className="grid grid-cols-1 gap-3 border-t border-line pt-5 md:grid-cols-[240px_1fr_auto]">
           <input name="title" placeholder="e.g. Composition-of-matter IP" className={inputCls} />

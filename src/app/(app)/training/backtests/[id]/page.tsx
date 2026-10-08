@@ -1,3 +1,4 @@
+import { Paged } from "@/components/Pager";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
@@ -101,7 +102,7 @@ export default async function BacktestRunPage({ params }: PageProps<"/training/b
 
       <Card pad={false}>
         <div className="px-6 pt-6"><SectionTitle eyebrow="Case by case" title="Re-screened deals" /></div>
-        <ul className="divide-y divide-line border-t border-line">
+        <Paged as="ul" pageSize={20} className="divide-y divide-line border-t border-line" pagerClassName="border-t border-line px-5">
           {run.results.map((r) => (
             <li key={r.id} className="px-6 py-4">
               <div className="flex flex-wrap items-center gap-4">
@@ -121,7 +122,7 @@ export default async function BacktestRunPage({ params }: PageProps<"/training/b
               {r.error && <p className="mt-2 pl-6 text-[12px] text-neg">{r.error}</p>}
             </li>
           ))}
-        </ul>
+        </Paged>
       </Card>
       <p className="text-[12px] leading-relaxed text-muted">
         Note: for well-known companies, GAIA may already know how things turned out, which flatters its score on famous deals. Judge it mainly on lesser-known ones.

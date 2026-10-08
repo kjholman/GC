@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { deleteKnowledgeFileAction, finishKnowledgeUploadAction, retryKnowledgeFileAction, type UploadState } from "@/lib/knowledge/actions";
 import { useConfirm } from "./Confirm";
 import { Button, cx } from "./ui";
+import { usePaged } from "./Pager";
 
 export type KFile = { id: string; filename: string; size: string; status: string; summary: string | null };
 
@@ -69,6 +70,7 @@ export function KnowledgeFiles({ scope, targetId, files, canEdit, compact = fals
   const [drag, setDrag] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const confirm = useConfirm();
+  const { shown: shownFiles, pager } = usePaged(files, 10);
 
   const setFiles = (list: FileList | null) => {
     if (!list || !input.current) return;
@@ -81,8 +83,8 @@ export function KnowledgeFiles({ scope, targetId, files, canEdit, compact = fals
   return (
     <div className="space-y-3">
       {files.length > 0 && (
-        <ul className={cx("divide-y divide-line rounded-lg border border-line", files.length > 6 && "max-h-80 overflow-y-auto")}>
-          {files.map((f) => (
+        <ul className="divide-y divide-line rounded-lg border border-line">
+          {shownFiles.map((f) => (
             <li key={f.id} className="px-3 py-2.5 text-[13px]">
               <div className="flex items-center gap-3">
                 <a href={`/api/knowledge-files/${f.id}`} className="min-w-0 flex-1 truncate text-navy-800 hover:underline" title={f.filename}>{f.filename}</a>
@@ -113,6 +115,7 @@ export function KnowledgeFiles({ scope, targetId, files, canEdit, compact = fals
           ))}
         </ul>
       )}
+      {pager}
       {canEdit && (
         <form
           onSubmit={(e) => {

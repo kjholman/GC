@@ -1,3 +1,4 @@
+import { Paged } from "@/components/Pager";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { hasRole, requireUser } from "@/lib/auth/session";
@@ -100,7 +101,8 @@ export default async function CalibrationPage({ searchParams }: PageProps<"/trai
             GAIA looks for corrections the partners keep making and drafts new principles from them. Nothing changes until a partner accepts a suggestion.
           </p>
           {canEdit && <GenerateSuggestions disabled={total < 3} />}
-          <div className="mt-5 space-y-4">
+          {suggestions.length === 0 && <p className="mt-5 text-[12.5px] text-muted">No pending suggestions.</p>}
+          <Paged pageSize={5} className="mt-5 space-y-4">
             {suggestions.map((s) => (
               <div key={s.id} className="rounded-lg border border-line bg-mist/60 p-4">
                 <div className="text-[14px] font-medium text-navy-900">{s.title}</div>
@@ -109,8 +111,7 @@ export default async function CalibrationPage({ searchParams }: PageProps<"/trai
                 {canEdit && <SuggestionActions id={s.id} />}
               </div>
             ))}
-            {suggestions.length === 0 && <p className="text-[12.5px] text-muted">No pending suggestions.</p>}
-          </div>
+          </Paged>
         </Card>
       </div>
 
