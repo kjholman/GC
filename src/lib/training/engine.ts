@@ -232,6 +232,23 @@ export async function generatePrincipleSuggestions(): Promise<number> {
   return data.suggestions.length;
 }
 
+const SUGGEST_KEY = "training.suggestions_checked_at";
+
+/**
+ * Called after each partner review: once three new reviews have come in since the
+ * last look, search all feedback for patterns and queue suggested principles in
+ * the Training Studio for partners to accept or dismiss. Nothing changes the
+ * analyst's principles until a partner accepts.
+ */
+export async function maybeSuggestPrinciples(): Promise<number> {
+  const last = await db.firmSetting.findUnique({ where: { key: SUGGEST_KEY } });
+  const since = last?.value ? new Date(last.value) : new Date(0);
+  const [total, fresh] = await Promise.all([db.analysisFeedback.count(), db.analysisFeedback.count({ where: { createdAt: { gt: since } } })]);
+  if (total < 3 || fresh < 3) return 0;
+  await db.firmSetting.upsert({ where: { key: SUGGEST_KEY }, create: { key: SUGGEST_KEY, value: new Date().toISOString() }, update: { value: new Date().toISOString() } });
+  return generatePrincipleSuggestions();
+}
+
 // ─── Dataset export (for training a proprietary model later) ────────────────
 
 export async function* exportDataset(): AsyncGenerator<string> {

@@ -108,7 +108,7 @@ export async function memoToDocx(args: { memo: Memo; companyName: string; versio
     ...(m.company.oneLiner ? [new Paragraph({ spacing: { after: 200 }, children: runs(m.company.oneLiner, { italics: true, color: GREY, size: 24 }) })] : []),
     table(
       ["Recommendation", "Score", "Conviction", "Version", "Date"],
-      [[REC_LABEL[m.recommendation] ?? m.recommendation, `${m.overallScore}/100`, nice(m.conviction), `v${version}`, date.toLocaleDateString("en-CA", { year: "numeric", month: "long", day: "numeric" })]],
+      [[REC_LABEL[m.recommendation] ?? m.recommendation, `${m.overallScore}/100`, nice(m.conviction), `v${version}`, date.toLocaleDateString("en-CA", { year: "numeric", month: "long", day: "numeric", timeZone: "America/Toronto" })]],
       [0.28, 0.14, 0.16, 0.12, 0.3],
     ),
     gap(),

@@ -310,7 +310,11 @@ export function FeedbackPanel({ analysisId, version, reviews }: { analysisId: st
         </ul>
       )}
       {state.ok ? (
-        <p className="text-[13px] text-pos">Thank you. The Sharminator is turning this into a lesson; it will appear above shortly.</p>
+        <p className="text-[13px] text-pos">
+          Thank you. The Sharminator is turning this into a lesson; it will appear above shortly. It also goes to the{" "}
+          <a href="/training/calibration" className="font-medium underline">Training Studio</a>, where it is applied to every future analysis and,
+          with other reviews, used to suggest new investment principles for the partners to approve.
+        </p>
       ) : (
         <form action={action} className="space-y-4">
           <div>

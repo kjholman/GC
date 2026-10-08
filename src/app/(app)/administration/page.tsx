@@ -13,6 +13,13 @@ export default async function AdminPage({ searchParams }: PageProps<"/administra
   const me = await requireRole("ADMIN");
   const page = pageParam((await searchParams).page);
   const LOG_PAGE = 25;
+  // Last activity: sessions stay open for days, so the last sign-in alone goes stale.
+  const seen = await db.session.groupBy({ by: ["userId"], _max: { lastSeenAt: true } });
+  const seenBy = new Map(seen.map((s) => [s.userId, s._max.lastSeenAt]));
+  const lastActive = (u: { id: string; lastLoginAt: Date | null }) => {
+    const times = [seenBy.get(u.id), u.lastLoginAt].filter((t): t is Date => !!t);
+    return times.length ? new Date(Math.max(...times.map((t) => t.getTime()))) : null;
+  };
   const [users, logs, ai, spend, paused, logTotal] = await Promise.all([
     db.user.findMany({ orderBy: [{ active: "desc" }, { email: "asc" }] }),
     db.auditLog.findMany({ orderBy: { createdAt: "desc" }, skip: (page - 1) * LOG_PAGE, take: LOG_PAGE, include: { user: { select: { email: true, name: true } } } }),
@@ -57,13 +64,22 @@ export default async function AdminPage({ searchParams }: PageProps<"/administra
             <thead>
               <tr className="border-y border-line text-[11px] uppercase tracking-[0.12em] text-muted">
                 <th className="py-3 pr-4 pl-6 font-semibold">Person</th>
-                <th className="px-4 py-3 font-semibold">Last signed in</th>
+                <th className="px-4 py-3 font-semibold">Status</th>
+                <th className="px-4 py-3 font-semibold">Last active</th>
                 <th className="py-3 pr-6 pl-4" />
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
               {users.map((u) => (
-                <UserRow key={u.id} user={{ id: u.id, email: u.email, name: u.name, title: u.title, role: u.role, active: u.active, lastLoginAt: u.lastLoginAt ? fmtDate(u.lastLoginAt, true) : "Never" }} isSelf={u.id === me.id} />
+                <UserRow
+                  key={u.id}
+                  user={{
+                    id: u.id, email: u.email, name: u.name, title: u.title, role: u.role, active: u.active,
+                    lastActive: lastActive(u) ? fmtDate(lastActive(u), true) : "Never",
+                    lastActiveHint: u.lastLoginAt ? `Last signed in ${fmtDate(u.lastLoginAt, true)}` : "Has never signed in",
+                  }}
+                  isSelf={u.id === me.id}
+                />
               ))}
             </tbody>
           </table>

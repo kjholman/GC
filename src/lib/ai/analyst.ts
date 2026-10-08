@@ -11,7 +11,7 @@ import { plainPunctuation } from "./style";
 import { isCreditError, recordCreditOk, recordCreditProblem } from "./credit";
 import { meteredUsd, recordUsage, withMeter } from "./usage";
 import { findPortfolioMatch } from "../deals/portfolio";
-import { cleanDomain, inspectLogo, logoFromDeckPdf, logoFromWebsite, websiteFromText } from "../deals/logo";
+import { cleanDomain, inspectLogo, logoFromWebsite, websiteFromText } from "../deals/logo";
 import { refreshSlug } from "../deals/slug";
 import { sendAnalysisProblem, sendAnalysisReady } from "../mailer";
 import { FEEDBACK_AREA_LABEL } from "../feedback/options";
@@ -206,8 +206,9 @@ export async function findCompanyWebsite(companyName: string, about: string | nu
 /**
  * Finds the company's logo, trying in order: the website already known, the website
  * named in the materials (email addresses and links), the official site found by a
- * web search, and finally the logo image on the deck's title slide. Records what it
- * tried on the deal so the page can say why nothing was found. Never throws.
+ * web search. The logo itself always comes from online (the company's site or a
+ * logo service), never from the deck. Records what it tried on the deal so the page
+ * can say why nothing was found. Never throws.
  */
 export async function findDealLogo(dealId: string, opts: { force?: boolean; analysisId?: string } = {}): Promise<boolean> {
   try {
@@ -240,7 +241,7 @@ export async function findDealLogo(dealId: string, opts: { force?: boolean; anal
 
     if (d.website && (await tryWebsite(d.website, "website on file"))) return true;
 
-    const docs = await db.document.findMany({ where: { dealId }, select: { extractedText: true, plainText: true, mimeType: true, data: true, round: true, kind: true }, orderBy: [{ round: "asc" }, { createdAt: "asc" }] });
+    const docs = await db.document.findMany({ where: { dealId }, select: { extractedText: true, plainText: true }, orderBy: [{ round: "asc" }, { createdAt: "asc" }] });
     const deckText = docs.map((x) => x.plainText ?? x.extractedText ?? "").join("\n");
     const fromDeck = websiteFromText(deckText, name || d.companyName.replace(/^Untitled:\s*/, "").split(/[_\s-]/)[0]);
     if (fromDeck) {
@@ -256,18 +257,6 @@ export async function findDealLogo(dealId: string, opts: { force?: boolean; anal
       } else notes.push("a web search found no confident match for the official site");
     }
 
-    // Last resort: the logo image on the deck's title slide.
-    const deck = docs.find((x) => x.mimeType === "application/pdf" && x.kind === "PITCH_DECK") ?? docs.find((x) => x.mimeType === "application/pdf");
-    if (deck?.data) {
-      const found = await logoFromDeckPdf(Buffer.from(deck.data));
-      const img = found ? await inspectLogo(found.buf, found.mime) : null;
-      if (img && !img.blank) {
-        await db.deal.update({ where: { id: dealId }, data: { logo: new Uint8Array(img.buf), logoMime: img.mime, logoOnDark: img.light, logoNote: "Taken from the title slide of the deck" } });
-        await log("Took the company logo from the deck's title slide");
-        return true;
-      }
-      notes.push("the deck's title slide has no separate logo image (it may be drawn as text or vector art)");
-    }
     // Keep a website found in the materials even without a logo: it is useful in its own right.
     if (!d.website && fromDeck) await db.deal.update({ where: { id: dealId }, data: { website: `https://${cleanDomain(fromDeck)}` } });
     await db.deal.update({ where: { id: dealId }, data: { logoNote: notes.join("; ").slice(0, 800) || "nothing to try yet" } });
@@ -284,7 +273,13 @@ export async function findDealLogo(dealId: string, opts: { force?: boolean; anal
  * automatic, at-most-hourly lookup.
  */
 export async function ensureDealLogo(dealId: string): Promise<void> {
-  const d = await db.deal.findUnique({ where: { id: dealId }, select: { logo: true, logoMime: true, logoOnDark: true } });
+  const d = await db.deal.findUnique({ where: { id: dealId }, select: { logo: true, logoMime: true, logoOnDark: true, logoNote: true } });
+  // Logos once lifted from a deck are replaced with the company's logo from online.
+  if (d?.logoMime && d.logoNote?.startsWith("Taken from the title slide")) {
+    await db.deal.update({ where: { id: dealId }, data: { logo: null, logoMime: null, logoOnDark: null, logoNote: null } });
+    await findDealLogo(dealId, { force: true });
+    return;
+  }
   if (d?.logo && d.logoMime && d.logoOnDark === null) {
     const img = await inspectLogo(Buffer.from(d.logo), d.logoMime);
     if (img.blank) {
@@ -775,7 +770,7 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
     } else if (deal.portfolioCompanyId) {
       await db.deal.update({ where: { id: deal.id }, data: { portfolioCompanyId: null } });
     }
-    // Company logo (website on file, website in the deck, web search, then the deck's title slide).
+    // Company logo from online: the website on file, the website named in the deck, or a web search.
     // At most hourly (opening the deal also triggers it), so resumes and re-runs don't repeat the search.
     void findDealLogo(deal.id, { analysisId });
     await setProgress(analysisId, "Looking up similar past Genesys deals", "reading");

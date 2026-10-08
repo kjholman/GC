@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { AnalysisTrigger, DealStatus, DocumentKind } from "@prisma/client";
 import { Prisma } from "@prisma/client";
+import { maybeSuggestPrinciples } from "../training/engine";
 import { inspectLogo } from "./logo";
 import { db } from "../db";
 import { FEEDBACK_AREA_IDS, FEEDBACK_AREA_LABEL } from "../feedback/options";
@@ -371,6 +372,10 @@ export async function submitFeedbackAction(analysisId: string, _: ActionState, f
   // Turn the review into a lesson for future analyses, in the background.
   after(async () => {
     await withMeter({ purpose: "feedback lessons", analysisId }, () => interpretFeedback(created.id));
+    // Feed the Training Studio: every few reviews, look for patterns worth a new principle.
+    await withMeter({ purpose: "principle suggestions" }, () => maybeSuggestPrinciples()).catch((err) =>
+      console.error("[feedback] could not look for principle suggestions", err),
+    );
   });
   await db.activity.create({
     data: {

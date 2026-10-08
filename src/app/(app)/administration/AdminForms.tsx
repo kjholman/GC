@@ -24,7 +24,7 @@ export function AddUsersForm() {
   );
 }
 
-type RowUser = { id: string; email: string; name: string | null; title: string | null; role: Role; active: boolean; lastLoginAt: string };
+type RowUser = { id: string; email: string; name: string | null; title: string | null; role: Role; active: boolean; lastActive: string; lastActiveHint: string };
 
 export function UserRow({ user, isSelf }: { user: RowUser; isSelf: boolean }) {
   const confirm = useConfirm();
@@ -40,25 +40,32 @@ export function UserRow({ user, isSelf }: { user: RowUser; isSelf: boolean }) {
           </div>
         </form>
       </td>
-      <td className="px-4 py-3 text-[12.5px] text-muted">{user.lastLoginAt}</td>
+      <td className="px-4 py-3">
+        {isSelf ? (
+          <span className="text-[12.5px] text-pos">Active (you)</span>
+        ) : (
+          <select
+            aria-label={`Status for ${user.email}`}
+            value={user.active ? "active" : "off"}
+            onChange={async (e) => {
+              const active = e.target.value === "active";
+              const ok = await confirm(
+                active
+                  ? { title: `Give ${user.email} access again?`, body: "They will be able to sign in with an emailed code.", confirmLabel: "Set to active" }
+                  : { title: `Turn off access for ${user.email}?`, body: "They are signed out straight away and can't sign in until set back to active.", confirmLabel: "Turn off access", danger: true },
+              );
+              if (ok) await setUserActiveAction(user.id, active);
+            }}
+            className={cx("h-8 rounded-lg border border-line-strong bg-paper px-2 text-[12.5px]", user.active ? "text-pos" : "text-neg")}
+          >
+            <option value="active">Active</option>
+            <option value="off">No access</option>
+          </select>
+        )}
+      </td>
+      <td className="whitespace-nowrap px-4 py-3 text-[12.5px] text-muted" title={user.lastActiveHint}>{user.lastActive}</td>
       <td className="py-3 pr-6 pl-4 text-right">
         {user.active && <SignInLinkButton userId={user.id} email={user.email} />}
-        {!isSelf && (
-          <button
-            onClick={async () => {
-              const ok = await confirm(
-                user.active
-                  ? { title: `Remove access for ${user.email}?`, body: "They will be signed out straight away and can't sign in again until access is restored.", confirmLabel: "Remove access", danger: true }
-                  : { title: `Restore access for ${user.email}?`, confirmLabel: "Restore access" },
-              );
-              if (!ok) return;
-              await setUserActiveAction(user.id, !user.active);
-            }}
-            className={cx("text-[12.5px] hover:underline", user.active ? "text-neg" : "text-pos")}
-          >
-            {user.active ? "Remove access" : "Restore access"}
-          </button>
-        )}
       </td>
     </tr>
   );
