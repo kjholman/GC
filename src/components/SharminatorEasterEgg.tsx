@@ -50,7 +50,7 @@ const SIDES = ["bottom-right", "bottom-left", "right", "left"] as const;
 const hash = (s: string) => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
 
 /**
- * A small Sharminator who peeks in from the edge of every page. Click him for a
+ * A small GAIA who peeks in from the edge of every page. Click him for a
  * joke that fits the page; click again for another. Hidden when printing.
  */
 export function SharminatorEasterEgg() {
@@ -98,7 +98,7 @@ export function SharminatorEasterEgg() {
         </button>
       </div>
       {open && (
-        <div className="no-print fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="The Sharminator">
+        <div className="no-print fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="GAIA">
           <button aria-label="Close" onClick={() => setOpen(false)} className="absolute inset-0 bg-navy-950/60 backdrop-blur-[2px]" />
           <div className="relative flex flex-col items-center gap-3">
             <MemeScene scene={joke.scene} top={joke.top} bottom={joke.bottom} size={320} />

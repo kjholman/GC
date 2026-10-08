@@ -10,7 +10,7 @@ export function ExemplarEditor({ analysisId, companyName, version, memo }: { ana
   const [state, action, pending] = useActionState<TrainState, FormData>(saveExemplarAction.bind(null, analysisId), { ok: false });
   const confirmSave = useConfirmSubmit({
     title: "Save this as an example memo?",
-    body: "The Sharminator will study it whenever it sees a similar deal.",
+    body: "GAIA will study it whenever it sees a similar deal.",
     confirmLabel: "Save example",
   });
   return (
@@ -55,7 +55,7 @@ export function ExemplarEditor({ analysisId, companyName, version, memo }: { ana
             <div className="eyebrow mb-1 text-brand-600">Required</div>
             <h3 className="mb-3 font-display font-semibold text-[19px] text-navy-900">Partner commentary</h3>
             <p className="mb-3 text-[12.5px] leading-relaxed text-ink-soft">
-              What makes this the right analysis, and what did the Sharminator get wrong? It reads this whenever it sees a similar deal.
+              What makes this the right analysis, and what did GAIA get wrong? It reads this whenever it sees a similar deal.
             </p>
             <textarea name="partnerCommentary" rows={7} className={inputCls} placeholder="e.g. The AI underweighted the human genetic validation; for peripherally restricted mechanisms we accept single-species tox at seed if…" />
           </Card>

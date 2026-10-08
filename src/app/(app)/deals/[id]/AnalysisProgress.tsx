@@ -96,7 +96,7 @@ export function AnalysisProgress({
         <div className="flex items-center gap-4">
           {avatar}
           <div>
-            <div className="eyebrow !text-brand-600">The Sharminator · version {version}</div>
+            <div className="eyebrow !text-brand-600">GAIA · version {version}</div>
             <div className="mt-1 font-display font-semibold text-[20px] text-ink">{progress ?? "Queued"}…</div>
             <div className="mt-0.5 text-[12.5px] italic text-muted">{QUIPS[stageIdx]}</div>
           </div>
@@ -127,7 +127,7 @@ export function AnalysisProgress({
       </div>
       <div className="border-t border-line">
         <button onClick={() => setShowLog((v) => !v)} className="flex w-full items-center justify-between gap-3 px-4 py-3 sm:px-6 text-left text-[13px] font-medium text-navy-800 hover:bg-mist/50">
-          <span>What the Sharminator is doing{steps.length ? ` · ${steps.length} steps so far` : ""}</span>
+          <span>What GAIA is doing{steps.length ? ` · ${steps.length} steps so far` : ""}</span>
           <span className="text-muted">{showLog ? "Hide" : "Show"}</span>
         </button>
         {showLog && (

@@ -58,13 +58,13 @@ export default async function BacktestRunPage({ params }: PageProps<"/training/b
 
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
             <Card>
-              <SectionTitle eyebrow="Side by side" title="Genesys decision vs the Sharminator's call" />
+              <SectionTitle eyebrow="Side by side" title="Genesys decision vs GAIA's call" />
               <div className="overflow-x-auto">
               <table className="w-full text-[13px]">
                 <thead>
                   <tr className="text-[11px] uppercase tracking-[0.1em] text-muted">
                     <th className="py-2 text-left font-semibold">Genesys</th>
-                    <th className="py-2 text-right font-semibold">Sharminator: decline</th>
+                    <th className="py-2 text-right font-semibold">GAIA: decline</th>
                     <th className="py-2 text-right font-semibold">Request info</th>
                     <th className="py-2 text-right font-semibold">Advance</th>
                   </tr>
@@ -114,7 +114,7 @@ export default async function BacktestRunPage({ params }: PageProps<"/training/b
               </div>
               {r.memo && r.agree === false && (
                 <div className="mt-3 grid grid-cols-1 gap-4 pl-6 text-[12.5px] md:grid-cols-2">
-                  <p className="text-ink-soft"><span className="text-muted">Sharminator&rsquo;s reasoning: </span>{(r.memo as { worthOurTime?: { headline?: string } }).worthOurTime?.headline}</p>
+                  <p className="text-ink-soft"><span className="text-muted">GAIA&rsquo;s reasoning: </span>{(r.memo as { worthOurTime?: { headline?: string } }).worthOurTime?.headline}</p>
                   <p className="text-ink-soft"><span className="text-muted">Partners at the time: </span>{r.historicalDeal.decisionRationale}</p>
                 </div>
               )}
@@ -124,7 +124,7 @@ export default async function BacktestRunPage({ params }: PageProps<"/training/b
         </ul>
       </Card>
       <p className="text-[12px] leading-relaxed text-muted">
-        Note: for well-known companies, the Sharminator may already know how things turned out, which flatters its score on famous deals. Judge it mainly on lesser-known ones.
+        Note: for well-known companies, GAIA may already know how things turned out, which flatters its score on famous deals. Judge it mainly on lesser-known ones.
       </p>
     </div>
   );

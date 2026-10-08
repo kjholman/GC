@@ -15,7 +15,7 @@ export default async function ExemplarsPage({ searchParams }: PageProps<"/traini
   return (
     <div>
       <p className="mb-6 max-w-3xl text-[14px] leading-relaxed text-ink-soft">
-        Example memos are memos the partners have corrected and approved as the standard to follow. When a new deal resembles one, the Sharminator studies it before writing. To create one, open any deal and choose <span className="font-medium text-ink">Correct this memo and save as an example</span>.
+        Example memos are memos the partners have corrected and approved as the standard to follow. When a new deal resembles one, GAIA studies it before writing. To create one, open any deal and choose <span className="font-medium text-ink">Correct this memo and save as an example</span>.
       </p>
       {exemplars.length === 0 ? (
         <Empty title="No example memos yet">Open a deal with a finished memo and choose “Correct this memo and save as an example”.</Empty>

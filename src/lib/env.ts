@@ -69,7 +69,7 @@ export const env = {
     get port() { return Number(process.env.SMTP_PORT ?? 587); },
     get user() { return process.env.SMTP_USER; },
     get pass() { return process.env.SMTP_PASS; },
-    get from() { return process.env.EMAIL_FROM ?? "The Sharminator <no-reply@genesyscapital.com>"; },
+    get from() { return process.env.EMAIL_FROM ?? "GAIA <no-reply@genesyscapital.com>"; },
   },
 };
 

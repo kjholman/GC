@@ -13,7 +13,7 @@ function clock(iso: string) {
   return new Date(iso).toLocaleTimeString("en-CA", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false, timeZone: "America/Toronto" });
 }
 
-/** Step-by-step log of what the Sharminator did, oldest first. `live` marks the newest line as in progress. */
+/** Step-by-step log of what GAIA did, oldest first. `live` marks the newest line as in progress. */
 export function StepLog({ steps, live = false, empty, className }: { steps: LogStep[]; live?: boolean; empty?: string; className?: string }) {
   if (!steps.length) return <p className={cx("text-[13px] text-muted", className)}>{empty ?? "Waiting to start…"}</p>;
   return (

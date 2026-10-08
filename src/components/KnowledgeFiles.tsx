@@ -105,7 +105,7 @@ export function KnowledgeFiles({ scope, targetId, files, canEdit, compact = fals
               </div>
               {f.summary && !compact && (
                 <details className="mt-1">
-                  <summary className="cursor-pointer text-[12px] text-muted">What the Sharminator took from it</summary>
+                  <summary className="cursor-pointer text-[12px] text-muted">What GAIA took from it</summary>
                   <p className="mt-1 text-[12.5px] leading-relaxed text-ink-soft">{f.summary}</p>
                 </details>
               )}

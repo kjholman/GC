@@ -6,7 +6,7 @@ import { anthropic } from "./client";
 import { recordUsage } from "./usage";
 
 /**
- * Tracks whether the Anthropic account behind the Sharminator has credit.
+ * Tracks whether the Anthropic account behind GAIA has credit.
  * Anthropic does not let apps read the prepaid balance, so the app records
  * when a request is refused for lack of credit and when requests succeed again.
  */
@@ -20,7 +20,7 @@ export const BILLING_URL = "https://platform.claude.com/settings/billing";
 
 export class CreditExhaustedError extends Error {
   constructor() {
-    super("The Anthropic account behind the Sharminator has run out of credit. Add credit, then resume the analysis.");
+    super("The Anthropic account behind GAIA has run out of credit. Add credit, then resume the analysis.");
   }
 }
 

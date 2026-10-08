@@ -9,7 +9,7 @@ export function StartBacktestForm({ eligible }: { eligible: number }) {
   const [state, action, pending] = useActionState<TrainState, FormData>(startBacktestAction, { ok: false });
   const confirmStart = useConfirmSubmit({
     title: "Start an accuracy test?",
-    body: "The Sharminator re-screens the selected past deals, which uses Anthropic credit (roughly US$1 to US$2 per deal).",
+    body: "GAIA re-screens the selected past deals, which uses Anthropic credit (roughly US$1 to US$2 per deal).",
     confirmLabel: "Start test",
   });
   return (

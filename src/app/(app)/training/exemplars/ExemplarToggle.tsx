@@ -10,7 +10,7 @@ export function ExemplarToggle({ id, active }: { id: string; active: boolean }) 
       onClick={async () => {
         const ok = await confirm(
           active
-            ? { title: "Stop using this example memo?", body: "The Sharminator will no longer study it for similar deals. You can use it again later.", confirmLabel: "Stop using", danger: true }
+            ? { title: "Stop using this example memo?", body: "GAIA will no longer study it for similar deals. You can use it again later.", confirmLabel: "Stop using", danger: true }
             : { title: "Use this example memo again?", confirmLabel: "Use again" },
         );
         if (ok) await toggleExemplarAction(id, !active);

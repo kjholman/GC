@@ -21,7 +21,7 @@ export default async function TrainingOverview() {
 
   const levers = [
     { href: "/training/archive", n: archive, label: "Past deals", hint: "Used as precedents for similar new deals.", target: 100 },
-    { href: "/training/exemplars", n: exemplars, label: "Example memos", hint: "Corrected memos the Sharminator learns from.", target: 20 },
+    { href: "/training/exemplars", n: exemplars, label: "Example memos", hint: "Corrected memos GAIA learns from.", target: 20 },
     { href: "/training/calibration", n: feedback, label: "Partner reviews", hint: "Feedback applied to every analysis.", target: 50 },
     { href: "/knowledge", n: principles, label: "Investment principles", hint: "The firm's rules, applied to every memo.", target: 10 },
   ];
@@ -62,7 +62,7 @@ export default async function TrainingOverview() {
             </>
           ) : (
             <div className="text-[14px] text-ink-soft">
-              No accuracy tests yet. Add past deals with their original decks to the archive. Then run an accuracy test to see how often the Sharminator reaches the same decision the partners did.
+              No accuracy tests yet. Add past deals with their original decks to the archive. Then run an accuracy test to see how often GAIA reaches the same decision the partners did.
               <div className="mt-5">
                 <Link href={archiveWithDecks ? "/training/backtests" : "/training/archive"}>
                   <Button variant="secondary">{archiveWithDecks ? "Run the first accuracy test" : "Add past deals"}</Button>
@@ -80,7 +80,7 @@ export default async function TrainingOverview() {
             <div className="h-1.5 rounded-full bg-brand-500" style={{ width: `${Math.min(100, (datasetSize / FINE_TUNE_THRESHOLD) * 100)}%` }} />
           </div>
           <p className="mt-5 text-[12.5px] leading-relaxed text-white/65">
-            At about {FINE_TUNE_THRESHOLD} examples, there is enough to train Genesys&rsquo;s own AI model to give a second opinion alongside the Sharminator.
+            At about {FINE_TUNE_THRESHOLD} examples, there is enough to train Genesys&rsquo;s own AI model to give a second opinion alongside GAIA.
           </p>
           <a href="/api/training/export" className="mt-5 inline-block text-[13px] text-white underline underline-offset-4 hover:text-white">
             Download the training data

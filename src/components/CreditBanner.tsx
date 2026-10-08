@@ -30,7 +30,7 @@ export function CreditBanner({ initialLow, isAdmin }: { initialLow: boolean; isA
   if (!low) return null;
   return (
     <div role="status" className="no-print mx-auto mb-6 max-w-[1280px] rounded-lg border border-[#efdcb4] bg-warn-bg px-4 py-3 text-[13px] text-ink">
-      <span className="font-medium text-warn">The Sharminator is paused: the Anthropic account is out of credit.</span>{" "}
+      <span className="font-medium text-warn">GAIA is paused: the Anthropic account is out of credit.</span>{" "}
       The rest of the app works as normal. Analyses wait and resume once credit is added
       {isAdmin ? (
         <>; this notice clears by itself within a minute or two, or press <Link href="/administration" className="font-medium text-navy-800 underline">Check credit</Link> on the Administration page.</>

@@ -15,7 +15,7 @@ export function GapsView({ memo }: { memo: Memo }) {
   const gaps = [...(memo.gaps ?? [])].sort((a, b) => (PRIORITY[a.priority]?.order ?? 3) - (PRIORITY[b.priority]?.order ?? 3));
   return (
     <Card>
-      <SectionTitle eyebrow="Needs manual follow-up" title="Gaps the Sharminator could not close" />
+      <SectionTitle eyebrow="Needs manual follow-up" title="Gaps GAIA could not close" />
       <p className="-mt-3 mb-6 max-w-3xl text-[13.5px] leading-relaxed text-ink-soft">
         Everything material this analysis could not establish from the materials or public sources, why, and the specific step a person needs to take.
         Critical gaps could change the decision.
@@ -126,7 +126,7 @@ export function VersionHistory({ dealPath, rows, shownId }: { dealPath: string; 
     <Card>
       <SectionTitle eyebrow="Every iteration" title="Analysis history" />
       <p className="-mt-3 mb-6 text-[13.5px] text-ink-soft">
-        Each version builds on the one before: the Sharminator receives the previous memo, its open requests and the team&apos;s feedback, and explains what changed.
+        Each version builds on the one before: GAIA receives the previous memo, its open requests and the team&apos;s feedback, and explains what changed.
       </p>
       <ol className="relative space-y-6 border-l border-line pl-6">
         {rows.map((r) => {

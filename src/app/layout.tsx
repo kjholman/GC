@@ -8,11 +8,11 @@ const poppins = Poppins({ variable: "--font-poppins", subsets: ["latin"], weight
 const figtree = Figtree({ variable: "--font-figtree", subsets: ["latin"], weight: ["400", "500", "600", "700"] });
 
 export const metadata: Metadata = {
-  // The browser tab always reads "The Sharminator", whichever page is open.
-  title: { absolute: "The Sharminator" },
-  applicationName: "The Sharminator",
-  appleWebApp: { title: "The Sharminator" },
-  description: "The Sharminator: Genesys Capital investment analysis. Authorised personnel only.",
+  // The browser tab always reads "GAIA", whichever page is open.
+  title: { absolute: "GAIA" },
+  applicationName: "GAIA",
+  appleWebApp: { title: "GAIA" },
+  description: "GAIA: Genesys Capital investment analysis. Authorised personnel only.",
   robots: { index: false, follow: false },
 };
 

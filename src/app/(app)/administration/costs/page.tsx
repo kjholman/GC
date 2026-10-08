@@ -64,7 +64,7 @@ export default async function CostsPage({ searchParams }: PageProps<"/administra
 
   return (
     <>
-      <PageHeader eyebrow="Administration" title="AI spend" subtitle="Everything the Sharminator has spent on Anthropic, measured from every request including web searches." />
+      <PageHeader eyebrow="Administration" title="AI spend" subtitle="Everything GAIA has spent on Anthropic, measured from every request including web searches." />
       <div className="mb-6 flex flex-wrap items-center gap-2 text-[13px]">
         <Link href="/administration" className="mr-2 text-navy-700 hover:underline">← Administration</Link>
         {[{ ym: "all", usd: 0 }, ...months].map((m) => (

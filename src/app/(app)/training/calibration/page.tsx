@@ -41,7 +41,7 @@ export default async function CalibrationPage({ searchParams }: PageProps<"/trai
     <div className="space-y-8">
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_380px]">
         <Card>
-          <SectionTitle eyebrow="Partner reviews" title="Where the Sharminator differs from the partners" />
+          <SectionTitle eyebrow="Partner reviews" title="Where GAIA differs from the partners" />
           {total === 0 ? (
             <p className="text-[14px] text-muted">No reviews yet. Partners can review any memo from the deal page.</p>
           ) : (
@@ -97,7 +97,7 @@ export default async function CalibrationPage({ searchParams }: PageProps<"/trai
           <div className="eyebrow mb-1 text-brand-600">Turn feedback into rules</div>
           <h3 className="font-display font-semibold text-[20px] text-navy-900">Suggested principles</h3>
           <p className="mt-1.5 mb-4 text-[12.5px] leading-relaxed text-ink-soft">
-            The Sharminator looks for corrections the partners keep making and drafts new principles from them. Nothing changes until a partner accepts a suggestion.
+            GAIA looks for corrections the partners keep making and drafts new principles from them. Nothing changes until a partner accepts a suggestion.
           </p>
           {canEdit && <GenerateSuggestions disabled={total < 3} />}
           <div className="mt-5 space-y-4">

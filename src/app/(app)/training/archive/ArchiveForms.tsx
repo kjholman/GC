@@ -71,7 +71,7 @@ export function AddHistoricalForm() {
         </Field>
         <Field label="What happened next"><input name="outcomeNotes" className={inputCls} placeholder="e.g. Raised Series B from X; failed Phase 2 in 2021" /></Field>
         <Field label="Files" hint="The original deck plus anything else: memos, models, data. Any number, any format, any size."><input type="file" name="files" multiple className="text-[13px]" /></Field>
-        <Field label="Internal memo text (optional)" hint="Never shown to the Sharminator during accuracy tests.">
+        <Field label="Internal memo text (optional)" hint="Never shown to GAIA during accuracy tests.">
           <textarea name="icMemoText" rows={3} className={inputCls} />
         </Field>
         <Status s={state} />

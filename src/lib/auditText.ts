@@ -72,10 +72,10 @@ export function describeEvent(
     case "training.archive_added": return t(`${actor} added a past deal to the deal archive`);
     case "training.archive_imported": return t(`${actor} imported ${typeof meta.rows === "number" ? meta.rows : "several"} past deals into the archive`);
     case "training.archive_deleted": return t(`${actor} removed ${subject ?? "a past deal"} from past deals`, true);
-    case "training.archive_retried": return t(`${actor} asked the Sharminator to read ${subject ?? "a past deal"} again`);
+    case "training.archive_retried": return t(`${actor} asked GAIA to read ${subject ?? "a past deal"} again`);
     case "training.exemplar_toggled": return t(`${actor} ${meta.active ? "started using" : "stopped using"} the example memo “${subject ?? "untitled"}”`, !meta.active);
     case "training.exemplar_saved": return t(`${actor} saved a corrected memo as an example to follow`);
-    case "training.suggestions_generated": return t(`${actor} asked the Sharminator to suggest new principles`);
+    case "training.suggestions_generated": return t(`${actor} asked GAIA to suggest new principles`);
     case "training.suggestion_accepted": return t(`${actor} adopted the suggested principle “${subject ?? "untitled"}”`);
     case "training.suggestion_dismissed": return t(`${actor} dismissed the suggested principle “${subject ?? "untitled"}”`);
     case "training.backtest_started": return t(`${actor} started a test against past decisions`);

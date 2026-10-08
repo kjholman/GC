@@ -84,7 +84,7 @@ export function MemeScene({ scene, top, bottom, size = 240, className }: { scene
   const g = (n: string) => `${id}-${n}`;
   const label = [top, bottom].filter(Boolean).join(" ");
   return (
-    <figure className={cx("no-print shrink-0 overflow-hidden rounded-xl shadow-[var(--shadow-card)]", className)} style={{ width: size, height: size }} title="The Sharminator">
+    <figure className={cx("no-print shrink-0 overflow-hidden rounded-xl shadow-[var(--shadow-card)]", className)} style={{ width: size, height: size }} title="GAIA">
       <svg viewBox="0 0 300 300" width={size} height={size} role="img" aria-label={label}>
         <defs>
           <filter id={g("grey")}><feColorMatrix type="saturate" values="0.15" /></filter>

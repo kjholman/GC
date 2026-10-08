@@ -6,7 +6,7 @@ import { INTERPRET_FEEDBACK_PROMPT } from "../ai/prompts";
 import { plainPunctuation } from "../ai/style";
 import { FEEDBACK_AREA_LABEL } from "./options";
 
-/** Reads one review against its memo and stores the lesson the Sharminator will apply next time. */
+/** Reads one review against its memo and stores the lesson GAIA will apply next time. */
 export async function interpretFeedback(feedbackId: string): Promise<void> {
   const f = await db.analysisFeedback.findUnique({
     where: { id: feedbackId },

@@ -55,7 +55,7 @@ export default async function Overview() {
       <PageHeader
         eyebrow={new Date().toLocaleDateString("en-CA", { weekday: "long", month: "long", day: "numeric", timeZone: "America/Toronto" })}
         title={<Greeting name={firstName} serverGreeting={serverGreeting} />}
-        subtitle="Your deal flow at a glance: what needs a decision, what is awaiting founders, and what the Sharminator is working on."
+        subtitle="Your deal flow at a glance: what needs a decision, what is awaiting founders, and what GAIA is working on."
         actions={
           <Link href="/deals/new">
             <Button>Screen a new deck</Button>
@@ -142,7 +142,7 @@ export default async function Overview() {
             <MemeScene scene="deck" top={todaysClaim.slide} bottom={todaysClaim.reaction} size={272} className="mx-auto -mt-2" />
           </Card>
           <Card>
-            <SectionTitle eyebrow="The Sharminator" title="In progress" action={<AnalystAvatar size={44} />} />
+            <SectionTitle eyebrow="GAIA" title="In progress" action={<AnalystAvatar size={44} />} />
             {running.length === 0 ? (
               <p className="text-[13px] text-muted">No analyses running.</p>
             ) : (

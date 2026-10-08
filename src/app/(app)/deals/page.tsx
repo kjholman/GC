@@ -108,7 +108,7 @@ export default async function DealsPage({ searchParams }: PageProps<"/deals">) {
       <PageHeader
         eyebrow="Deal flow"
         title="Pipeline"
-        subtitle="Every opportunity the team has screened, with the Sharminator's latest recommendation."
+        subtitle="Every opportunity the team has screened, with GAIA's latest recommendation."
         actions={
           <Link href="/deals/new">
             <Button>Screen a new deck</Button>
@@ -175,7 +175,7 @@ export default async function DealsPage({ searchParams }: PageProps<"/deals">) {
                 <th className="py-3 pr-4 pl-6 font-semibold">Company</th>
                 <th className="px-4 py-3 font-semibold">Sector · Modality</th>
                 <th className="px-4 py-3 font-semibold">Stage</th>
-                <th className="px-4 py-3 font-semibold">Sharminator call</th>
+                <th className="px-4 py-3 font-semibold">GAIA call</th>
                 <th className="px-4 py-3 text-center font-semibold">Score</th>
                 <th className="px-4 py-3 text-center font-semibold">Analyses</th>
                 <th className="px-4 py-3 text-right font-semibold">AI cost</th>

@@ -65,7 +65,7 @@ export default async function KnowledgePage({ searchParams }: PageProps<"/knowle
       <Card className="mb-8">
         <SectionTitle eyebrow="Firm documents" title="Documents every analysis can draw on" />
         <p className="-mt-3 mb-4 max-w-3xl text-[13.5px] leading-relaxed text-ink-soft">
-          Fund strategy, investment theses, IC memos, portfolio reviews, anything that explains how Genesys thinks. The Sharminator reads each file and uses its summary in every analysis.
+          Fund strategy, investment theses, IC memos, portfolio reviews, anything that explains how Genesys thinks. GAIA reads each file and uses its summary in every analysis.
         </p>
         <KnowledgeFiles scope="FIRM" files={firmFiles} canEdit={canEdit} />
       </Card>

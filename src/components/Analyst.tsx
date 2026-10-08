@@ -3,10 +3,10 @@ import path from "node:path";
 import { cx } from "./ui";
 
 /** The AI analyst's name in the interface. Never used in founder correspondence or memos. */
-export const ANALYST_NAME = "The Sharminator";
+export const ANALYST_NAME = "GAIA";
 
 /** First of these found in public/brand is used as the photo. */
-const PHOTOS = ["sharminator.jpg", "sharminator.jpeg", "sharminator.png", "sharminator.webp", "Sharminator.jpg", "Sharminator.jpeg", "Sharminator.png", "Sharminator.webp"];
+const PHOTOS = ["sharminator.jpg", "sharminator.jpeg", "sharminator.png", "sharminator.webp", "GAIA.jpg", "GAIA.jpeg", "GAIA.png", "GAIA.webp"];
 const findPhoto = (): string | null => {
   try {
     const name = PHOTOS.find((p) => fs.existsSync(path.join(process.cwd(), "public", "brand", p)));
@@ -16,7 +16,7 @@ const findPhoto = (): string | null => {
   }
 };
 
-/** Hexagon avatar for the AI analyst: public/brand/sharminator.(jpg|png|webp) if present, else a branded "S". */
+/** Hexagon avatar for the AI analyst: public/brand/sharminator.(jpg|png|webp) if present, else a branded "G". */
 export function AnalystAvatar({ size = 40, className }: { size?: number; className?: string }) {
   const photo = findPhoto();
   return (
@@ -26,14 +26,14 @@ export function AnalystAvatar({ size = 40, className }: { size?: number; classNa
         <img src={photo} alt={ANALYST_NAME} width={size} height={size} className="h-full w-full object-cover object-[50%_25%]" />
       ) : (
         <div className="bg-brand-gradient flex h-full w-full items-center justify-center font-display font-semibold text-white" style={{ fontSize: size * 0.42 }}>
-          S
+          G
         </div>
       )}
     </div>
   );
 }
 
-/** Avatar + name, for headers like "The Sharminator · version 2". */
+/** Avatar + name, for headers like "GAIA · version 2". */
 export function AnalystBadge({ size = 28, suffix }: { size?: number; suffix?: string }) {
   return (
     <span className="inline-flex items-center gap-2">

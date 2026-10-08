@@ -42,7 +42,7 @@ export async function finishKnowledgeUploadAction(target: { scope: FileScope; id
     }),
   );
   for (const p of pathsFor(target.scope)) revalidatePath(p);
-  return { ok: true, message: `${files.length} file${files.length === 1 ? "" : "s"} uploaded. The Sharminator is reading ${files.length === 1 ? "it" : "them"} now.` };
+  return { ok: true, message: `${files.length} file${files.length === 1 ? "" : "s"} uploaded. GAIA is reading ${files.length === 1 ? "it" : "them"} now.` };
 }
 
 export async function deleteKnowledgeFileAction(id: string) {

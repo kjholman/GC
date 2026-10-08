@@ -198,7 +198,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
         {memo && shown && (
           <div className="flex items-center gap-6 self-end">
             <div className="text-right">
-              <div className="eyebrow flex items-center justify-end gap-2"><AnalystAvatar size={22} />The Sharminator recommends</div>
+              <div className="eyebrow flex items-center justify-end gap-2"><AnalystAvatar size={22} />GAIA recommends</div>
               <div className={cx("mt-1 font-display font-semibold text-[22px]", REC_META[memo.recommendation].cls)}>{REC_META[memo.recommendation].label}</div>
               <div className="mt-1 text-[12px] text-muted">
                 {memo.conviction.toLowerCase()} conviction · v{shown.version} · {fmtDate(shown.completedAt)}
@@ -241,7 +241,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
             <div className="min-w-0 flex-1">
               <div className="text-[13.5px] font-medium text-warn">Analysis version {paused.version} is paused: the Anthropic account is out of credit</div>
               <p className="mt-0.5 text-[13px] text-ink-soft">
-                Nothing is lost. Once credit is added to the Anthropic account, press Resume and the Sharminator carries on where it stopped, reusing everything it already finished. An administrator can also check credit on the Administration page, which resumes every paused analysis.
+                Nothing is lost. Once credit is added to the Anthropic account, press Resume and GAIA carries on where it stopped, reusing everything it already finished. An administrator can also check credit on the Administration page, which resumes every paused analysis.
               </p>
               {asSteps(paused.steps).length > 0 && (
                 <details className="mt-2">
@@ -309,7 +309,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
             <>
             <Card className="py-16 text-center">
               <div className="mx-auto max-w-md">
-                <div className="font-display font-semibold text-[22px] text-navy-900">{inFlight ? "The Sharminator is working on this deal." : "No completed analysis yet."}</div>
+                <div className="font-display font-semibold text-[22px] text-navy-900">{inFlight ? "GAIA is working on this deal." : "No completed analysis yet."}</div>
                 <p className="mt-2 text-[14px] text-muted">
                   {inFlight
                     ? "The memo appears here automatically when it is ready. You can leave this page; the analysis continues in the background."
@@ -472,7 +472,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
                       </Card>
                       {asSteps(shown.steps).length > 0 && (
                         <Card>
-                          <SectionTitle eyebrow={`Version ${shown.version}`} title="How the Sharminator did this analysis" />
+                          <SectionTitle eyebrow={`Version ${shown.version}`} title="How GAIA did this analysis" />
                           <StepLog steps={asSteps(shown.steps)} />
                         </Card>
                       )}
@@ -489,7 +489,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
         <aside className="no-print space-y-6">
           {memo && shown && (
             <Card>
-              <div className="eyebrow mb-3">The Sharminator says</div>
+              <div className="eyebrow mb-3">GAIA says</div>
               {memo.meme?.top || memo.meme?.bottom ? (
                 <MemeScene scene={memo.meme.scene} top={memo.meme.top} bottom={memo.meme.bottom} size={272} className="mx-auto" />
               ) : (

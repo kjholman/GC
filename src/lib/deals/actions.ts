@@ -224,7 +224,7 @@ export async function resumeAnalysisAction(analysisId: string): Promise<ActionSt
   const a = await db.analysis.findUnique({ where: { id: analysisId }, select: { dealId: true, version: true, status: true } });
   if (!a || a.status !== "PAUSED") return { ok: false, error: "This analysis isn't paused." };
   await db.analysis.update({ where: { id: analysisId }, data: { status: "QUEUED", error: null, progress: "Resuming" } });
-  await db.activity.create({ data: { dealId: a.dealId, userId: user.id, type: "analysis.resumed", message: `Resumed the Sharminator's analysis (version ${a.version}).` } });
+  await db.activity.create({ data: { dealId: a.dealId, userId: user.id, type: "analysis.resumed", message: `Resumed GAIA's analysis (version ${a.version}).` } });
   scheduleAnalysis(analysisId);
   revalidatePath("/deals/[id]", "page");
   return { ok: true };
@@ -240,7 +240,7 @@ export async function stopAnalysisAction(analysisId: string): Promise<ActionStat
   await db.$transaction([
     db.analysis.update({ where: { id: analysisId }, data: { status: "STOPPED", progress: null, completedAt: new Date(), error: `Stopped by ${who}.` } }),
     db.$executeRaw`UPDATE "Analysis" SET "steps" = COALESCE("steps", '[]'::jsonb) || ${entry}::jsonb WHERE "id" = ${analysisId}`,
-    db.activity.create({ data: { dealId: a.dealId, userId: user.id, type: "analysis.stopped", message: `Stopped the Sharminator's analysis (version ${a.version}) before it finished.` } }),
+    db.activity.create({ data: { dealId: a.dealId, userId: user.id, type: "analysis.stopped", message: `Stopped GAIA's analysis (version ${a.version}) before it finished.` } }),
     // A later version was stopped: the deal goes back to the stage it had from the previous analysis.
     ...(a.priorDealStatus ? [db.deal.update({ where: { id: a.dealId }, data: { status: a.priorDealStatus } })] : []),
   ]);
@@ -282,7 +282,7 @@ export async function rerunAnalysisAction(dealId: string, formData: FormData): P
         dealId,
         userId: user.id,
         type: "analysis.rerun",
-        message: `Asked the Sharminator to run the analysis again (v${analysis.version}). Reason: "${reason.slice(0, 300)}"${docs.length ? `; ${docs.length} new file${docs.length === 1 ? "" : "s"}` : ""}${refreshResearch ? "; web research redone" : ""}.`,
+        message: `Asked GAIA to run the analysis again (v${analysis.version}). Reason: "${reason.slice(0, 300)}"${docs.length ? `; ${docs.length} new file${docs.length === 1 ? "" : "s"}` : ""}${refreshResearch ? "; web research redone" : ""}.`,
       },
     });
     await audit("analysis.rerun", { userId: user.id, entity: "Deal", entityId: dealId });
@@ -354,7 +354,7 @@ export async function submitFeedbackAction(analysisId: string, _: ActionState, f
   const areas = [...new Set(formData.getAll("areas").map(String))].filter((a) => FEEDBACK_AREA_IDS.includes(a));
   if (!VERDICTS.includes(verdict)) return { ok: false, error: "Choose an overall view." };
   if (verdict !== "AGREE" && !areas.length && comment.length < 10) {
-    return { ok: false, error: "Tick at least one issue or say what it got wrong. This is what the Sharminator learns from." };
+    return { ok: false, error: "Tick at least one issue or say what it got wrong. This is what GAIA learns from." };
   }
   const analysis = await db.analysis.findUnique({ where: { id: analysisId }, select: { dealId: true, version: true } });
   if (!analysis) return { ok: false, error: "Analysis not found." };

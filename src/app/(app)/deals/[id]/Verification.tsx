@@ -5,7 +5,7 @@ import { Card, SectionTitle, cx } from "@/components/ui";
 const STATUS: Record<string, { label: string; cls: string; dot: string; blurb: string }> = {
   PASSED: { label: "Fact-check passed", cls: "border-[#c9e2d9] bg-pos-bg", dot: "bg-pos", blurb: "Every important claim was traced to a source. Nothing to fix." },
   WARNINGS: { label: "Fact-check: a few points to review", cls: "border-[#efdcb4] bg-warn-bg", dot: "bg-warn", blurb: "Nothing made up or contradicted, but some claims lack a source or are stated too strongly." },
-  FAILED: { label: "Fact-check: problems remain", cls: "border-[#efd2ce] bg-neg-bg", dot: "bg-neg", blurb: "Some serious problems remain after the Sharminator's own correction. Check these points before relying on the memo." },
+  FAILED: { label: "Fact-check: problems remain", cls: "border-[#efd2ce] bg-neg-bg", dot: "bg-neg", blurb: "Some serious problems remain after GAIA's own correction. Check these points before relying on the memo." },
 };
 
 const SEVERITY: Record<string, string> = { HIGH: "Serious", MEDIUM: "Check", LOW: "Minor" };
@@ -84,7 +84,7 @@ const SRC: Record<string, string> = {
   FIRM_CONTEXT: "Genesys records",
   BENCHMARK: "Industry benchmark",
   GENERAL_KNOWLEDGE: "General knowledge",
-  ANALYST_INFERENCE: "Sharminator's judgement",
+  ANALYST_INFERENCE: "GAIA's judgement",
 };
 const STATUS_LABEL: Record<string, string> = {
   VERIFIED_IN_SOURCE: "Confirmed in source",

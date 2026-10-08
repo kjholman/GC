@@ -33,7 +33,7 @@ export function MobileNav({ items, footer }: { items: { href: string; label: str
             <div className="flex items-center justify-between px-5 pt-5 pb-6">
               <div>
                 <Logo on="dark" size="sm" />
-                <div className="mt-3 text-[10.5px] font-medium uppercase tracking-[0.22em] text-brand-300/80">The Sharminator</div>
+                <div className="mt-3 text-[10.5px] font-medium uppercase tracking-[0.22em] text-brand-300/80">GAIA</div>
               </div>
               <button onClick={() => setOpen(false)} aria-label="Close menu" className="flex h-10 w-10 items-center justify-center rounded-lg text-white/70 hover:bg-white/10">
                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">

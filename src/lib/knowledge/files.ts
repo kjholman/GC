@@ -78,7 +78,7 @@ const SummarySchema = z.object({
   summary: z.string().describe("120-220 words: what this document is and what it tells an investor about Genesys, the company or the deal. Facts only, with key numbers. Plain business English."),
 });
 
-/** Reads one stored file and writes the Sharminator's summary of it. Never throws. */
+/** Reads one stored file and writes GAIA's summary of it. Never throws. */
 export async function processKnowledgeFile(fileId: string): Promise<void> {
   const f = await db.knowledgeFile.findUnique({ where: { id: fileId } });
   if (!f) return;

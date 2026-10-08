@@ -26,7 +26,7 @@ export function FollowUpPanel({ dealId, disabled, openRequests, awaitingFounders
     return (
       <Card>
         <div className="eyebrow mb-1">Add materials</div>
-        <p className="mb-4 text-[13px] leading-relaxed text-ink-soft">Received something new? Upload it and the Sharminator updates the analysis.</p>
+        <p className="mb-4 text-[13px] leading-relaxed text-ink-soft">Received something new? Upload it and GAIA updates the analysis.</p>
         <Button variant="secondary" className="w-full" disabled={disabled} onClick={() => setOpen(true)}>
           {disabled ? "Available when the analysis finishes" : "Upload more files"}
         </Button>
@@ -38,7 +38,7 @@ export function FollowUpPanel({ dealId, disabled, openRequests, awaitingFounders
       <div className="eyebrow mb-1 text-brand-600">Reopen with new information</div>
       <h3 className="font-display font-semibold text-[20px] text-navy-900">{awaitingFounders ? "Founders replied?" : "Add more materials"}</h3>
       <p className="mt-1.5 mb-5 text-[13px] leading-relaxed text-ink-soft">
-        Upload what you received{openRequests ? ` against the ${openRequests} outstanding request${openRequests === 1 ? "" : "s"}` : ""}. The Sharminator
+        Upload what you received{openRequests ? ` against the ${openRequests} outstanding request${openRequests === 1 ? "" : "s"}` : ""}. GAIA
         re-analyses the deal using every document received so far, building on the previous version, and notes what changed.
       </p>
       <form
@@ -281,10 +281,10 @@ export function FeedbackPanel({ analysisId, version, reviews }: { analysisId: st
   const toggle = (id: string) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
   return (
     <Card>
-      <div className="eyebrow mb-1">Teach the Sharminator</div>
+      <div className="eyebrow mb-1">Teach GAIA</div>
       <h3 className="font-display font-semibold text-[19px] text-navy-900">Review this memo (version {version})</h3>
       <p className="mt-1.5 mb-4 text-[12.5px] leading-relaxed text-ink-soft">
-        Tick what it got wrong and add anything in your own words. The Sharminator turns each review into a lesson it applies to future deals, and to the next version of this one.
+        Tick what it got wrong and add anything in your own words. GAIA turns each review into a lesson it applies to future deals, and to the next version of this one.
       </p>
       {reviews.length > 0 && (
         <ul className="mb-5 space-y-2.5">
@@ -311,7 +311,7 @@ export function FeedbackPanel({ analysisId, version, reviews }: { analysisId: st
       )}
       {state.ok ? (
         <p className="text-[13px] text-pos">
-          Thank you. The Sharminator is turning this into a lesson; it will appear above shortly. It also goes to the{" "}
+          Thank you. GAIA is turning this into a lesson; it will appear above shortly. It also goes to the{" "}
           <a href="/training/calibration" className="font-medium underline">Training Studio</a>, where it is applied to every future analysis and,
           with other reviews, used to suggest new investment principles for the partners to approve.
         </p>

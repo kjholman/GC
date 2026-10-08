@@ -52,7 +52,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
         <GenesysMark size={420} className="pointer-events-none absolute -right-28 bottom-16 opacity-[0.09]" />
         <div className="relative px-6 pt-7 pb-8">
           <Logo on="dark" />
-          <div className="mt-4 text-[10.5px] font-medium uppercase tracking-[0.22em] text-brand-300/80">The Sharminator</div>
+          <div className="mt-4 text-[10.5px] font-medium uppercase tracking-[0.22em] text-brand-300/80">GAIA</div>
         </div>
         <div className="relative"><Nav items={items} /></div>
         <div className="relative mt-auto border-t border-white/10 px-5 py-5">{account}</div>

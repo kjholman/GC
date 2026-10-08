@@ -30,9 +30,9 @@ async function sendViaResend(msg: { to: string; subject: string; text: string; h
 }
 
 export async function sendLoginCode(to: string, code: string) {
-  const subject = `${code} is your Sharminator sign-in code`;
+  const subject = `${code} is your GAIA sign-in code`;
   const text = [
-    `Your Sharminator sign-in code is: ${code}`,
+    `Your GAIA sign-in code is: ${code}`,
     "",
     "This code expires in 10 minutes and can be used once.",
     "If you did not request it, you can safely ignore this email.",
@@ -45,7 +45,7 @@ export async function sendLoginCode(to: string, code: string) {
     <table role="presentation" width="520" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border:1px solid #dbe5e9;">
       <tr><td style="background:#15354f;padding:28px 40px;">
         <div style="color:#ffffff;font-size:22px;font-weight:600;">Genesys <span style="font-weight:400;">Capital</span></div>
-        <div style="color:#29a2b5;font-family:Helvetica,Arial,sans-serif;font-size:11px;letter-spacing:0.2em;margin-top:6px;">THE SHARMINATOR</div>
+        <div style="color:#29a2b5;font-family:Helvetica,Arial,sans-serif;font-size:11px;letter-spacing:0.2em;margin-top:6px;">GAIA</div>
       </td></tr>
       <tr><td style="padding:40px;">
         <p style="font-family:Helvetica,Arial,sans-serif;color:#3d4451;font-size:15px;margin:0 0 24px;">Use the code below to sign in. It expires in 10 minutes.</p>
@@ -92,7 +92,7 @@ function shell(title: string, bodyHtml: string) {
     <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border:1px solid #dbe5e9;">
       <tr><td style="background:#15354f;padding:24px 36px;">
         <div style="color:#ffffff;font-size:20px;font-weight:600;">Genesys <span style="font-weight:400;">Capital</span></div>
-        <div style="color:#29a2b5;font-size:11px;letter-spacing:0.2em;margin-top:6px;">THE SHARMINATOR</div>
+        <div style="color:#29a2b5;font-size:11px;letter-spacing:0.2em;margin-top:6px;">GAIA</div>
       </td></tr>
       <tr><td style="padding:32px 36px;color:#17374d;font-size:14.5px;line-height:1.6;">
         <h1 style="margin:0 0 16px;font-size:20px;color:#15354f;">${esc(title)}</h1>
@@ -124,7 +124,7 @@ export async function sendAnalysisReady(e: AnalysisReadyEmail) {
   const text = [
     `Hi ${e.firstName},`,
     "",
-    `The Sharminator has finished ${e.version > 1 ? `version ${e.version} of ` : ""}its analysis of ${e.companyName}.`,
+    `GAIA has finished ${e.version > 1 ? `version ${e.version} of ` : ""}its analysis of ${e.companyName}.`,
     "",
     `Recommendation: ${e.recommendation} (score ${e.score}/100)`,
     `Fact-check: ${e.factCheck}`,
@@ -138,7 +138,7 @@ export async function sendAnalysisReady(e: AnalysisReadyEmail) {
   ].join("\n");
   const html = shell(
     `${e.companyName} is ready for review`,
-    `<p style="margin:0 0 16px;">Hi ${esc(e.firstName)}, the Sharminator has finished ${e.version > 1 ? `version ${e.version} of ` : ""}its analysis.</p>
+    `<p style="margin:0 0 16px;">Hi ${esc(e.firstName)}, GAIA has finished ${e.version > 1 ? `version ${e.version} of ` : ""}its analysis.</p>
      <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 18px;"><tr>
        <td style="padding:10px 16px;background:#f0f7f9;border:1px solid #dbe5e9;"><div style="font-size:11px;color:#668296;letter-spacing:0.12em;">RECOMMENDATION</div><div style="font-size:16px;font-weight:600;color:#15354f;">${esc(e.recommendation)}</div></td>
        <td style="padding:10px 16px;background:#f0f7f9;border:1px solid #dbe5e9;border-left:none;"><div style="font-size:11px;color:#668296;letter-spacing:0.12em;">SCORE</div><div style="font-size:16px;font-weight:600;color:#15354f;">${e.score}/100</div></td>
@@ -155,7 +155,7 @@ export async function sendAnalysisReady(e: AnalysisReadyEmail) {
 /** Short note when an analysis someone started could not finish. */
 export async function sendAnalysisProblem(to: string, firstName: string, companyName: string, url: string, reason: string) {
   const subject = `${companyName}: the analysis needs attention`;
-  const text = `Hi ${firstName},\n\nThe Sharminator could not finish its analysis of ${companyName}.\n\n${reason}\n\nOpen the deal: ${url}`;
-  const html = shell(`${companyName} needs attention`, `<p style="margin:0 0 14px;">Hi ${esc(firstName)}, the Sharminator could not finish its analysis.</p><p style="margin:0 0 18px;color:#3d5566;">${esc(reason)}</p><a href="${esc(url)}" style="display:inline-block;background:#15354f;color:#ffffff;text-decoration:none;padding:12px 22px;font-weight:600;border-radius:8px;">Open the deal</a>`);
+  const text = `Hi ${firstName},\n\nGAIA could not finish its analysis of ${companyName}.\n\n${reason}\n\nOpen the deal: ${url}`;
+  const html = shell(`${companyName} needs attention`, `<p style="margin:0 0 14px;">Hi ${esc(firstName)}, GAIA could not finish its analysis.</p><p style="margin:0 0 18px;color:#3d5566;">${esc(reason)}</p><a href="${esc(url)}" style="display:inline-block;background:#15354f;color:#ffffff;text-decoration:none;padding:12px 22px;font-weight:600;border-radius:8px;">Open the deal</a>`);
   await deliver({ to, subject, text, html });
 }

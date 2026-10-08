@@ -1178,7 +1178,7 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
         data: {
           dealId: deal.id,
           type: "analysis.complete",
-          message: `The Sharminator finished version ${analysis.version}: it ${RECOMMENDATION_TEXT[memo.recommendation]} (score ${memo.overallScore}/100). ${report.status === "PASSED" ? "The fact-check passed." : "The fact-check left points to review."} Waiting for someone to review and sign off.`,
+          message: `GAIA finished version ${analysis.version}: it ${RECOMMENDATION_TEXT[memo.recommendation]} (score ${memo.overallScore}/100). ${report.status === "PASSED" ? "The fact-check passed." : "The fact-check left points to review."} Waiting for someone to review and sign off.`,
         },
       }),
     ]);
@@ -1207,15 +1207,15 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
       await recordCreditProblem().catch(() => {});
       await db.analysis.update({
         where: { id: analysisId },
-        data: { status: "PAUSED", progress: null, error: "Paused because the Anthropic account behind the Sharminator has run out of credit." },
+        data: { status: "PAUSED", progress: null, error: "Paused because the Anthropic account behind GAIA has run out of credit." },
       });
       await logStep(analysisId, "Paused: the Anthropic account has run out of credit. Once credit is added, press Resume (or an administrator can check credit on the Administration page, which resumes paused analyses)", "warn");
       await db.activity.create({
-        data: { dealId: deal.id, type: "analysis.paused", message: `The Sharminator paused version ${analysis.version}: the Anthropic account is out of credit.` },
+        data: { dealId: deal.id, type: "analysis.paused", message: `GAIA paused version ${analysis.version}: the Anthropic account is out of credit.` },
       });
       await notifyStarter(analysis.createdById, (to, firstName) =>
         sendAnalysisProblem(to, firstName, deal.companyName, `${env.appUrl}/deals/${deal.slug ?? deal.id}`,
-          "It is paused because the Anthropic account behind the Sharminator has run out of credit. It resumes once credit is added, and nothing is lost."),
+          "It is paused because the Anthropic account behind GAIA has run out of credit. It resumes once credit is added, and nothing is lost."),
       );
       return;
     }
@@ -1233,7 +1233,7 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
     // A later version that fails leaves the deal at the stage its last finished analysis gave it.
     if (analysis.priorDealStatus) await db.deal.update({ where: { id: deal.id }, data: { status: analysis.priorDealStatus } }).catch(() => {});
     await db.activity.create({
-      data: { dealId: deal.id, type: "analysis.failed", message: `The Sharminator could not finish version ${analysis.version}: ${message.slice(0, 300)}` },
+      data: { dealId: deal.id, type: "analysis.failed", message: `GAIA could not finish version ${analysis.version}: ${message.slice(0, 300)}` },
     });
   } finally {
     // Remove any large files uploaded to the model provider for this analysis.
@@ -1250,13 +1250,13 @@ export function describeError(err: unknown): string {
 }
 
 function friendlyApiError(status: number | undefined, err?: unknown): string {
-  if (isCreditError(err)) return "The Anthropic account behind the Sharminator has run out of credit. Add credit, then try again.";
-  if (status === 401 || status === 403) return "The Sharminator's AI service key was rejected. Ask your developer to check the Anthropic API key.";
+  if (isCreditError(err)) return "The Anthropic account behind GAIA has run out of credit. Add credit, then try again.";
+  if (status === 401 || status === 403) return "GAIA's AI service key was rejected. Ask your developer to check the Anthropic API key.";
   if (status === 429) return "The AI service is busy or the account's usage limit was reached. Try again in a few minutes.";
   if (status === 413) return "The request to the AI service was too large, even with the documents sent as plain text. Remove or split the largest files and try again.";
-  if (status === 400 || status === 422) return "The AI service turned the request down, even after the Sharminator retried it in simpler forms. The exact reason is shown below; please pass it to your developer.";
+  if (status === 400 || status === 422) return "The AI service turned the request down, even after GAIA retried it in simpler forms. The exact reason is shown below; please pass it to your developer.";
   if (status && status >= 500) return "The AI service had a temporary problem. Try again in a few minutes.";
-  return "The Sharminator couldn't reach the AI service. Check the connection and try again.";
+  return "GAIA couldn't reach the AI service. Check the connection and try again.";
 }
 
 /**

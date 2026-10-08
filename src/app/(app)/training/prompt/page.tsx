@@ -11,9 +11,9 @@ export default async function PromptPage() {
   const user = await requireUser();
   const [settings, firmContext] = await Promise.all([getFirmSettings(), buildFirmContext()]);
   const sections = [
-    { title: "1 · Who the Sharminator is", body: ANALYST_PROFILE, note: "Who the Sharminator is and how it reasons. Changes to this part are made by your developer." },
+    { title: "1 · Who GAIA is", body: ANALYST_PROFILE, note: "Who GAIA is and how it reasons. Changes to this part are made by your developer." },
     { title: "2 · How it decides and scores", body: METHODOLOGY, note: "Decision rules, scoring guide, sourcing rules and writing standards. Changes are made by your developer." },
-    { title: "3 · What it knows about Genesys (live)", body: firmContext, note: "Built from the firm settings above, the Knowledge base and partner feedback. It changes as you train the Sharminator." },
+    { title: "3 · What it knows about Genesys (live)", body: firmContext, note: "Built from the firm settings above, the Knowledge base and partner feedback. It changes as you train GAIA." },
     { title: "4 · Fact-checking instructions", body: VERIFIER_PROMPT, note: "A second, independent review that checks every claim in a memo against the sources before anyone sees it." },
   ];
   return (
@@ -23,7 +23,7 @@ export default async function PromptPage() {
         <SettingsForm settings={settings.map((s) => ({ key: s.key, label: s.label, help: s.help, value: s.value, confirmed: s.confirmed }))} canEdit={hasRole(user.role, "PARTNER")} />
       </Card>
       <Card>
-        <SectionTitle eyebrow="Full transparency" title="Exactly what the Sharminator is told" />
+        <SectionTitle eyebrow="Full transparency" title="Exactly what GAIA is told" />
         <p className="-mt-2 mb-6 max-w-3xl text-[13.5px] leading-relaxed text-ink-soft">
           These are the complete instructions it receives with every analysis, before the deal&apos;s documents, precedents and research. Nothing is hidden.
         </p>

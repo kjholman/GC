@@ -106,7 +106,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/administra
       <Card pad={false} className="mt-8">
         <div className="px-6 pt-6" id="activity">
           <SectionTitle eyebrow="Security" title="Recent activity" />
-          <p className="-mt-3 mb-5 text-[13px] text-muted">Everything people do in the Sharminator is recorded here. Items in red are worth a look, such as blocked sign-in attempts.</p>
+          <p className="-mt-3 mb-5 text-[13px] text-muted">Everything people do in GAIA is recorded here. Items in red are worth a look, such as blocked sign-in attempts.</p>
         </div>
         <ul className="divide-y divide-line border-t border-line">
           {logs.map((l) => {

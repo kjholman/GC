@@ -41,7 +41,7 @@ export default async function ArchivePage({ searchParams }: PageProps<"/training
     <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_380px]">
       <div>
         <p className="mb-6 max-w-3xl text-[14px] leading-relaxed text-ink-soft">
-          For each new deck, the Sharminator looks up the most similar past deals here: what the partners decided, why, and how it turned out. Original decks attached here are also used for accuracy tests. Include deals Genesys <em>declined</em>; they matter as much as investments.
+          For each new deck, GAIA looks up the most similar past deals here: what the partners decided, why, and how it turned out. Original decks attached here are also used for accuracy tests. Include deals Genesys <em>declined</em>; they matter as much as investments.
         </p>
         {deals.length === 0 ? (
           <Empty title="No past deals yet">Import them from a spreadsheet, or add them one at a time.</Empty>
@@ -71,7 +71,7 @@ export default async function ArchivePage({ searchParams }: PageProps<"/training
                         {d.outcomeNotes && (<><div className="eyebrow mt-3 mb-1">Outcome</div><p className="text-ink-soft">{d.outcomeNotes}</p></>)}
                       </div>
                       <div>
-                        <div className="eyebrow mb-1">Sharminator&rsquo;s summary</div>
+                        <div className="eyebrow mb-1">GAIA&rsquo;s summary</div>
                         <p className="text-ink-soft">{d.digest ?? (d.ingestError ? <span className="text-neg">{d.ingestError}</span> : "Pending…")}</p>
                         {d.tags.length > 0 && (
                           <div className="mt-2 flex flex-wrap gap-1">

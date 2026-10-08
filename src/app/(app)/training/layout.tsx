@@ -8,8 +8,8 @@ export default async function TrainingLayout({ children }: LayoutProps<"/trainin
     <>
       <PageHeader
         eyebrow="Training Studio"
-        title="Teach the Sharminator to think like Genesys"
-        subtitle="Every analysis draws on what you record here: the firm's past deals, memos the partners consider exemplary, partner feedback and the firm's own settings. Accuracy tests show whether each change makes the Sharminator better."
+        title="Teach GAIA to think like Genesys"
+        subtitle="Every analysis draws on what you record here: the firm's past deals, memos the partners consider exemplary, partner feedback and the firm's own settings. Accuracy tests show whether each change makes GAIA better."
       />
       <SubNav
         items={[

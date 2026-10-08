@@ -79,7 +79,7 @@ function SourcingSummary({ memo, webSourceCount }: { memo: Memo; webSourceCount:
     <Card>
       <div className="eyebrow mb-1">How this memo was sourced</div>
       <p className="mb-3 text-[13px] text-ink-soft">
-        {ev.length} material claims, checked against {webSourceCount} web source{webSourceCount === 1 ? "" : "s"} found by the Sharminator&apos;s own research, not just the deck.
+        {ev.length} material claims, checked against {webSourceCount} web source{webSourceCount === 1 ? "" : "s"} found by GAIA&apos;s own research, not just the deck.
       </p>
       <div className="flex h-2.5 overflow-hidden rounded-full bg-line">
         {groups.map((g) => <div key={g.key} className={g.cls} style={{ width: `${pct(g.n)}%` }} title={`${g.label}: ${g.n}`} />)}
@@ -420,7 +420,7 @@ export function DiligenceView({ memo }: { memo: Memo }) {
           <p className="mt-3 text-[14px] text-ink-soft">
             {memo.recommendation === "PENDING_INFO"
               ? "This deal is awaiting further information from the founders. Once received, reopen it to re-run the analysis."
-              : "The Sharminator recommended declining this opportunity."}
+              : "GAIA recommended declining this opportunity."}
           </p>
         </div>
       </Card>
