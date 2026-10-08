@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { PortfolioCompany } from "@prisma/client";
-import { Card, cx, inputCls } from "@/components/ui";
+import { Card, cx } from "@/components/ui";
 import { KnowledgeFiles, type KFile } from "@/components/KnowledgeFiles";
 import { fillFromWebAction } from "@/lib/knowledge/actions";
 import { DeleteCompanyButton, EditCompanyDialog } from "./PortfolioForm";
@@ -54,8 +54,8 @@ export function PortfolioGrid({ companies, files, canEdit }: { companies: Portfo
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search companies, sectors, indications…" aria-label="Search portfolio" className={cx(inputCls, "h-9 w-full py-0 text-[13px] sm:w-72")} />
-        <select value={outcome} onChange={(e) => setOutcome(e.target.value)} aria-label="Outcome" className={cx(inputCls, "h-9 w-auto py-0 text-[13px]")}>
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search companies, sectors, indications…" aria-label="Search portfolio" className="h-9 w-full rounded-lg border border-line-strong bg-paper px-3 text-[13px] text-ink placeholder:text-[#9aaab5] focus:border-brand-500 focus:outline-none sm:w-72" />
+        <select value={outcome} onChange={(e) => setOutcome(e.target.value)} aria-label="Outcome" className="h-9 w-auto min-w-[150px] rounded-lg border border-line-strong bg-paper pl-3 text-[13px] text-ink focus:border-brand-500 focus:outline-none">
           <option value="">Any outcome</option>
           {Object.entries(OUTCOME).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
