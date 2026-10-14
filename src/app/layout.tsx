@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import { Figtree, Poppins } from "next/font/google";
 import "./globals.css";
 import { ConfirmProvider } from "@/components/Confirm";
@@ -16,7 +17,9 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  // Every page renders per request, so each gets the nonce its Content Security Policy needs.
+  await connection();
   return (
     <html lang="en-CA" className={`${poppins.variable} ${figtree.variable} h-full`}>
       <body className="min-h-full">
