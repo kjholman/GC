@@ -453,7 +453,13 @@ export async function removeDealDocumentAction(documentId: string): Promise<Acti
   if (running) return { ok: false, error: "Wait for the current analysis to finish (or stop it) before removing files." };
   await db.$transaction([
     db.document.delete({ where: { id: documentId } }),
-    db.deal.update({ where: { id: doc.dealId }, data: { freshStartAt: new Date(), researchDossier: null, researchStore: Prisma.DbNull } }),
+    db.deal.update({ where: { id: doc.dealId }, data: { freshStartAt: new Date(), researchDossier: null, dossierDocsKey: null, researchStore: Prisma.DbNull } }),
+    // A paused analysis would resume from work saved while the file was still there: drop it,
+    // so the resumed run reads the remaining files from the start.
+    db.analysis.updateMany({
+      where: { dealId: doc.dealId, status: "PAUSED" },
+      data: { checkpoint: Prisma.DbNull, research: null, competitors: Prisma.DbNull, competitorNotes: null },
+    }),
     db.activity.create({
       data: {
         dealId: doc.dealId,

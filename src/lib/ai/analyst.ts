@@ -701,6 +701,12 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
       orderBy: { version: "asc" },
       include: { feedback: { select: { verdict: true, comment: true, areas: true, lesson: true, correctedRecommendation: true } } },
     });
+    // The first analysis after a file was removed: details taken from the deal's earlier
+    // materials (sector, stage, round size and so on) are replaced, not kept, so nothing
+    // from the removed file lingers in what later analyses see.
+    const afterRemoval = !!deal.freshStartAt && !prior.some((a) => a.status === "COMPLETE" && a.createdAt > deal.freshStartAt!);
+    const keep = <T,>(current: T | null, found: T | null | undefined): T | null =>
+      afterRemoval ? (found ?? current) : (current ?? found ?? null);
     await setProgress(analysisId, "Reading submitted materials", "reading");
     const pages = deal.documents.reduce((n, d) => n + (d.pageCount ?? 0), 0);
     const tRead = Date.now();
@@ -751,9 +757,9 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
             dossierDocsKey: profileKey,
             website: deal.website ?? fp.website ?? undefined,
             tags: fp.tags,
-            indication: deal.indication ?? fp.indication,
-            sector: pickSector(deal.sector, fp.sector),
-            modality: deal.modality ?? fp.modality,
+            indication: keep(deal.indication, fp.indication),
+            sector: afterRemoval ? pickSector(null, fp.sector) ?? deal.sector : pickSector(deal.sector, fp.sector),
+            modality: keep(deal.modality, fp.modality),
             ...(rename ? { companyName, autoNamed: false } : {}),
           },
         });
@@ -1191,13 +1197,13 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
           analysisCount: { increment: 1 },
           keyReason: memo.recommendation === "ADVANCE_TO_DILIGENCE" ? null : (memo.passReasons?.[0]?.reason ?? (memo.recommendation === "REJECT" ? memo.worthOurTime.headline : null)),
           recommendation: memo.recommendation,
-          oneLiner: deal.oneLiner ?? memo.company.oneLiner,
-          sector: pickSector(deal.sector, memo.company.sector),
-          modality: deal.modality ?? memo.company.modality,
-          indication: deal.indication ?? memo.company.leadIndication,
-          stage: deal.stage ?? memo.company.developmentStage,
-          location: deal.location ?? memo.company.headquarters,
-          roundSize: deal.roundSize ?? memo.company.roundSought,
+          oneLiner: keep(deal.oneLiner, memo.company.oneLiner),
+          sector: afterRemoval ? pickSector(null, memo.company.sector) ?? deal.sector : pickSector(deal.sector, memo.company.sector),
+          modality: keep(deal.modality, memo.company.modality),
+          indication: keep(deal.indication, memo.company.leadIndication),
+          stage: keep(deal.stage, memo.company.developmentStage),
+          location: keep(deal.location, memo.company.headquarters),
+          roundSize: keep(deal.roundSize, memo.company.roundSought),
           website: deal.website ?? memo.company.website,
           contactName: deal.contactName ?? memo.company.founderContactName,
           contactEmail: deal.contactEmail ?? memo.company.founderContactEmail,
