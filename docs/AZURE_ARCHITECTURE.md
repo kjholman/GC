@@ -2,7 +2,7 @@
 
 Target hosting design for GAIA in Genesys's Azure tenant. Everything runs in one resource group in Canada Central behind private endpoints. Claude is reached through Microsoft Foundry (Hosted on Azure, US Data Zone). Staff sign in exactly as they do today, with an emailed one-time code.
 
-Status: proposed. The code changes it depends on are listed under "Claude through Microsoft Foundry" and are switched by `AI_PROVIDER`, so the Render deployment keeps working until cut-over.
+Status: proposed target. The recommended first step is in `docs/AZURE_SETUP.md`: the same hosting, with GAIA calling Anthropic's API directly and no code changes. The Foundry code changes this design depends on are listed under "Claude through Microsoft Foundry" and are switched by `AI_PROVIDER`.
 
 ## Network topology
 
