@@ -68,8 +68,8 @@ See [docs/AI_ANALYST_DESIGN.md](docs/AI_ANALYST_DESIGN.md) for how all of this w
 |---|---|
 | App | Next.js 16 (App Router, server actions), React 19, TypeScript, Tailwind CSS v4 |
 | Data | PostgreSQL via Prisma. Documents are stored in the database; there is no third-party file storage. |
-| AI | Anthropic Claude Opus 5.5: native PDF/vision, adaptive thinking, structured outputs, server-side web search, server-side refusal fallback |
-| Email | Any SMTP provider (Microsoft 365, SES, SendGrid) |
+| AI | Anthropic Claude Opus 5.5 (memo, fact-check) and Sonnet 5.5 (reading, research, extraction): native PDF/vision, adaptive thinking, structured outputs, server-side web search, server-side refusal fallback. Firm context is tailored to each deal; see `docs/AI_ANALYST_DESIGN.md` |
+| Email | Sign-in codes through Resend or any SMTP provider (Microsoft 365, SES, SendGrid) |
 
 Code map:
 - `src/lib/ai/`: prompts, memo schema, document extraction, analysis pipeline.

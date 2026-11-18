@@ -1,106 +1,121 @@
-# AI analyst: model choice and design
+# AI analyst: architecture and design
 
-## Model
+GAIA calls Anthropic's Claude models through the Messages API. The models are Anthropic's; GAIA does not host, own or train them. Every request is standalone: the model sees only what GAIA sends with that request and keeps nothing afterwards. Everything firm-specific lives in GAIA's own database and is added to each request as written context.
 
-The analyst uses **Anthropic Claude Opus 5.5** (`claude-opus-5-5`) through the Messages API.
+## Models
 
-| Requirement | Why Opus 5.5 fits |
-|---|---|
-| Reads full pitch decks, including charts, figures and tables | Native PDF and vision input: the model sees every slide as an image plus its text. Nothing is lost to OCR. |
-| PhD-level critique of scientific data and MBA-level financial reasoning | Anthropic's most capable general-purpose model, with adaptive extended thinking. |
-| Long context: deck + follow-ups + prior memos + firm history | 1M-token context window. |
-| Machine-readable, consistent memos | Structured outputs (`output_config.format`) guarantee that every memo matches the schema in `src/lib/ai/schema.ts`. |
-| Current information on competitors, trials and comparable deals | Server-side `web_search` / `web_fetch` tools, run before the memo is written. |
-| Confidentiality | Commercial API terms exclude training on customer data. Documents are sent inline per request and are not stored with the provider. |
+| Step | Model | Why |
+|---|---|---|
+| Memo, correction and fact-check | Claude Opus 5.5 (`ANTHROPIC_MODEL`) | Judgement: scientific critique, financial reasoning, decision rules. Native PDF and vision input, so every slide is seen as an image plus its text. 1M-token context. |
+| Reading the materials, web research, competitor table, knowledge extraction, feedback lessons, JSON repair | Claude Sonnet 5.5 (`ANTHROPIC_FAST_MODEL`) | Mechanical work at a lower price |
 
-Configuration is in `.env`:
-- `ANTHROPIC_MODEL` sets the model.
-- `ANALYSIS_EFFORT` sets reasoning depth for the memo. The default is `medium`; `high` or above costs more for deeper work.
-- `ANTHROPIC_FAST_MODEL` (default `claude-sonnet-5-5`) runs the mechanical steps: reading the materials into a research dossier, the five web-research passes, the competitor table and feedback lessons. The memo and the fact-check use `ANTHROPIC_MODEL`.
-- `ENABLE_WEB_RESEARCH` turns the web research stage on or off.
+Configuration (`.env`):
+- `ANTHROPIC_MODEL`, `ANTHROPIC_FAST_MODEL`: the two models.
+- `ANALYSIS_EFFORT`: reasoning effort for the memo (`low` to `max`, default `medium`). Other steps set their own effort.
+- `ENABLE_WEB_RESEARCH`: turns the web research and competitor sweep on or off.
+
+## Request settings (`src/lib/ai/client.ts`)
+
+- `POST /v1/messages`, always streamed, through the official TypeScript SDK (`@anthropic-ai/sdk`). 20-minute timeout per call, up to 3 automatic retries.
+- Adaptive extended thinking on every call; effort set per step.
+- Smaller steps use strict structured output (`output_config.format`, built from the Zod schemas in `src/lib/ai/schema.ts`). The memo schema is too large for strict mode, so the memo is requested as JSON, parsed leniently, validated against the schema, and repaired by a low-effort Sonnet call if malformed.
+- Server-side refusal fallback (`fallbacks: "default"`, beta `server-side-fallback-2026-07-01`): if a safety classifier declines a request, Anthropic re-runs it on its recommended fallback model within the same call.
+- Every string the model returns passes through the house-style sanitiser (`src/lib/ai/style.ts`).
 
 ## Pipeline (`src/lib/ai/analyst.ts`)
 
-1. **Ingest** (`src/lib/ai/files.ts`). Any number of files per upload, with no size limit in the app beyond the provider's 500 MB per file.
-   - Small PDFs and images are sent inline. Larger ones are uploaded to Anthropic's Files API with a 24-hour expiry and deleted when the analysis finishes.
-   - PDFs over 600 pages are read as extracted text.
-   - If the materials exceed the context budget, lower-priority files are read as text or excerpted, and the memo states which files were not fully read.
-   - PPTX (including speaker notes), DOCX and XLSX (including formulas) are converted to text.
-2. **Fingerprint.** A quick classification (sector, modality, indication, stage, tags) is used to retrieve precedents.
-3. **Precedent retrieval** (`src/lib/training/retrieval.ts`).
-   - Pulls the most similar past Genesys decisions from the deal archive, with the partners' rationale and the outcome.
-   - Pulls any partner-endorsed exemplar memos for similar deals.
-   - Each match carries a readable "why", and the precedents used are stored on the analysis.
-4. **Research** (optional). Four sourced web-research passes run in parallel with the competitive sweep:
-   - **Science and regulatory:** target validation, regulatory precedent, licensing comparables, contradictions with the deck.
-   - **Founders and management:** careers, prior ventures and outcomes, publications and patents, commitment, and any litigation, sanctions or discrepancies. Public professional information only.
-   - **Intellectual property:** patent families from Google Patents, WIPO, Espacenet, USPTO and CIPO; licence evidence; blocking third-party patents; expiry and regulatory exclusivity.
-   - **Market and epidemiology:** prevalence and incidence, standard of care, pricing analogues and codes, reimbursement path, adoption barriers.
-5. **Competitive sweep** (optional, with web research).
-   - A dedicated search pass (up to 25 searches and 15 page reads) covers companies doing the same thing: direct competitors, adjacent approaches, and earlier attempts.
-   - For each company it records: stage, status (active, acquired, IPO, partnered, failed, shut down), every funding round with amount and lead and other investors, the outcome, whether its backers resemble Genesys, and the lesson for this deal.
-   - It also builds a field summary (crowding, capital raised, what separated winners, exit pattern) and an investor map.
-   - The notes are then converted into a strict table. Any company whose source URL is not in the research notes is dropped.
-   - The sweep feeds the memo's competitors, valuation, exit scenarios, syndicate view and decision, plus a dedicated "what the comparables imply" section.
-   - Follow-up rounds reuse the sweep; a re-run refreshes it.
-6. **Underwriting.** One structured-output call produces the full memo plus an **evidence ledger**.
-7. **Verification and correction** (`src/lib/ai/verify.ts`). Described below.
-8. **Human sign-off.** An analyst attests to the memo. The founder email stays locked until they do.
-9. **Follow-up rounds.** New materials create a new version. The analyst sees all documents, the prior memo and its history, and records what changed.
+1. **Prepare the files** (`src/lib/ai/files.ts`). Word, PowerPoint (with speaker notes) and Excel (with formulas) become text on the server. PDFs and images are sent inline until a request's files reach 12 MB; beyond that they go through Anthropic's Files API with a 24-hour expiry and are deleted when the analysis finishes. PDFs over 600 pages are read as text. The document budget is about 650,000 tokens; lower-priority files are read as text or excerpted first, and the memo says which files were not read in full.
+2. **Profile and dossier** (Sonnet, effort low). Company name, sector, modality, indication, tags, website, and a 500 to 900 word factual dossier. Stored on the deal and reused until the set of files changes.
+3. **Precedents** (`src/lib/training/retrieval.ts`, no model call). The most similar past Genesys decisions and partner-endorsed example memos, each with a readable reason for the match.
+4. **Web research** (Sonnet, effort medium, in parallel). Five passes, each given the dossier rather than the files: science and regulatory; founders and management (public professional information only); intellectual property; market and epidemiology; company track record. Each pass may make up to 8 searches and 5 page reads (8,000 tokens per page).
+5. **Competitor sweep** (Sonnet, with the dossier). Up to 15 searches and 8 page reads covering companies doing the same thing, their funding rounds, investors and outcomes, then a strict extraction into a table. Companies whose sources are not in the research notes are dropped. Research and the sweep are stored on the deal and reused on later versions for up to 30 days.
+6. **Memo** (Opus, effort `ANALYSIS_EFFORT`, up to 64,000 output tokens). The full memo plus an evidence ledger tying each claim to a source.
+7. **Fact-check and correction** (`src/lib/ai/verify.ts`). Code-level checks, then an independent Opus review. Serious issues trigger one rewrite and a second check (see below).
+8. **Human sign-off.** A partner reviews and signs off. The founder email stays locked until they do.
+9. **Later versions.** New materials, or a re-run with a reason, create a new version that sees every document received and a digest of the previous memo, and records what changed.
+
+## Context management: what the model receives
+
+Each request carries only what that step needs. What is tailored to the deal is chosen by relevance, using the same similarity scoring as precedent retrieval (sector, modality, indication and themes, with synonyms).
+
+| Part of the context | What is sent | How it is kept lean |
+|---|---|---|
+| Fixed instructions | Analyst profile, methodology, scoring rubric, decision rules | Same for every analysis; cached for 1 hour |
+| Deal files | The uploaded materials | About 650,000 tokens at most, with lower-priority files read as text or excerpted first |
+| Company dossier | 500 to 900 words extracted once from the files | The research passes and competitor sweep get this instead of the files |
+| Firm rules | Firm settings, investment principles, funding stages | Always in full: short, and they apply to every deal |
+| Portfolio | The 10 companies most similar to the deal in full; every other company by name, sector and outcome | Portfolio fit and conflict checks still see the whole portfolio |
+| Partner feedback | Up to 20 lessons: the 12 most relevant (lessons for all deals count as relevant) plus the most recent | Firm-wide patterns stay visible without every review |
+| Past decisions on the platform | Up to 20: the 12 most similar deals plus the most recent | Keeps scoring consistent with similar deals |
+| Precedents and example memos | The closest matches from the Training Studio | Chosen by similarity |
+| Earlier versions (re-runs and follow-ups) | A digest of the last memo: verdict, conviction, scores, reasons, red flags, risks, founder requests, open gaps, valuation view; plus the team's feedback on earlier versions | The previous memo is no longer sent in full; the new memo is rewritten from the documents |
+| Firm documents | Summaries of uploaded strategy and fund documents | Trimmed step by step if the firm context passes about 30,000 tokens |
+
+The firm context is built by `buildFirmContext()` with the deal's profile as its focus. Without a focus (the Firm settings page, accuracy tests) it includes everything, subject to the same size budget.
+
+**Prompt caching.** Only the fixed instructions are cached. A cache write costs more than ordinary input (1.25x for 5 minutes, 2x for 1 hour) and a cache read a tenth. Each set of files and each deal's firm context is used at most once per analysis (the memo and the fact-check send different instructions ahead of the files, so they cannot share a cache entry), so caching them would raise the cost.
+
+**Removed files.** When a file is removed from a deal, the deal's dossier and stored research are cleared, earlier versions are not passed on, and a paused analysis drops work saved while the file was there. The next analysis rebuilds everything from the remaining files.
+
+**Measuring.** Every response's usage is written to `AiUsage`: model, step, input tokens, cache-read and cache-write tokens, output tokens and cost. Administration → Costs shows spend per analysis and a "Where the tokens go" table by step (requests, average input and output, share served from cache, cost, share of spend).
 
 ## Preventing hallucination
 
-This is a high-stakes setting, so no single safeguard is trusted on its own.
+No single safeguard is trusted on its own.
 
 | Layer | What it does |
 |---|---|
-| Grounding rules in the prompt | Every number, named entity and decision-relevant fact must appear in the evidence ledger. Each entry has a source type, a reference (file and page, or a URL from the research brief), a verbatim quote, and a status: verified / company claim / inference / needs verification. Background knowledge must be labelled and flagged. Gaps become information requests, not plausible-sounding filler. |
-| Inline citations | Prose carries `[E4]`-style tags. The UI renders each as a chip that shows the claim, source and status on hover. |
-| Code-level checks | Every person profiled must be named in the materials or research, and anyone who is not is removed. Every patent number must appear in a source, and fabricated ones are removed. Market sizing must be arithmetically consistent (SAM ≤ TAM, low ≤ base ≤ high, peak ≤ SAM). Quotes are matched against the actual text of the documents (PDF text is extracted server-side) and of the research brief. URLs must come from the research brief. Cited Genesys companies must exist in the firm's records; fabricated ones are removed automatically. Decision, scores and scenarios must be internally consistent with the decision rules. The founder email must not reveal scores or mention AI. |
-| Independent fact-check | A separate, adversarial model pass compares every claim and information request against the sources. It flags unsupported, contradicted, misquoted, fabricated, overstated or already-provided items, and judges whether the decision follows from the verified evidence. |
-| Automatic correction | If HIGH or MEDIUM issues are found, the memo is rewritten once with the exact corrections required, then fully re-checked. |
-| Human sign-off | The verification report (passed / warnings / failed, with every issue) is shown above the memo. An analyst must sign off, with a note whenever issues remain, before the founder email can be copied or sent. Sign-offs are audit-logged. |
+| Grounding rules in the prompt | Every number, named entity and decision-relevant fact must appear in the evidence ledger, with a source type, a reference (file and page, or a URL from the research), a verbatim quote, and a status: verified, company claim, inference or needs verification. Gaps become information requests, not plausible-sounding filler. |
+| Inline citations | Prose carries `[E4]`-style tags, shown in the UI as chips with the claim, source and status. |
+| Code-level checks | People profiled must be named in the materials or research. Patent numbers must appear in a source. Market sizing must be arithmetically consistent. Quotes are matched against the document text and the research (exactly, or at least 85% of 6-word runs). URLs must come from the research. Cited Genesys companies must exist in the firm's records. Decision, scores and scenarios must agree with the decision rules. The founder email must not reveal scores or mention AI. |
+| Independent fact-check | A separate Opus pass compares every claim and information request against the sources and judges whether the decision follows from the verified evidence. |
+| Automatic correction | If serious issues are found, the memo is rewritten once with the exact corrections required, then checked again. Remaining issues are shown on the memo. |
+| Human sign-off | The verification report is shown above the memo. A partner signs off, with a note if issues remain, before the founder email can be used. Sign-offs are audit-logged. |
 
 ## House writing standard
 
 Memos and founder emails should read as if written by a senior associate at a top-tier life-science fund.
-- **The prompt** sets the standard: plain, exact sentences; numbers with units and currency; and a ban on AI-associated phrasing ("delve", "landscape", "I hope this email finds you well", rule-of-three lists, and so on). The prompts themselves contain no em dashes, because models imitate the style they are given.
-- **Every string the model returns** is passed through a sanitiser (`src/lib/ai/style.ts`) that removes em and en dashes. Numeric ranges become hyphens; clause dashes become commas.
-- **The verifier flags** any banned phrasing that remains.
+- **The prompt** sets the standard: plain, exact sentences, numbers with units and currency, and a ban on AI-associated phrasing. The prompts contain no em dashes, because models imitate the style they are given.
+- **The sanitiser** (`src/lib/ai/style.ts`) removes em and en dashes from every string the model returns.
+- **The fact-check flags** banned phrasing that remains.
 
-## How the model becomes *Genesys'* analyst
+## How the model becomes Genesys's analyst
 
-Claude cannot be fine-tuned through the public API. Firm-specific expertise comes from the layers below, all managed in the **Training Studio**:
+Claude is not fine-tuned. Firm-specific expertise comes from context, managed in the Knowledge base and the Training Studio:
 
-1. **Analyst profile.** A life-sciences PhD with an MBA. The prompt includes:
-   - modality-specific diligence checklists
-   - phase-transition benchmarks
-   - Canadian reimbursement and funding context
-   - an anchored 1–10 rubric for each scorecard dimension
-   - explicit decision rules
-2. **Firm parameters** (Training Studio → Prompt & parameters). Cheque size, ownership target, reserves, return hurdle, mandate, screening bar and correspondence style, all edited by partners.
-3. **Investment principles.** Standing rules that every memo applies. Each conflict is flagged.
-4. **Deal archive.** Past Genesys decisions (invested, passed after diligence, declined at screen), with rationale, outcome and original decks. Imported in bulk from CSV and retrieved as precedent.
-5. **Exemplar memos.** Partner-corrected memos, endorsed as the standard to emulate.
-6. **Calibration.** Partner reviews of each memo feed into every analysis. The studio also mines them for recurring patterns and drafts new principles for partners to adopt.
-7. **Backtests.** Replay the analyst on archived deals using only the original deck and only earlier precedents. It reports:
-   - agreement with Genesys' real decisions
-   - a confusion matrix
-   - missed winners and false advances
-   - bias and per-sector accuracy
+1. **Analyst profile.** Modality-specific diligence checklists, phase-transition benchmarks, Canadian reimbursement and funding context, an anchored 1 to 10 rubric for each scorecard dimension, and explicit decision rules.
+2. **Firm settings** (Training Studio → Firm settings). Cheque size, ownership target, reserves, return hurdle, mandate, screening bar and correspondence style.
+3. **Funding stages** (Training Studio → Funding stages). Cheque, round size, valuation, ownership, evidence and milestones expected at each stage; each deal is benchmarked against its stage.
+4. **Investment principles** (Knowledge base). Standing rules every memo applies, with conflicts flagged.
+5. **Portfolio** (Knowledge base). Companies, terms, outcomes and lessons, used to judge fit and to recognise follow-on decisions.
+6. **Past deals** (Training Studio). Past decisions with rationale, outcome and original decks, retrieved as precedent.
+7. **Example memos.** Partner-corrected memos, endorsed as the standard to follow.
+8. **Partner feedback.** Reviews of each memo become lessons applied to later analyses; recurring patterns are drafted into suggested principles.
+9. **Accuracy tests.** Replay the analyst on past decks (profile and memo steps, without web research) and report agreement with the real decisions, missed winners, false advances, bias and per-sector accuracy.
+10. **Dataset export** (JSONL), for evaluating or training a separate model later.
 
-   Re-run after each change to see whether it helped.
-8. **Dataset export** (JSONL). Everything above, structured for training a Genesys-owned open-weight model as a second opinion once about 300 examples exist.
-
-Everything sent to the model can be read in full under Training Studio → Prompt & parameters.
+The full instructions and the current firm context can be read under Training Studio → Firm settings.
 
 ## Reliability
 
-- **Server-side refusal fallback** (`fallbacks: "default"`): if a safety classifier declines a request, it is re-run on Anthropic's recommended fallback model within the same call.
-- **Async execution.** Analyses run in the background after the upload request returns. The deal page polls for progress.
-- **Restart recovery.** Analyses interrupted by a server restart are marked failed on startup (`src/instrumentation.ts`) so they can be re-run with one click.
-- **Truncation and refusal handling.** Both are surfaced to the user rather than written into the database as partial memos.
+- **Background execution.** Analyses run in the same process after the request returns (Next.js `after()`); the deal page polls for progress.
+- **Checkpoints.** Each finished stage (research pass, sweep, draft memo, fact-check) is saved to `Analysis.checkpoint`. A resumed or restarted run skips finished work.
+- **Restart recovery** (`src/instrumentation.ts`). Analyses interrupted in the last 6 hours are re-queued and resume from their checkpoint; older ones are marked as not finished.
+- **Out of credit.** A credit or billing error pauses the analysis instead of failing it; it resumes when credit is back.
+- **Truncation and refusals** stop the run with a plain message rather than saving a partial memo.
 
-## Indicative cost
+## Data handling at Anthropic
 
-A typical first screen covers a 30–40 page deck, a web-research pass, the competitive sweep, the memo and an independent fact-check (plus a correction round when needed). At Opus 5.5 list prices ($4 / $20 per million tokens) that is about **US$3–7 per first screen**. Web search is billed separately by Anthropic at about US$10 per 1,000 searches, which adds cents per deal. Follow-ups reuse the research and sweep, so they cost less. Follow-ups cost about the same. At 500 decks a year, model spend is a few thousand dollars.
+- Anthropic's commercial terms: no training on customer content.
+- Inputs and outputs are deleted within 30 days by default (exceptions: Files API storage until deleted, Usage Policy enforcement, legal requirements).
+- Files sent through the Files API expire after 24 hours and GAIA deletes them as soon as the analysis finishes.
+- The web search version used runs inside Anthropic's code-execution sandbox, whose data is kept up to 30 days.
+- Processing location: `inference_geo` is not set, so Anthropic's default global routing applies.
+
+## Cost
+
+The actual cost of every analysis is measured, not estimated: see Administration → Costs, including the per-step breakdown. Web search is billed at about US$10 per 1,000 searches. Later versions reuse research less than 30 days old, so they cost less than a first screen.
+
+## Hosting on Azure (planned)
+
+The same pipeline can call Claude through Microsoft Foundry (Hosted on Azure, US Data Zone) instead of Anthropic's API. That needs Anthropic's Foundry client with the app's managed identity, a client-side refusal fallback (server-side fallback is not offered there), the basic web search and fetch tool versions, and large files sent as text (the Files API is not offered there). See the Azure deployment walkthrough.
