@@ -46,7 +46,7 @@ export default async function CostsPage({ searchParams }: PageProps<"/administra
       ORDER BY at DESC
       LIMIT ${PAGE_SIZE} OFFSET ${(page - 1) * PAGE_SIZE}`,
   ]);
-  const [total, byPurpose, byModel, byDay, byDeal] = await Promise.all([
+  const [total, byPurpose, byModel, byDay, byDeal, byStep] = await Promise.all([
     db.aiUsage.aggregate({ where: { createdAt: { gte: from, lt: to } }, _sum: { usd: true, inputTokens: true, outputTokens: true }, _count: true }),
     db.aiUsage.groupBy({ by: ["purpose"], where: { createdAt: { gte: from, lt: to } }, _sum: { usd: true }, orderBy: { _sum: { usd: "desc" } } }),
     db.aiUsage.groupBy({ by: ["model"], where: { createdAt: { gte: from, lt: to } }, _sum: { usd: true }, orderBy: { _sum: { usd: "desc" } } }),
@@ -58,6 +58,12 @@ export default async function CostsPage({ searchParams }: PageProps<"/administra
       FROM "AiUsage" u JOIN "Analysis" a ON a."id" = u."analysisId" JOIN "Deal" d ON d."id" = a."dealId"
       WHERE u."createdAt" >= ${from} AND u."createdAt" < ${to}
       GROUP BY d."id", d."slug", d."companyName" ORDER BY usd DESC LIMIT 100`,
+    // Where the tokens go: every kind of AI step, with how much of its input came from the cache.
+    db.$queryRaw<{ step: string; calls: number; input: number; cached: number; output: number; usd: number }[]>`
+      SELECT "step", COUNT(*)::int AS calls, SUM("inputTokens")::float AS input, SUM("cacheReadTokens")::float AS cached,
+             SUM("outputTokens")::float AS output, SUM("usd")::float AS usd
+      FROM "AiUsage" WHERE "createdAt" >= ${from} AND "createdAt" < ${to}
+      GROUP BY "step" ORDER BY usd DESC`,
   ]);
   const sum = total._sum.usd ?? 0;
   const maxDay = Math.max(0.01, ...byDay.map((d) => d.usd));
@@ -188,6 +194,47 @@ export default async function CostsPage({ searchParams }: PageProps<"/administra
           </Card>
         </div>
       </div>
+
+      <Card pad={false} className="mt-8">
+        <div className="px-6 pt-6">
+          <SectionTitle eyebrow="Breakdown" title="Where the tokens go" />
+          <p className="-mt-2 mb-4 text-[12.5px] text-muted">
+            Every kind of AI step, with its average size per request. &ldquo;From cache&rdquo; is input Anthropic served from its prompt cache at a tenth of the normal price.
+          </p>
+        </div>
+        {byStep.length === 0 ? (
+          <p className="border-t border-line px-6 py-5 text-[13px] text-muted">Nothing yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] text-left text-[13px]">
+              <thead>
+                <tr className="border-y border-line text-[11px] uppercase tracking-[0.12em] text-muted">
+                  <th className="py-3 pr-4 pl-6 font-semibold">Step</th>
+                  <th className="px-4 py-3 text-right font-semibold">Requests</th>
+                  <th className="px-4 py-3 text-right font-semibold">Input per request</th>
+                  <th className="px-4 py-3 text-right font-semibold">From cache</th>
+                  <th className="px-4 py-3 text-right font-semibold">Output per request</th>
+                  <th className="px-4 py-3 text-right font-semibold">Cost</th>
+                  <th className="py-3 pr-6 pl-4 text-right font-semibold">Share</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {byStep.map((r) => (
+                  <tr key={r.step}>
+                    <td className="py-2.5 pr-4 pl-6 text-ink first-letter:uppercase">{r.step}</td>
+                    <td className="px-4 py-2.5 text-right tabular text-ink-soft">{r.calls.toLocaleString("en-CA")}</td>
+                    <td className="px-4 py-2.5 text-right tabular text-ink-soft">{Math.round(r.input / r.calls).toLocaleString("en-CA")}</td>
+                    <td className="px-4 py-2.5 text-right tabular text-ink-soft">{r.input ? `${Math.round((r.cached / r.input) * 100)}%` : "n/a"}</td>
+                    <td className="px-4 py-2.5 text-right tabular text-ink-soft">{Math.round(r.output / r.calls).toLocaleString("en-CA")}</td>
+                    <td className="px-4 py-2.5 text-right tabular text-ink">{formatUsd(r.usd)}</td>
+                    <td className="py-2.5 pr-6 pl-4 text-right tabular text-muted">{sum ? `${Math.round((r.usd / sum) * 100)}%` : "n/a"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
     </>
   );
 }

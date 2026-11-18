@@ -536,8 +536,12 @@ model AiUsage {
   step         String
   analysisId   String?
   model        String
+  /// All input, including the cached part counted below.
   inputTokens  Int
   outputTokens Int
+  /// Input served from Anthropic's prompt cache (billed at a tenth) and input written to it.
+  cacheReadTokens  Int @default(0)
+  cacheWriteTokens Int @default(0)
   usd          Float
 
   @@index([createdAt])

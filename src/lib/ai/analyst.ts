@@ -4,7 +4,7 @@ import type { Analysis, DealStatus, Document, PortfolioCompany, Prisma } from "@
 import { db } from "../db";
 import { env } from "../env";
 import { FIRM_SETTINGS, getFirmSettings } from "../training/settings";
-import { findPrecedents } from "../training/retrieval";
+import { findPrecedents, similarity } from "../training/retrieval";
 import { coverageNote, prepareFiles, type InputFile, type PreparedFiles } from "./files";
 import { FALLBACK_BETA, anthropic, structuredCall, textOf, type ContentBlock } from "./client";
 import { plainPunctuation } from "./style";
@@ -361,9 +361,34 @@ export async function competitorSweep(companyName: string, docs: ContentBlock[])
   };
 }
 
-/** system[1]: firm parameters, principles, calibration, portfolio and recent decisions. */
-export async function buildFirmContext(opts: { excludeDealId?: string } = {}) {
-  const [settings, principles, feedback, portfolio, pipeline, files, stages] = await Promise.all([
+/** What a deal is about, used to pick the firm knowledge most relevant to it. */
+export type FirmFocus = { sector: string | null; modality: string | null; indication: string | null; tags: string[] };
+
+/** How much of each kind of firm knowledge a deal gets in full when a focus is given. */
+const FOCUS_LIMITS = { portfolioDetail: 10, feedback: 20, feedbackRelevant: 12, pipeline: 20, pipelineRelevant: 12 };
+
+/**
+ * Keeps the `limit` items most relevant to the deal (by `score`), topping up with the
+ * most recent ones so firm-wide patterns still show, and returns them in their
+ * original order (most recent first).
+ */
+function pickRelevant<T>(items: T[], score: (x: T) => number, limit: number, relevantMax: number): T[] {
+  if (items.length <= limit) return items;
+  const ranked = items.map((x, i) => ({ x, i, s: score(x) })).filter((r) => r.s > 0).sort((a, b) => b.s - a.s || a.i - b.i);
+  const keep = new Set(ranked.slice(0, relevantMax).map((r) => r.i));
+  for (let i = 0; i < items.length && keep.size < limit; i++) keep.add(i);
+  return items.filter((_, i) => keep.has(i));
+}
+
+/**
+ * system[1]: firm parameters, principles, calibration, portfolio and recent decisions.
+ * With a `focus` (the deal's sector, modality, indication and themes), the portfolio,
+ * partner feedback and recent decisions are narrowed to what is most relevant to that
+ * deal: the closest portfolio companies in full and the rest by name, the most relevant
+ * lessons plus the latest ones. Principles, settings and funding stages always go in full.
+ */
+export async function buildFirmContext(opts: { excludeDealId?: string; focus?: FirmFocus } = {}) {
+  const [settings, principles, allFeedback, allPortfolio, recentPipeline, files, stages] = await Promise.all([
     getFirmSettings(),
     db.investmentPrinciple.findMany({ where: { active: true }, orderBy: { createdAt: "asc" } }),
     db.analysisFeedback.findMany({
@@ -371,7 +396,7 @@ export async function buildFirmContext(opts: { excludeDealId?: string } = {}) {
       take: 40,
       include: {
         user: { select: { role: true } },
-        analysis: { select: { recommendation: true, overallScore: true, deal: { select: { companyName: true } } } },
+        analysis: { select: { recommendation: true, overallScore: true, deal: { select: { companyName: true, sector: true, modality: true, indication: true, tags: true } } } },
       },
     }),
     db.portfolioCompany.findMany({ orderBy: [{ outcome: "asc" }, { name: "asc" }] }),
@@ -379,7 +404,7 @@ export async function buildFirmContext(opts: { excludeDealId?: string } = {}) {
       where: { ...(opts.excludeDealId ? { id: { not: opts.excludeDealId } } : {}), latestScore: { not: null } },
       orderBy: { updatedAt: "desc" },
       take: 40,
-      select: { companyName: true, sector: true, status: true, latestScore: true },
+      select: { companyName: true, sector: true, modality: true, indication: true, tags: true, status: true, latestScore: true },
     }),
     db.knowledgeFile.findMany({
       where: { scope: { in: ["FIRM", "PORTFOLIO"] }, status: "READY", summary: { not: null } },
@@ -389,6 +414,27 @@ export async function buildFirmContext(opts: { excludeDealId?: string } = {}) {
     }),
     db.fundingStage.findMany({ orderBy: [{ position: "asc" }, { createdAt: "asc" }] }),
   ]);
+  const focus = opts.focus;
+  const relevance = (c: { sector?: string | null; modality?: string | null; indication?: string | null; tags?: string[] }) => (focus ? similarity(focus, c).score : 0);
+  // The portfolio companies most like this deal in full; the rest by name only, so
+  // portfolio fit and conflicts still see the whole portfolio.
+  const detailIds = new Set(
+    focus && allPortfolio.length > FOCUS_LIMITS.portfolioDetail
+      ? allPortfolio
+          .map((p) => ({ id: p.id, s: relevance({ sector: p.sector, modality: p.modality, indication: p.indication }), year: p.yearInvested ?? 0 }))
+          .sort((a, b) => b.s - a.s || b.year - a.year)
+          .slice(0, FOCUS_LIMITS.portfolioDetail)
+          .map((r) => r.id)
+      : allPortfolio.map((p) => p.id),
+  );
+  const portfolio = allPortfolio.filter((p) => detailIds.has(p.id));
+  const portfolioOthers = allPortfolio.filter((p) => !detailIds.has(p.id)).map((p) => ({ name: p.name, sector: p.sector, outcome: p.outcome }));
+  // Lessons that apply to every deal count as relevant to this one.
+  const general = (appliesTo: string | null) => !!appliesTo && /\b(all|any|every)\b.*\bdeals?\b/i.test(appliesTo);
+  const feedback = focus
+    ? pickRelevant(allFeedback, (f) => relevance(f.analysis.deal) + (general(f.appliesTo) ? 5 : 0), FOCUS_LIMITS.feedback, FOCUS_LIMITS.feedbackRelevant)
+    : allFeedback;
+  const pipeline = focus ? pickRelevant(recentPipeline, relevance, FOCUS_LIMITS.pipeline, FOCUS_LIMITS.pipelineRelevant) : recentPipeline;
   const firmDocs = files.filter((f) => f.scope === "FIRM").slice(0, 30).map((f) => ({ filename: f.filename, summary: f.summary! }));
   const portfolioFiles: Record<string, { filename: string; summary: string }[]> = {};
   for (const f of files.filter((x) => x.scope === "PORTFOLIO" && x.portfolioCompanyId)) {
@@ -419,7 +465,7 @@ export async function buildFirmContext(opts: { excludeDealId?: string } = {}) {
   ];
   let block = "";
   for (const step of steps) {
-    block = firmContextBlock({ settings, principles, stages, ...step() });
+    block = firmContextBlock({ settings, principles, stages, portfolioOthers, ...step() });
     if (block.length <= FIRM_CONTEXT_BUDGET) break;
   }
   return block;
@@ -431,7 +477,9 @@ const FIRM_CONTEXT_BUDGET = 120_000;
 export function systemBlocks(firmContext: string): Anthropic.Beta.BetaTextBlockParam[] {
   return [
     { type: "text", text: `${ANALYST_PROFILE}\n\n${METHODOLOGY}`, cache_control: { type: "ephemeral", ttl: "1h" } },
-    { type: "text", text: firmContext, cache_control: { type: "ephemeral" } },
+    // Not cached: the firm context is tailored to each deal and is rarely sent twice within
+    // five minutes, so writing it to the cache (billed at 1.25x) would almost never be repaid.
+    { type: "text", text: firmContext },
   ];
 }
 
@@ -457,11 +505,36 @@ function priorAnalysesBlock(prior: PriorWithFeedback[]): string | null {
       ? ["", "### The team's feedback on earlier versions of this memo", "Address every point below in this version, and say in versionDelta how each was handled.", ...reviews]
       : []),
     "",
-    `### Most recent memo (v${latest.version}), in full`,
-    "```json",
-    JSON.stringify(latest.memo),
-    "```",
+    `### Most recent memo (v${latest.version}), summarised`,
+    "Its conclusions, scores and open questions. Re-assess from the documents, which include every round; do not copy text from this summary.",
+    memoDigest(latest.memo as unknown as Memo),
   ].join("\n");
+}
+
+/**
+ * What a re-run needs from the previous memo: its verdict, scores, reasons, risks and
+ * open questions. Sending the whole memo again cost tens of thousands of tokens per
+ * re-run, and the new memo is rewritten from the documents anyway.
+ */
+function memoDigest(m: Memo): string {
+  const cut = (t: string | null | undefined, n: number) => {
+    const v = (t ?? "").replace(/\s+/g, " ").trim();
+    return v.length > n ? `${v.slice(0, n - 1)}…` : v;
+  };
+  const lines: string[] = [
+    `- **Recommendation:** ${m.recommendation}, conviction ${m.conviction}, overall score ${m.overallScore}/100`,
+    `- **Headline:** ${cut(m.worthOurTime?.headline, 300)}`,
+  ];
+  if (m.scorecard?.length) {
+    lines.push("- **Scorecard:**", ...m.scorecard.map((s) => `    - ${s.dimension}: ${s.score}/10. ${cut((s as { assessment?: string }).assessment, 220)}`));
+  }
+  if (m.passReasons?.length) lines.push("- **What held it back:**", ...m.passReasons.map((r) => `    - ${cut(r.reason, 160)}${r.wouldChangeIf ? ` (would change if: ${cut(r.wouldChangeIf, 160)})` : ""}`));
+  if (m.redFlags?.length) lines.push("- **Red flags:**", ...m.redFlags.map((r) => `    - ${cut(r, 200)}`));
+  if (m.keyRisks?.length) lines.push("- **Key risks:**", ...m.keyRisks.map((r) => `    - ${r.severity}: ${cut(r.risk, 200)}`));
+  if (m.informationRequests?.length) lines.push("- **Information requested from the founders:**", ...m.informationRequests.map((r) => `    - ${r.priority}: ${cut(r.request, 200)}`));
+  if (m.gaps?.length) lines.push("- **Gaps still open:**", ...m.gaps.map((g) => `    - ${g.priority} (${g.area}): ${cut(g.gap, 200)}`));
+  if (m.financials?.valuationView) lines.push(`- **Valuation view:** ${cut(m.financials.valuationView, 400)}`);
+  return lines.join("\n");
 }
 
 /** The underwriting core, shared by live analyses and backtests. */
@@ -980,7 +1053,10 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
     const webSources = [research, competitorNotes].filter(Boolean).join("\n\n") || null;
 
     await setProgress(analysisId, prior.length ? "Writing the memo with the new information" : "Writing the memo", "writing");
-    const firmContext = await buildFirmContext({ excludeDealId: deal.id });
+    const firmContext = await buildFirmContext({
+      excludeDealId: deal.id,
+      focus: { sector: probe.sector, modality: probe.modality, indication: probe.indication, tags: probe.tags },
+    });
     const underwriteArgs = {
       companyName,
       docs: blocks,

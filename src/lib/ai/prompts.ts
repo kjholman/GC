@@ -382,6 +382,8 @@ export type FirmContext = {
   principles: { title: string; body: string }[];
   calibration: CalibrationExample[];
   portfolio: PortfolioCompany[];
+  /** Portfolio companies less similar to the deal, given by name only. */
+  portfolioOthers?: { name: string; sector: string; outcome: string }[];
   pipeline: { companyName: string; sector: string | null; status: string; latestScore: number | null }[];
   /** Summaries of documents the partners uploaded to the knowledge base. */
   firmDocs?: { filename: string; summary: string }[];
@@ -469,7 +471,7 @@ ${calibration}
 
 ${ctx.firmDocs?.length ? `## Firm documents (uploaded by the partners)\nSummaries of the firm's own documents. Treat them as authoritative on Genesys's strategy, mandate and history.\n${ctx.firmDocs.map((d) => `- **${d.filename}:** ${d.summary}`).join("\n")}\n\n` : ""}## Genesys portfolio history
 Benchmark each new deal against these companies, including on terms where financials are given: compare the proposed round size, valuation and Genesys cheque with what the firm paid before and how those investments returned. In portfolioFit.comparableGenesysInvestments, cite only companies from this list.
-${portfolio || "(none recorded)"}
+${portfolio || "(none recorded)"}${ctx.portfolioOthers?.length ? `\n\nThe rest of the Genesys portfolio, less similar to this deal (name, sector, outcome). Treat them as part of the portfolio for fit and conflicts; details are in the firm's records:\n${ctx.portfolioOthers.map((p) => `- ${p.name} (${p.sector}; ${p.outcome.toLowerCase().replaceAll("_", " ")})`).join("\n")}` : ""}
 
 ## Recent screening decisions on this platform
 Keep your scoring consistent with how the team has treated similar deals.
