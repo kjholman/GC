@@ -60,6 +60,13 @@ export default async function AdminPage({ searchParams }: PageProps<"/administra
         </span>
         <span className="text-navy-700">→</span>
       </a>
+      <a href="/administration/logs" className="mb-8 -mt-4 flex items-center justify-between gap-4 rounded-lg border border-line bg-paper px-5 py-4 transition-colors hover:border-navy-700">
+        <span>
+          <span className="block font-display text-[17px] font-semibold text-navy-900">Server logs</span>
+          <span className="block text-[12.5px] text-muted">Live view of everything the server writes to its log, saved to the database for 30 days. Filter by level or search.</span>
+        </span>
+        <span className="text-navy-700">→</span>
+      </a>
       <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_360px]">
         <Card pad={false}>
           <div className="px-6 pt-6"><SectionTitle eyebrow="Team" title={`People with access (${users.filter((u) => u.active).length})`} /></div>

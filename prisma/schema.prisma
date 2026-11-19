@@ -629,3 +629,21 @@ model FundingStage {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }
+
+/// Server log lines (everything GAIA writes to its console), kept so they survive
+/// restarts and can be read live from Administration → Server logs or /api/logs/stream.
+model AppLog {
+  /// Increasing id: the stream's cursor (Last-Event-ID).
+  id         BigInt   @id @default(autoincrement())
+  createdAt  DateTime @default(now())
+  /// debug, info, warn or error
+  level      String
+  /// The tag at the start of the message, e.g. "analyst" from "[analyst] ...", or "app".
+  source     String
+  message    String
+  /// The analysis being worked on when the line was written, if any.
+  analysisId String?
+
+  @@index([createdAt])
+  @@index([level, id])
+}

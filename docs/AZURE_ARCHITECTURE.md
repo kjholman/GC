@@ -136,7 +136,7 @@ What GAIA sends is unchanged by the move (see `docs/AI_ANALYST_DESIGN.md`, "Cont
 | Network | Private endpoints and VNet-injected database, public access off, NSGs, inbound restrictions or Front Door WAF |
 | Secrets | Key Vault references; managed identity for Claude, Key Vault, registry |
 | Browser | CSP with per-request nonce, X-Frame-Options DENY, nosniff, strict referrer, permissions policy |
-| Audit | GAIA activity log; Azure activity log; App Service and Foundry diagnostics in Log Analytics |
+| Audit | GAIA activity log; GAIA server logs in PostgreSQL (secrets masked, 30 days, administrators only); Azure activity log; App Service and Foundry diagnostics in Log Analytics |
 | Least privilege | PIM for admin rights; developer without data access; deployments only via the pipeline identity |
 | Vulnerabilities | Defender for Cloud; dependency patches monthly, 7 days for high severity; penetration test before real data |
 

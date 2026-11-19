@@ -187,6 +187,8 @@ az webapp log tail -g $RG -n $APP
 
 Open `https://app-gaia-prod.azurewebsites.net`, sign in with an emailed code, run a test analysis.
 
+GAIA also saves its own log lines to the database, so they survive restarts and redeploys. Read them live under Administration → Server logs, or stream them from `https://app-gaia-prod.azurewebsites.net/api/logs/stream` (administrators only; Server-Sent Events, with a keep-alive every 15 seconds so App Service's 230-second idle timeout never closes it). Keys and passwords are masked before saving, and lines are kept for 30 days (`LOG_RETENTION_DAYS`).
+
 ### 9. Bring Render's data (optional)
 
 Run from inside the virtual network (a Cloud Shell attached to it, or a temporary VM), before people start using Azure:
