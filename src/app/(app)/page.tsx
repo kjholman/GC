@@ -27,7 +27,7 @@ export default async function Overview() {
       include: { analyses: { orderBy: { version: "desc" }, take: 1, select: { status: true } } },
     }),
     db.analysis.findMany({
-      where: { status: { in: ["QUEUED", "RUNNING", "PAUSED"] } },
+      where: { status: { in: ["AWAITING_CONFIRMATION", "QUEUED", "RUNNING", "PAUSED"] } },
       include: { deal: { select: { id: true, slug: true, companyName: true } } },
       orderBy: { createdAt: "asc" },
     }),
@@ -151,11 +151,11 @@ export default async function Overview() {
                   <li key={a.id}>
                     <Link href={`/deals/${a.deal.slug ?? a.deal.id}`} className="block">
                       <div className="flex items-center gap-2 text-[13.5px] font-medium text-navy-900">
-                        <span className={a.status === "PAUSED" ? "h-1.5 w-1.5 rounded-full bg-warn" : "pulse-dot h-1.5 w-1.5 rounded-full bg-brand-500"} />
+                        <span className={a.status === "PAUSED" || a.status === "AWAITING_CONFIRMATION" ? "h-1.5 w-1.5 rounded-full bg-warn" : "pulse-dot h-1.5 w-1.5 rounded-full bg-brand-500"} />
                         {a.deal.companyName}
                         <span className="text-[11px] font-normal text-muted">v{a.version}</span>
                       </div>
-                      <div className={cx("mt-1 pl-3.5 text-[12px]", a.status === "PAUSED" ? "text-warn" : "text-muted")}>{a.status === "PAUSED" ? "Paused: out of Anthropic credit" : a.progress ?? "Queued"}</div>
+                      <div className={cx("mt-1 pl-3.5 text-[12px]", a.status === "PAUSED" ? "text-warn" : "text-muted")}>{a.status === "AWAITING_CONFIRMATION" ? "Waiting for its projected cost to be confirmed" : a.status === "PAUSED" ? (a.pauseReason === "credit_limit" ? "Paused: AI credit allowance used up" : "Paused: out of Anthropic credit") : a.progress ?? "Queued"}</div>
                     </Link>
                   </li>
                 ))}

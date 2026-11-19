@@ -169,7 +169,7 @@ ref() { echo "@Microsoft.KeyVault(VaultName=$KV;SecretName=$1)"; }
 az webapp config appsettings set -g $RG -n $APP --settings \
   DATABASE_URL="$(ref database-url)" AUTH_SECRET="$(ref auth-secret)" \
   ANTHROPIC_API_KEY="$(ref anthropic-api-key)" RESEND_API_KEY="$(ref resend-api-key)" \
-  ALLOWED_EMAIL_DOMAINS=genesyscapital.com SEED_ADMIN_EMAILS="<admin addresses>" \
+  ALLOWED_EMAIL_DOMAINS=genesyscapital.com SEED_ADMIN_EMAILS="<admin addresses>" ADMIN_EMAIL="<the one administrator>" \
   ANTHROPIC_MODEL=claude-opus-5-5 ANTHROPIC_FAST_MODEL=claude-sonnet-5-5 \
   ANALYSIS_EFFORT=medium ENABLE_WEB_RESEARCH=true ENABLE_ADMIN_BYPASS=false \
   SESSION_IDLE_HOURS=6 SESSION_TTL_HOURS=168 WEBSITES_PORT=3000 \
@@ -253,6 +253,8 @@ Zero-downtime staging slots need one small change first (a staging copy must not
 - [ ] First image build tested: Render builds from source and has never used the `Dockerfile`.
 - [ ] A `.dockerignore` added, so a build from a working copy never includes `node_modules`, build output or `.env`.
 - [ ] `ENABLE_ADMIN_BYPASS=false`; no "Continue as administrator" on the sign-in page.
+- [ ] `ADMIN_EMAIL` set to the one administrator; only that person sees Administration (team access, AI credit limits, costs, server logs).
+- [ ] Anthropic Console → Settings → Data residency for the workspace behind the API key: allowed inference geos "us" only, default "us". GAIA sends `inference_geo: "us"` on every request and stops if a response reports any other region.
 - [ ] A dedicated, least-privilege database user instead of the admin user.
 - [ ] Backup retention and geo-redundancy decided; one restore tested.
 - [ ] Alerts: app unavailable, server errors, database CPU and storage.

@@ -29,6 +29,9 @@ import { PrintButton } from "./PrintButton";
 import { Tabs } from "./Tabs";
 import { FounderAsk } from "./FounderAsk";
 import { Paged } from "@/components/Pager";
+import { ConfirmRun } from "./ConfirmRun";
+import { estimateAnalysisCost } from "@/lib/ai/estimate";
+import { creditBlock, creditStatus } from "@/lib/credits/limits";
 
 const KIND_LABEL: Record<string, string> = {
   PITCH_DECK: "Pitch deck",
@@ -87,8 +90,16 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
   const memo = shown?.memo as Memo | undefined;
   const failed = latest?.status === "FAILED" || latest?.status === "STOPPED" ? latest : null;
   const paused = latest?.status === "PAUSED" ? latest : null;
-  // First analysis still running: show only the progress view until the memo exists.
-  const firstRun = !!inFlight && !memo;
+  // Waiting for someone to confirm its projected cost before it runs.
+  const pendingRun = latest?.status === "AWAITING_CONFIRMATION" ? latest : null;
+  const [pendingEstimate, pausedEstimate, myCredit, myBlock] = await Promise.all([
+    pendingRun ? estimateAnalysisCost(pendingRun.id) : null,
+    paused ? estimateAnalysisCost(paused.id).catch(() => null) : null,
+    creditStatus(user.id),
+    pendingRun ? creditBlock(user.id) : null,
+  ]);
+  // First analysis still running (or about to): show only the progress view until the memo exists.
+  const firstRun = (!!inFlight || !!pendingRun) && !memo;
   // Only offer "Founders replied?" when the memo actually asks the founders for something.
   const awaitingFounders = !!memo && ((memo.informationRequests?.length ?? 0) > 0 || (memo.dueDiligencePlan?.documentRequestList?.length ?? 0) > 0);
   const isLatestShown = shown && shown.id === completed[0]?.id;
@@ -104,7 +115,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
     if (t.length) return t.reduce((n, x) => n + x.ms, 0);
     return a.startedAt && a.completedAt ? a.completedAt.getTime() - a.startedAt.getTime() : null;
   };
-  const runs = deal.analyses.filter((a) => a.status !== "QUEUED").length;
+  const runs = deal.analyses.filter((a) => a.status !== "QUEUED" && a.status !== "AWAITING_CONFIRMATION").length;
   const people = await db.user.findMany({ where: { id: { in: deal.analyses.map((a) => a.createdById).filter((x): x is string => !!x) } }, select: { id: true, name: true, email: true } });
   const asc = [...deal.analyses].reverse();
   const versionRows: VersionRow[] = deal.analyses.map((a) => {
@@ -237,14 +248,39 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
           />
         </div>
       )}
+      {pendingRun && pendingEstimate && (
+        <ConfirmRun
+          analysisId={pendingRun.id}
+          version={pendingRun.version}
+          usd={pendingEstimate.usd}
+          lowUsd={pendingEstimate.lowUsd}
+          highUsd={pendingEstimate.highUsd}
+          lines={pendingEstimate.lines}
+          reused={pendingEstimate.reused}
+          basis={pendingEstimate.basis}
+          remainingUsd={myCredit?.remainingUsd ?? null}
+          blockedMessage={myBlock}
+        />
+      )}
       {paused && (
         <div className="mb-8 rounded-lg border border-[#efdcb4] bg-warn-bg px-5 py-4 sm:px-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
-              <div className="text-[13.5px] font-medium text-warn">Analysis version {paused.version} is paused: the Anthropic account is out of credit</div>
-              <p className="mt-0.5 text-[13px] text-ink-soft">
-                Nothing is lost. Once credit is added to the Anthropic account, press Resume and GAIA carries on where it stopped, reusing everything it already finished. An administrator can also check credit on the Administration page, which resumes every paused analysis.
-              </p>
+              {paused.pauseReason === "credit_limit" ? (
+                <>
+                  <div className="text-[13.5px] font-medium text-warn">Analysis version {paused.version} is paused: {paused.error?.replace(/^Paused: /, "") ?? "the AI credit allowance is used up."}</div>
+                  <p className="mt-0.5 text-[13px] text-ink-soft">
+                    Nothing is lost. When the administrator adds credit or switches AI work back on, GAIA carries on by itself where it stopped, reusing everything it already finished.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="text-[13.5px] font-medium text-warn">Analysis version {paused.version} is paused: the Anthropic account is out of credit</div>
+                  <p className="mt-0.5 text-[13px] text-ink-soft">
+                    Nothing is lost. Once credit is added to the Anthropic account, press Resume and GAIA carries on where it stopped, reusing everything it already finished. An administrator can also check credit on the Administration page, which resumes every paused analysis.
+                  </p>
+                </>
+              )}
               {asSteps(paused.steps).length > 0 && (
                 <details className="mt-2">
                   <summary className="cursor-pointer text-[12.5px] font-medium text-navy-800">See how far it got</summary>
@@ -254,7 +290,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
             </div>
             <div className="flex items-center gap-4">
               <MemeScene scene="runway" size={150} className="hidden sm:block" />
-              <ResumeButton analysisId={paused.id} />
+              <ResumeButton analysisId={paused.id} projectedUsd={pausedEstimate?.usd} />
             </div>
           </div>
         </div>
@@ -262,7 +298,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/dea
       {failed && (
         <div className="mb-8 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-[#efd2ce] bg-neg-bg px-6 py-4">
           <div>
-            <div className="text-[13.5px] font-medium text-neg">{failed.status === "STOPPED" ? `Analysis version ${failed.version} was stopped` : `Analysis version ${failed.version} did not finish`}</div>
+            <div className="text-[13.5px] font-medium text-neg">{failed.status === "STOPPED" && failed.error?.startsWith("Not run") ? `Analysis version ${failed.version} was not run` : failed.status === "STOPPED" ? `Analysis version ${failed.version} was stopped` : `Analysis version ${failed.version} did not finish`}</div>
             <div className="mt-0.5 text-[13px] text-ink-soft">{failed.error}</div>
             {asSteps(failed.steps).length > 0 && (
               <details className="mt-2">

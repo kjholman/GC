@@ -69,7 +69,7 @@ export function FollowUpPanel({ dealId, disabled, openRequests, awaitingFounders
         </Field>
         {state.error && <p className="text-[13px] text-neg">{state.error}</p>}
         <Button type="submit" disabled={pending || disabled} className="w-full">
-          {pending ? "Submitting…" : disabled ? "Analysis in progress" : "Re-run analysis with new information"}
+          {pending ? "Submitting…" : disabled ? "Analysis in progress" : "Add and see the projected cost"}
         </Button>
       </form>
     </Card>
@@ -106,7 +106,7 @@ export function StatusPanel({ dealId, status, canPartner }: { dealId: string; st
   );
 }
 
-export function ResumeButton({ analysisId }: { analysisId: string }) {
+export function ResumeButton({ analysisId, projectedUsd }: { analysisId: string; projectedUsd?: number }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
   return (
@@ -114,6 +114,7 @@ export function ResumeButton({ analysisId }: { analysisId: string }) {
       <Button
         disabled={pending}
         onClick={async () => {
+          if (projectedUsd != null && !window.confirm(`Resume this analysis? Finishing the remaining work is projected to cost about US$${projectedUsd.toFixed(2)} of AI credit.`)) return;
           setPending(true);
           const res = await resumeAnalysisAction(analysisId);
           if (!res.ok) setError(res.error);
@@ -147,7 +148,7 @@ export function RerunButton({ dealId, disabled, lastInstructions, feedback = [],
   return (
     <div>
       <Button variant="ghost" disabled={disabled || pending} onClick={() => { setOpen(true); setError(undefined); }}>
-        {pending ? "Starting…" : "↻ Re-run analysis"}
+        {pending ? "Preparing…" : "↻ Re-run analysis"}
       </Button>
       {error && <p className="mt-1 text-[12px] text-neg">{error}</p>}
       {open && (
@@ -226,7 +227,7 @@ export function RerunButton({ dealId, disabled, lastInstructions, feedback = [],
               {!ready && <span className="mr-auto text-[12px] text-muted">Add a reason or new files to continue.</span>}
               <button type="button" onClick={close} className="rounded-lg px-4 py-2 text-[13px] text-muted hover:text-ink">Cancel</button>
               <button type="submit" disabled={!ready || pending} className="rounded-lg bg-navy-900 px-4 py-2 text-[13px] font-medium text-white hover:bg-navy-800 disabled:cursor-not-allowed disabled:opacity-40">
-                {pending ? "Starting…" : "Run analysis"}
+                {pending ? "Preparing…" : "Continue to the projected cost"}
               </button>
             </div>
           </form>

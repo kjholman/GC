@@ -10,6 +10,7 @@ import { after } from "next/server";
 import { CreditBanner } from "@/components/CreditBanner";
 import { UnsavedGuard } from "@/components/UnsavedGuard";
 import { SharminatorEasterEgg } from "@/components/SharminatorEasterEgg";
+import { creditStatus } from "@/lib/credits/limits";
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const user = await requireUser();
@@ -21,7 +22,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     { href: "/training", label: "Training Studio", icon: "training" },
     ...(hasRole(user.role, "ADMIN") ? [{ href: "/administration", label: "Administration", icon: "admin" }] : []),
   ];
-  const ai = await getAiStatus().catch(() => null);
+  const [ai, credit] = await Promise.all([getAiStatus().catch(() => null), creditStatus(user.id).catch(() => null)]);
   // Out of credit: re-check in the background so the notice clears by itself once credit is added.
   if (ai?.creditLowSince) after(() => recheckCreditIfFlagged(resumeAllPaused).catch(() => {}));
   const initials = (user.name ?? user.email)
@@ -41,6 +42,15 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
               <div className="truncate text-[11px] text-white/45">{user.title ?? ({ ANALYST: "Analyst", PARTNER: "Partner", ADMIN: "Administrator" } as Record<string, string>)[user.role] ?? user.role}</div>
             </div>
           </div>
+          {credit && !credit.unlimited && (
+            <div className={`mt-3 text-[11.5px] ${credit.blocked ? "text-[#f2b8ae]" : "text-white/60"}`} title="Your AI credit allowance, set by the administrator">
+              {credit.cutOff
+                ? "AI work is switched off for your account"
+                : credit.blocked
+                  ? `AI credit used up (US$${(credit.limitUsd ?? 0).toFixed(2)} allowance)`
+                  : `AI credit: US$${(credit.remainingUsd ?? 0).toFixed(2)} left of US$${(credit.limitUsd ?? 0).toFixed(2)}`}
+            </div>
+          )}
           <div className="mt-4"><SignOutButton /></div>
     </>
   );

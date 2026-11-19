@@ -29,7 +29,7 @@ export async function requestCodeAction(_: RequestCodeState, formData: FormData)
     return { ok: false, error: "Sign-in codes can't be emailed yet because email isn't set up for this site. Your developer needs to add the email settings." };
   }
 
-  if (!isAllowedDomain(email)) {
+  if (!isAllowedDomain(email) && email !== env.adminEmail) {
     await audit("auth.code_rejected_domain", { meta: { email } });
     return { ok: false, error: "Access is restricted to Genesys Capital email addresses." };
   }
@@ -117,7 +117,9 @@ export async function signOutAction() {
  */
 export async function adminBypassAction() {
   if (!env.adminBypassEnabled) redirect("/login");
-  let admin = await db.user.findFirst({ where: { role: "ADMIN", active: true }, orderBy: { createdAt: "asc" } });
+  let admin = env.adminEmail
+    ? await db.user.upsert({ where: { email: env.adminEmail }, create: { email: env.adminEmail, role: "ADMIN" }, update: { role: "ADMIN", active: true } })
+    : await db.user.findFirst({ where: { role: "ADMIN", active: true }, orderBy: { createdAt: "asc" } });
   if (!admin) {
     const email = normalizeEmail((process.env.SEED_ADMIN_EMAILS ?? "").split(",")[0] || "admin@genesyscapital.com");
     admin = await db.user.upsert({ where: { email }, create: { email, role: "ADMIN" }, update: { role: "ADMIN", active: true } });

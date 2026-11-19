@@ -9,7 +9,7 @@ import { fmtDate } from "@/components/ui";
 
 const PAGE_SIZE = 25;
 type Txn = { key: string; at: Date; ended: Date; analysisId: string | null; purpose: string; requests: number; tokens: number; usd: number; dealId: string | null; slug: string | null; name: string | null; version: number | null; status: string | null; trigger: string | null };
-const STATUS_LABEL: Record<string, string> = { COMPLETE: "Finished", FAILED: "Didn't finish", STOPPED: "Stopped", PAUSED: "Paused: out of credit", RUNNING: "Running", QUEUED: "Queued" };
+const STATUS_LABEL: Record<string, string> = { AWAITING_CONFIRMATION: "Not started", COMPLETE: "Finished", FAILED: "Didn't finish", STOPPED: "Stopped", PAUSED: "Paused: out of credit", RUNNING: "Running", QUEUED: "Queued" };
 const TRIGGER_LABEL: Record<string, string> = { INITIAL_SCREEN: "First screening", FOLLOW_UP: "New information", RERUN: "Re-run" };
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];

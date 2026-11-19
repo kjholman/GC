@@ -118,7 +118,7 @@ function duration(a: Date | null, b: Date | null) {
 }
 
 const TRIGGER: Record<string, string> = { INITIAL_SCREEN: "First screen", NEW_INFORMATION: "New information received", RERUN: "Re-run" };
-const STATUS: Record<string, string> = { QUEUED: "Waiting to start", RUNNING: "In progress", FAILED: "Didn't finish", STOPPED: "Stopped", PAUSED: "Paused (out of credit)", COMPLETE: "Finished" };
+const STATUS: Record<string, string> = { AWAITING_CONFIRMATION: "Waiting for cost confirmation", QUEUED: "Waiting to start", RUNNING: "In progress", FAILED: "Didn't finish", STOPPED: "Stopped", PAUSED: "Paused (out of AI credit)", COMPLETE: "Finished" };
 
 export function VersionHistory({ dealPath, rows, shownId }: { dealPath: string; rows: VersionRow[]; shownId: string | null }) {
   // rows: newest first. Compare each finished version with the previous finished one.

@@ -4,6 +4,8 @@ import { db } from "../db";
 import { env } from "../env";
 import { anthropic } from "./client";
 import { recordUsage } from "./usage";
+import { isCreditLimitError } from "../credits/limits";
+import { INFERENCE_GEO, checkRegion } from "./region";
 
 /**
  * Tracks whether the Anthropic account behind GAIA has credit.
@@ -27,6 +29,8 @@ export class CreditExhaustedError extends Error {
 /** True when the API refused a request because the account has no credit left. */
 export function isCreditError(err: unknown): boolean {
   if (err instanceof CreditExhaustedError) return true;
+  // A person's own allowance running out also stops the work rather than being retried or skipped.
+  if (isCreditLimitError(err)) return true;
   if (!(err instanceof Anthropic.APIError)) return false;
   if (err.status === 402) return true;
   const body = err.error as { error?: { type?: string; message?: string } } | undefined;
@@ -74,8 +78,10 @@ export async function checkCredit(): Promise<{ ok: boolean; message: string }> {
       model: env.anthropicFastModel,
       max_tokens: 64,
       output_config: { effort: "low" },
+      inference_geo: INFERENCE_GEO,
       messages: [{ role: "user", content: "Reply with the single word OK." }],
     });
+    checkRegion(res.usage, "credit check");
     recordUsage(res.model, res.usage as unknown as Anthropic.Beta.BetaUsage, "credit check");
     await recordCreditOk();
     return { ok: true, message: "The Anthropic account has credit and the AI service is responding." };

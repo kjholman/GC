@@ -18,10 +18,10 @@ import { familyOf } from "./extract";
  */
 
 const INLINE_BYTES = 12 * 1024 * 1024; // keep total inline payload well under the 32 MB request cap
-const MAX_VISUAL_PDF_PAGES = 600;
-const TOKENS_PER_PDF_PAGE = 2500; // conservative: page image + text
-const CHARS_PER_TOKEN = 3.5;
-const DOC_TOKEN_BUDGET = 650_000; // leaves room in a 1M context for prompts, research and output
+export const MAX_VISUAL_PDF_PAGES = 600;
+export const TOKENS_PER_PDF_PAGE = 2500; // conservative: page image + text
+export const CHARS_PER_TOKEN = 3.5;
+export const DOC_TOKEN_BUDGET = 650_000; // leaves room in a 1M context for prompts, research and output
 
 export type InputFile = {
   filename: string;

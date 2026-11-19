@@ -1,3 +1,5 @@
+import { env } from "./env";
+
 /**
  * The people shown on the sign-in page. A person without an email address is
  * listed but can't sign in yet. Photos go in public/team/<id>.jpg (or .png/.webp).
@@ -17,11 +19,13 @@ export const TEAM: TeamMember[] = [
 ];
 
 /**
- * Access is fixed here, not edited in the app: Jamie, Damian and Kelly see
- * Administration; everyone else gets full deal, knowledge base and Training
+ * Access is fixed here, not edited in the app. If ADMIN_EMAIL is set, only that
+ * person sees Administration; otherwise Jamie, Damian and Kelly do; everyone else gets full deal, knowledge base and Training
  * Studio access without it.
  */
 export function roleForEmail(email: string): "ADMIN" | "PARTNER" {
   const e = email.trim().toLowerCase();
+  // ADMIN_EMAIL, when set, names the only administrator.
+  if (env.adminEmail) return e === env.adminEmail ? "ADMIN" : "PARTNER";
   return TEAM.some((m) => m.admin && m.email?.toLowerCase() === e) ? "ADMIN" : "PARTNER";
 }

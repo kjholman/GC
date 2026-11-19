@@ -40,6 +40,15 @@ export const env = {
     return (process.env.ENABLE_WEB_RESEARCH ?? "true") !== "false";
   },
   /**
+   * ADMIN_EMAIL: the one person who has Administration (team access, AI credit
+   * limits, costs, server logs). When set, nobody else is an administrator.
+   * When empty, the administrators marked in src/lib/team.ts keep access.
+   */
+  get adminEmail(): string | null {
+    const e = (process.env.ADMIN_EMAIL ?? "").trim().toLowerCase();
+    return e || null;
+  },
+  /**
    * TEMPORARY testing aid: shows a "Continue as administrator" button on the
    * sign-in page. Off unless ENABLE_ADMIN_BYPASS=true; also switches itself
    * off after ADMIN_BYPASS_UNTIL (YYYY-MM-DD) if that is set.

@@ -13,6 +13,8 @@ import { db } from "../db";
 import { FEEDBACK_AREA_IDS, FEEDBACK_AREA_LABEL } from "../feedback/options";
 import { interpretFeedback } from "../feedback/interpret";
 import { withMeter } from "../ai/usage";
+import { creditBlock } from "../credits/limits";
+import { describeEstimate, estimateAnalysisCost } from "../ai/estimate";
 import { audit } from "../audit";
 import { refreshSlug } from "./slug";
 import { requireRole, requireUser } from "../auth/session";
@@ -105,6 +107,8 @@ export async function createDealAction(_: ActionState, formData: FormData): Prom
   });
   const files = formData.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
   if (!files.length) return { ok: false, error: "Attach the pitch deck to begin the analysis." };
+  const blocked = await creditBlock(user.id);
+  if (blocked) return { ok: false, error: blocked };
 
   let docs;
   try {
@@ -123,7 +127,7 @@ export async function createDealAction(_: ActionState, formData: FormData): Prom
       ownerId: user.id,
       documents: { create: docs.map((d) => ({ ...d, round: 1, uploadedById: user.id })) },
       analyses: {
-        create: { version: 1, trigger: "INITIAL_SCREEN", analystContext: fields.analystContext, instructions: fields.instructions, createdById: user.id },
+        create: { version: 1, status: "AWAITING_CONFIRMATION", trigger: "INITIAL_SCREEN", analystContext: fields.analystContext, instructions: fields.instructions, createdById: user.id },
       },
       activities: {
         create: {
@@ -136,7 +140,7 @@ export async function createDealAction(_: ActionState, formData: FormData): Prom
     include: { analyses: true },
   });
   await audit("deal.created", { userId: user.id, entity: "Deal", entityId: deal.id });
-  scheduleAnalysis(deal.analyses[0].id);
+  // It runs once someone confirms its projected cost on the deal page.
   redirect(`/deals/${await refreshSlug(deal.id)}`);
 }
 
@@ -151,8 +155,12 @@ async function queueNewVersion(
   if (last && (last.status === "RUNNING" || last.status === "QUEUED")) {
     throw new Error("An analysis is already in progress for this deal.");
   }
-  // A newer version supersedes any paused one, so it doesn't run again later.
+  // The new version's spend counts against whoever starts it.
+  const blocked = await creditBlock(userId);
+  if (blocked) throw new Error(blocked);
+  // A newer version supersedes any paused one, or one still waiting for its cost to be confirmed.
   await db.analysis.updateMany({ where: { dealId, status: "PAUSED" }, data: { status: "STOPPED", error: "Replaced by a newer version." } });
+  await db.analysis.updateMany({ where: { dealId, status: "AWAITING_CONFIRMATION" }, data: { status: "STOPPED", error: "Not run: replaced by a newer request.", completedAt: new Date() } });
   const deal = await db.deal.findUnique({ where: { id: dealId }, select: { status: true } });
   return db.analysis.create({
     data: {
@@ -165,6 +173,8 @@ async function queueNewVersion(
       reason: opts.reason?.slice(0, 2000) || null,
       createdById: userId,
       priorDealStatus: deal?.status ?? null,
+      // Waits on the deal page, with its projected cost, until someone confirms it.
+      status: "AWAITING_CONFIRMATION",
     },
   });
 }
@@ -200,7 +210,7 @@ export async function submitFollowUpAction(dealId: string, _: ActionState, formD
       }),
     ]);
     await audit("deal.follow_up", { userId: user.id, entity: "Deal", entityId: dealId });
-    scheduleAnalysis(analysis.id);
+    void analysis; // Runs once its projected cost is confirmed on the deal page.
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }
@@ -211,7 +221,8 @@ export async function submitFollowUpAction(dealId: string, _: ActionState, formD
 /** Puts every analysis that paused for lack of credit back in the queue. */
 export async function resumePausedAnalyses(): Promise<number> {
   await requireUser();
-  const paused = await db.analysis.findMany({ where: { status: "PAUSED" }, select: { id: true } });
+  // Only those paused for GAIA's Anthropic credit; a person's used-up allowance resumes when the administrator adds credit.
+  const paused = await db.analysis.findMany({ where: { status: "PAUSED", NOT: { pauseReason: "credit_limit" } }, select: { id: true } });
   for (const { id } of paused) {
     await db.analysis.update({ where: { id }, data: { status: "QUEUED", error: null, progress: "Resuming" } });
     scheduleAnalysis(id);
@@ -221,11 +232,66 @@ export async function resumePausedAnalyses(): Promise<number> {
 
 export async function resumeAnalysisAction(analysisId: string): Promise<ActionState> {
   const user = await requireUser();
-  const a = await db.analysis.findUnique({ where: { id: analysisId }, select: { dealId: true, version: true, status: true } });
+  const a = await db.analysis.findUnique({ where: { id: analysisId }, select: { dealId: true, version: true, status: true, createdById: true, createdBy: { select: { name: true, email: true } } } });
   if (!a || a.status !== "PAUSED") return { ok: false, error: "This analysis isn't paused." };
+  // It keeps spending the credit of the person who started it.
+  if (a.createdById && (await creditBlock(a.createdById))) {
+    const who = a.createdById === user.id ? "your" : `${a.createdBy?.name ?? a.createdBy?.email.split("@")[0]}'s`;
+    return { ok: false, error: `This analysis uses ${who} AI credit, which is used up or switched off. The administrator can add credit; it then carries on by itself.` };
+  }
   await db.analysis.update({ where: { id: analysisId }, data: { status: "QUEUED", error: null, progress: "Resuming" } });
   await db.activity.create({ data: { dealId: a.dealId, userId: user.id, type: "analysis.resumed", message: `Resumed GAIA's analysis (version ${a.version}).` } });
   scheduleAnalysis(analysisId);
+  revalidatePath("/deals/[id]", "page");
+  return { ok: true };
+}
+
+/**
+ * Runs an analysis that is waiting for its projected cost to be confirmed. The cost is
+ * worked out again here; if it has risen noticeably since it was shown (files added or
+ * removed in the meantime), the person is asked to confirm the new figure instead.
+ * The spend counts against the person who confirms.
+ */
+export async function confirmAnalysisAction(analysisId: string, shownUsd: number): Promise<ActionState> {
+  const user = await requireUser();
+  const a = await db.analysis.findUnique({ where: { id: analysisId }, select: { dealId: true, version: true, status: true } });
+  if (!a || a.status !== "AWAITING_CONFIRMATION") return { ok: false, error: "This analysis has already been started or cancelled." };
+  const blocked = await creditBlock(user.id);
+  if (blocked) return { ok: false, error: blocked };
+  const est = await estimateAnalysisCost(analysisId);
+  if (est.usd > shownUsd * 1.1 + 0.05) {
+    revalidatePath("/deals/[id]", "page");
+    return { ok: false, error: `The projected cost has changed to ${describeEstimate(est)}, because the materials changed. Check the new figure and confirm again.` };
+  }
+  const claimed = await db.analysis.updateMany({
+    where: { id: analysisId, status: "AWAITING_CONFIRMATION" },
+    data: {
+      status: "QUEUED", createdById: user.id, confirmedAt: new Date(), confirmedById: user.id,
+      estimateUsd: est.usd, estimate: JSON.parse(JSON.stringify(est)),
+    },
+  });
+  if (claimed.count !== 1) return { ok: false, error: "This analysis has already been started or cancelled." };
+  await db.activity.create({
+    data: { dealId: a.dealId, userId: user.id, type: "analysis.confirmed", message: `Started GAIA's analysis (version ${a.version}) after confirming its projected cost of ${describeEstimate(est)}.` },
+  });
+  await audit("analysis.cost_confirmed", { userId: user.id, entity: "Deal", entityId: a.dealId, meta: { estimateUsd: Math.round(est.usd * 100) / 100 } });
+  scheduleAnalysis(analysisId);
+  revalidatePath("/deals/[id]", "page");
+  return { ok: true };
+}
+
+/** Decides not to run an analysis that is waiting for its cost to be confirmed. Nothing is spent. */
+export async function cancelPendingAnalysisAction(analysisId: string): Promise<ActionState> {
+  const user = await requireUser();
+  const a = await db.analysis.findUnique({ where: { id: analysisId }, select: { dealId: true, version: true, status: true, priorDealStatus: true } });
+  if (!a || a.status !== "AWAITING_CONFIRMATION") return { ok: false, error: "This analysis has already been started or cancelled." };
+  const who = user.name ?? user.email.split("@")[0];
+  await db.$transaction([
+    db.analysis.update({ where: { id: analysisId }, data: { status: "STOPPED", completedAt: new Date(), error: `Not run: ${who} decided not to go ahead at the projected cost.` } }),
+    db.activity.create({ data: { dealId: a.dealId, userId: user.id, type: "analysis.cancelled", message: `Decided not to run GAIA's analysis (version ${a.version}) at its projected cost.` } }),
+    ...(a.priorDealStatus ? [db.deal.update({ where: { id: a.dealId }, data: { status: a.priorDealStatus } })] : []),
+  ]);
+  await audit("analysis.cost_declined", { userId: user.id, entity: "Deal", entityId: a.dealId });
   revalidatePath("/deals/[id]", "page");
   return { ok: true };
 }
@@ -286,7 +352,7 @@ export async function rerunAnalysisAction(dealId: string, formData: FormData): P
       },
     });
     await audit("analysis.rerun", { userId: user.id, entity: "Deal", entityId: dealId });
-    scheduleAnalysis(analysis.id);
+    void analysis; // Runs once its projected cost is confirmed on the deal page.
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }
@@ -371,9 +437,11 @@ export async function submitFeedbackAction(analysisId: string, _: ActionState, f
   });
   // Turn the review into a lesson for future analyses, in the background.
   after(async () => {
-    await withMeter({ purpose: "feedback lessons", analysisId }, () => interpretFeedback(created.id));
+    // Skipped quietly if the reviewer has no AI credit left: the review itself is saved either way.
+    if (await creditBlock(user.id)) return;
+    await withMeter({ purpose: "feedback lessons", analysisId, userId: user.id }, () => interpretFeedback(created.id));
     // Feed the Training Studio: every few reviews, look for patterns worth a new principle.
-    await withMeter({ purpose: "principle suggestions" }, () => maybeSuggestPrinciples()).catch((err) =>
+    await withMeter({ purpose: "principle suggestions", userId: user.id }, () => maybeSuggestPrinciples()).catch((err) =>
       console.error("[feedback] could not look for principle suggestions", err),
     );
   });
@@ -431,9 +499,10 @@ export async function setLogoAction(dealId: string, formData: FormData): Promise
 
 /** "Find logo": runs the full logo lookup now instead of waiting for the hourly retry. */
 export async function findLogoNowAction(dealId: string): Promise<ActionState & { note?: string | null }> {
-  await requireUser();
+  const user = await requireUser();
   const { findDealLogo } = await import("../ai/analyst");
-  const found = await findDealLogo(dealId, { force: true });
+  // A web search may be used: it counts against this person's AI credit (and is skipped if none is left).
+  const found = (await creditBlock(user.id)) ? false : await withMeter({ purpose: "logo lookup", userId: user.id }, () => findDealLogo(dealId, { force: true }));
   revalidatePath("/deals/[id]", "page");
   if (found) return { ok: true };
   const d = await db.deal.findUnique({ where: { id: dealId }, select: { logoNote: true } });

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth/session";
 import { Card, PageHeader, SectionTitle, cx, fmtDate, relTime } from "@/components/ui";
@@ -60,6 +61,13 @@ export default async function AdminPage({ searchParams }: PageProps<"/administra
         </span>
         <span className="text-navy-700">→</span>
       </a>
+      <Link href="/administration/credits" className="mb-8 -mt-4 flex items-center justify-between gap-4 rounded-lg border border-line bg-paper px-5 py-4 transition-colors hover:border-navy-700">
+        <span>
+          <span className="block font-display text-[17px] font-semibold text-navy-900">AI credit limits</span>
+          <span className="block text-[12.5px] text-muted">Give each person an AI credit allowance, add credit, refill it or switch someone off, and see what each person spends against their limit.</span>
+        </span>
+        <span className="text-navy-700">→</span>
+      </Link>
       <a href="/administration/logs" className="mb-8 -mt-4 flex items-center justify-between gap-4 rounded-lg border border-line bg-paper px-5 py-4 transition-colors hover:border-navy-700">
         <span>
           <span className="block font-display text-[17px] font-semibold text-navy-900">Server logs</span>

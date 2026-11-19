@@ -42,6 +42,12 @@ export function describeEvent(
     case "admin.user_updated": return t(`${actor} updated ${person}'s details${typeof meta.role === "string" ? ` (access level: ${roles[meta.role] ?? meta.role})` : ""}`);
     case "admin.user_revoked": return t(`${actor} removed access for ${person}`, true);
     case "admin.user_reactivated": return t(`${actor} restored access for ${person}`);
+    case "admin.credit_set_limit": return t(`${actor} set ${person}'s AI credit allowance to US$${Number(meta.amountUsd ?? 0).toFixed(2)}`);
+    case "admin.credit_add": return t(`${actor} added US$${Number(meta.amountUsd ?? 0).toFixed(2)} of AI credit for ${person}`);
+    case "admin.credit_refill": return t(`${actor} refilled ${person}'s AI credit allowance`);
+    case "admin.credit_cut_off": return t(`${actor} switched off AI work for ${person}`, true);
+    case "admin.credit_restore": return t(`${actor} switched AI work back on for ${person}`);
+    case "admin.credit_remove_limit": return t(`${actor} took away ${person}'s AI credit allowance (no limit)`);
     case "admin.sign_in_link_created": return t(`${actor} created a sign-in link for ${person}`);
     // Deals
     case "deal.created": return t(`${actor} uploaded a new deck: ${deal}`);

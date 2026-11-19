@@ -6,6 +6,7 @@ import { db } from "../db";
 import { audit } from "../audit";
 import { requireRole } from "../auth/session";
 import { withMeter } from "../ai/usage";
+import { creditBlock } from "../credits/limits";
 import { ingestHistoricalDeal } from "../training/engine";
 import { formatBytes, processKnowledgeFile, type FileScope } from "./files";
 
@@ -21,6 +22,7 @@ function pathsFor(scope: FileScope) {
  */
 export async function finishKnowledgeUploadAction(target: { scope: FileScope; id?: string | null }, fileIds: string[]): Promise<UploadState> {
   const user = await requireRole("PARTNER");
+  // Files are already stored; without AI credit they are kept and marked as not read (with the reason), and can be retried later.
   const files = await db.knowledgeFile.findMany({ where: { id: { in: fileIds }, uploadedById: user.id }, select: { id: true, filename: true, sizeBytes: true } });
   if (!files.length) return { ok: false, error: "Nothing was uploaded." };
   const owner =
@@ -35,7 +37,7 @@ export async function finishKnowledgeUploadAction(target: { scope: FileScope; id
   });
   const ids = files.map((f) => f.id);
   after(() =>
-    withMeter({ purpose: "reading knowledge files" }, async () => {
+    withMeter({ purpose: "reading knowledge files", userId: user.id }, async () => {
       for (const id of ids) await processKnowledgeFile(id);
       // A past deal is re-read so its summary and precedent matching include the new files.
       if (target.scope === "PAST_DEAL" && target.id) await ingestHistoricalDeal(target.id);
@@ -56,15 +58,16 @@ export async function deleteKnowledgeFileAction(id: string) {
   });
   if (f.scope === "PAST_DEAL" && f.historicalDealId) {
     const dealId = f.historicalDealId;
-    after(() => withMeter({ purpose: "reading past deals" }, () => ingestHistoricalDeal(dealId)));
+    after(() => withMeter({ purpose: "reading past deals", userId: user.id }, () => ingestHistoricalDeal(dealId)));
   }
   for (const p of pathsFor(f.scope as FileScope)) revalidatePath(p);
 }
 
 export async function retryKnowledgeFileAction(id: string) {
-  await requireRole("PARTNER");
+  const user = await requireRole("PARTNER");
+  if (await creditBlock(user.id)) return;
   await db.knowledgeFile.update({ where: { id }, data: { status: "READING" } });
-  after(() => withMeter({ purpose: "reading knowledge files" }, () => processKnowledgeFile(id)));
+  after(() => withMeter({ purpose: "reading knowledge files", userId: user.id }, () => processKnowledgeFile(id)));
   revalidatePath("/knowledge");
   revalidatePath("/training/archive");
 }
@@ -86,7 +89,7 @@ export async function acceptSuggestionAction(id: string, edited?: Record<string,
       entityId: applied.entityId,
       meta: { name: applied.text, source: s?.sourceLabel, created: !!applied.created, ...(applied.before !== undefined ? { before: applied.before as never } : {}) },
     });
-    if (s?.kind === "PAST_DEAL") after(() => withMeter({ purpose: "past-deal reading" }, () => ingestHistoricalDeal(applied.entityId)));
+    if (s?.kind === "PAST_DEAL") after(() => withMeter({ purpose: "past-deal reading", userId: user.id }, () => ingestHistoricalDeal(applied.entityId)));
     const what = applied.text;
     revalidatePath("/knowledge");
     revalidatePath("/training", "layout");
@@ -118,12 +121,14 @@ export async function acceptAllSuggestionsAction(): Promise<UploadState> {
 
 /** Looks a portfolio company up online and suggests the details the record is missing. */
 export async function fillFromWebAction(companyId: string): Promise<UploadState> {
-  await requireRole("PARTNER");
+  const user = await requireRole("PARTNER");
+  const blocked = await creditBlock(user.id);
+  if (blocked) return { ok: false, error: blocked };
   const c = await db.portfolioCompany.findUnique({ where: { id: companyId } });
   if (!c) return { ok: false, error: "Company not found." };
   const { webResearch } = await import("../ai/analyst");
   const { extractKnowledge, recordSuggestions } = await import("./suggest");
-  const n = await withMeter({ purpose: "knowledge from the web" }, async () => {
+  const n = await withMeter({ purpose: "knowledge from the web", userId: user.id }, async () => {
     const text = await webResearch(
       "knowledge: web",
       `Find public information about the company "${c.name}"${c.website ? ` (${c.website})` : ""}, a Genesys Capital portfolio company${c.sector ? ` in ${c.sector}` : ""}. Report, with a source URL for each fact: its website, what it does, modality and lead indication, funding rounds with amounts, dates and investors (including when Genesys Capital invested), its current status (operating, acquired, IPO, merged or closed) and any exit value or latest valuation. Say plainly what you cannot find.`,
@@ -214,7 +219,9 @@ export async function importTableAction(kind: "portfolio" | "principles", _: Upl
 
 /** Re-reads every firm document and suggests firm settings, principles and portfolio details from them. */
 export async function draftFromDocumentsAction(): Promise<UploadState> {
-  await requireRole("PARTNER");
+  const user = await requireRole("PARTNER");
+  const blocked = await creditBlock(user.id);
+  if (blocked) return { ok: false, error: blocked };
   const docs = await db.knowledgeFile.findMany({ where: { scope: "FIRM", status: "READY" }, select: { filename: true, extractedText: true, summary: true }, orderBy: { createdAt: "desc" } });
   if (!docs.length) return { ok: false, error: "Upload firm documents first (fund strategy, LP reports, IC memos). GAIA drafts from those." };
   let budget = 250_000;
@@ -227,7 +234,7 @@ export async function draftFromDocumentsAction(): Promise<UploadState> {
     .filter(Boolean)
     .join("\n\n");
   const { extractKnowledge, recordSuggestions } = await import("./suggest");
-  const n = await withMeter({ purpose: "knowledge extraction" }, async () => {
+  const n = await withMeter({ purpose: "knowledge extraction", userId: user.id }, async () => {
     const found = await extractKnowledge(
       [{ type: "text", text }],
       "These are Genesys Capital's own documents. Focus on the firm settings (cheque size, ownership, reserves, return hurdle, mandate, screening bar, writing voice) and the investment principles they state, plus any portfolio companies.",
@@ -302,11 +309,13 @@ export async function undoChangeAction(auditId: string): Promise<UploadState> {
 /** "Tell GAIA": a note in plain English, turned into suggestions attributed to whoever wrote it. */
 export async function noteToKnowledgeAction(_: UploadState, fd: FormData): Promise<UploadState> {
   const user = await requireRole("PARTNER");
+  const blocked = await creditBlock(user.id);
+  if (blocked) return { ok: false, error: blocked };
   const text = String(fd.get("note") ?? "").trim().slice(0, 30_000);
   if (text.length < 15) return { ok: false, error: "Write a little more: what happened, which company, which numbers." };
   const who = user.name ?? user.email.split("@")[0];
   const { extractKnowledge, recordSuggestions } = await import("./suggest");
-  const n = await withMeter({ purpose: "knowledge extraction" }, async () => {
+  const n = await withMeter({ purpose: "knowledge extraction", userId: user.id }, async () => {
     const found = await extractKnowledge(
       [{ type: "text", text: `## Note from ${who}, a member of the Genesys Capital team\n\n${text}` }],
       "This is a note from a Genesys team member. 'We' means Genesys Capital.",

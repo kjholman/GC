@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { interpretFeedback } from "../feedback/interpret";
 import { withMeter } from "../ai/usage";
+import { creditBlock } from "../credits/limits";
 import type { FieldChange } from "../changes";
 import type { HistoricalDecision, PortfolioOutcome, Prisma } from "@prisma/client";
 import { db } from "../db";
@@ -54,9 +55,9 @@ async function storeExtras(dealId: string, extras: File[], userId: string) {
   return ids;
 }
 
-function scheduleIngest(ids: string[], fileIds: string[] = []) {
+function scheduleIngest(userId: string, ids: string[], fileIds: string[] = []) {
   after(async () => {
-    await withMeter({ purpose: "reading past deals" }, async () => {
+    await withMeter({ purpose: "reading past deals", userId }, async () => {
       for (const id of fileIds) await processKnowledgeFile(id);
       for (const id of ids) await ingestHistoricalDeal(id);
     });
@@ -67,6 +68,8 @@ function scheduleIngest(ids: string[], fileIds: string[] = []) {
 
 export async function addHistoricalDealAction(_: TrainState, fd: FormData): Promise<TrainState> {
   const user = await requireRole("PARTNER");
+  const blocked = await creditBlock(user.id);
+  if (blocked) return { ok: false, error: blocked };
   const companyName = str(fd, "companyName");
   const decision = str(fd, "decision") as HistoricalDecision | null;
   const rationale = str(fd, "decisionRationale");
@@ -98,7 +101,7 @@ export async function addHistoricalDealAction(_: TrainState, fd: FormData): Prom
     });
     const fileIds = await storeExtras(h.id, extras, user.id);
     await audit("training.archive_added", { userId: user.id, entity: "HistoricalDeal", entityId: h.id, meta: { name: companyName } });
-    scheduleIngest([h.id], fileIds);
+    scheduleIngest(user.id, [h.id], fileIds);
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }
@@ -115,6 +118,8 @@ const DECISION_ALIASES: Record<string, HistoricalDecision> = {
 
 export async function importArchiveCsvAction(_: TrainState, fd: FormData): Promise<TrainState> {
   const user = await requireRole("PARTNER");
+  const blocked = await creditBlock(user.id);
+  if (blocked) return { ok: false, error: blocked };
   const csv = fd.get("csv");
   if (!(csv instanceof File) || csv.size === 0) return { ok: false, error: "Attach the CSV or Excel file." };
   const decks = new Map(
@@ -176,7 +181,7 @@ export async function importArchiveCsvAction(_: TrainState, fd: FormData): Promi
     createdFiles.push(...(await storeExtras(h.id, extras, user.id)));
   }
   await audit("training.archive_imported", { userId: user.id, meta: { rows: created.length } });
-  scheduleIngest(created, createdFiles);
+  scheduleIngest(user.id, created, createdFiles);
   revalidatePath("/training/archive");
   return {
     ok: true,
@@ -186,9 +191,10 @@ export async function importArchiveCsvAction(_: TrainState, fd: FormData): Promi
 
 export async function retryIngestAction(id: string) {
   const user = await requireRole("PARTNER");
+  if (await creditBlock(user.id)) return;
   const h = await db.historicalDeal.findUnique({ where: { id }, select: { companyName: true } });
   await audit("training.archive_retried", { userId: user.id, entity: "HistoricalDeal", entityId: id, meta: { name: h?.companyName } });
-  scheduleIngest([id]);
+  scheduleIngest(user.id, [id]);
   revalidatePath("/training/archive");
 }
 
@@ -263,7 +269,7 @@ export async function saveExemplarAction(sourceAnalysisId: string, _: TrainState
       },
     });
     after(async () => {
-      await withMeter({ purpose: "feedback lessons", analysisId: sourceAnalysisId }, () => interpretFeedback(fb.id));
+      await withMeter({ purpose: "feedback lessons", analysisId: sourceAnalysisId, userId: user.id }, () => interpretFeedback(fb.id));
     });
   }
   await audit("training.exemplar_saved", { userId: user.id, entity: "Exemplar", entityId: ex.id });
@@ -281,8 +287,10 @@ export async function toggleExemplarAction(id: string, active: boolean) {
 
 export async function generateSuggestionsAction(): Promise<TrainState> {
   const user = await requireRole("PARTNER");
+  const blocked = await creditBlock(user.id);
+  if (blocked) return { ok: false, error: blocked };
   try {
-    const n = await withMeter({ purpose: "principle suggestions" }, () => generatePrincipleSuggestions());
+    const n = await withMeter({ purpose: "principle suggestions", userId: user.id }, () => generatePrincipleSuggestions());
     await audit("training.suggestions_generated", { userId: user.id, meta: { n } });
     revalidatePath("/training/calibration");
     return { ok: true, message: n ? `${n} suggested principle${n === 1 ? "" : "s"} ready for review.` : "No clear pattern in the feedback yet." };
@@ -304,6 +312,8 @@ export async function resolveSuggestionAction(id: string, accept: boolean) {
 
 export async function startBacktestAction(_: TrainState, fd: FormData): Promise<TrainState> {
   const user = await requireRole("PARTNER");
+  const blocked = await creditBlock(user.id);
+  if (blocked) return { ok: false, error: blocked };
   const limit = Math.min(200, Math.max(1, Number(str(fd, "limit") ?? 25)));
   const candidates = await db.historicalDeal.findMany({
     where: { ingestStatus: "READY", deckData: { not: null } },
@@ -329,7 +339,7 @@ export async function startBacktestAction(_: TrainState, fd: FormData): Promise<
   });
   await audit("training.backtest_started", { userId: user.id, entity: "BacktestRun", entityId: run.id });
   after(async () => {
-    await withMeter({ purpose: "accuracy tests" }, () => runBacktest(run.id));
+    await withMeter({ purpose: "accuracy tests", userId: user.id }, () => runBacktest(run.id));
   });
   redirect(`/training/backtests/${run.id}`);
 }
@@ -394,13 +404,15 @@ export async function addPastDealToPortfolioAction(id: string): Promise<TrainSta
 /** Attaches the original deck to a past deal so it can be used in accuracy tests. */
 export async function attachDeckAction(id: string, _: TrainState, fd: FormData): Promise<TrainState> {
   const user = await requireRole("PARTNER");
+  const blocked = await creditBlock(user.id);
+  if (blocked) return { ok: false, error: blocked };
   const file = fd.get("deck");
   if (!(file instanceof File) || file.size === 0) return { ok: false, error: "Choose the deck file." };
   if (!isDeckCandidate(file)) return { ok: false, error: "Use a PDF, PowerPoint, Word or image file under 500 MB." };
   const deck = await prepareDeck(file);
   const h = await db.historicalDeal.update({ where: { id }, data: deck });
   await audit("training.archive_deck_added", { userId: user.id, entity: "HistoricalDeal", entityId: id, meta: { name: h.companyName, changes: [{ field: "Original deck", from: "(none)", to: file.name }] } });
-  scheduleIngest([id]);
+  scheduleIngest(user.id, [id]);
   revalidatePath("/training/archive");
   revalidatePath("/training/backtests");
   return { ok: true, message: "Deck attached. This deal can now be used in accuracy tests." };

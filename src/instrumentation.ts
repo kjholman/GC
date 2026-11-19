@@ -6,6 +6,9 @@ export async function register() {
     // A failed background request must never take the whole site down: log it and carry on.
     process.on("unhandledRejection", (reason) => console.error("[server] unhandled rejection (kept running)", reason));
     process.on("uncaughtException", (err) => console.error("[server] uncaught exception (kept running)", err));
+    // ADMIN_EMAIL can always sign in: make sure the account exists and is active.
+    const { ensureAdminAccount } = await import("./lib/credits/limits");
+    await ensureAdminAccount().catch((err) => console.error("[startup] could not set up the administrator account", err));
     const { recoverStaleAnalyses } = await import("./lib/ai/analyst");
     await recoverStaleAnalyses().catch((err) => console.error("[startup] recovery failed", err));
   }

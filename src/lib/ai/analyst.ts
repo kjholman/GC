@@ -10,6 +10,8 @@ import { coverageNote, prepareFiles, type InputFile, type PreparedFiles } from "
 import { FALLBACK_BETA, anthropic, structuredCall, textOf, type ContentBlock } from "./client";
 import { plainPunctuation } from "./style";
 import { isCreditError, recordCreditOk, recordCreditProblem } from "./credit";
+import { assertCredit, isCreditLimitError } from "../credits/limits";
+import { INFERENCE_GEO, RegionError, checkRegion } from "./region";
 import { meteredUsd, recordUsage, withMeter } from "./usage";
 import { findPortfolioMatch } from "../deals/portfolio";
 import { cleanDomain, inspectLogo, logoFromWebsite, websiteFromText } from "../deals/logo";
@@ -183,12 +185,15 @@ async function researchTurns(
   progress: ReturnType<typeof partialRecorder>,
 ): Promise<string | null> {
   for (let turn = 0; turn < 6; turn++) {
+    await assertCredit();
     const stream = anthropic().beta.messages.stream({
       // Research is gathering and summarising, so it runs on the cheaper model.
       model: env.anthropicFastModel,
       max_tokens: 32000,
       thinking: { type: "adaptive" },
       output_config: { effort: "medium" },
+      // US-only processing (see region.ts).
+      inference_geo: INFERENCE_GEO,
       betas: [FALLBACK_BETA],
       fallbacks: "default",
       tools: [
@@ -200,6 +205,7 @@ async function researchTurns(
     });
     stream.on("text", (delta) => progress.add(delta));
     const response = await stream.finalMessage();
+    checkRegion(response.usage, step);
     recordUsage(response.model, response.usage, step);
     void recordCreditOk().catch(() => {});
     if (response.stop_reason === "refusal") return null;
@@ -747,8 +753,10 @@ function textOnlyDocs(docs: Document[]): ContentBlock[] {
 }
 
 /** Runs one live analysis end-to-end, metering every AI call. Safe to call from a background task. */
-export function runAnalysis(analysisId: string): Promise<void> {
-  return withMeter({ purpose: "analysis", analysisId }, async () => {
+export async function runAnalysis(analysisId: string): Promise<void> {
+  // Spend counts against the person who started this version, even when it resumes later.
+  const owner = await db.analysis.findUnique({ where: { id: analysisId }, select: { createdById: true } });
+  return withMeter({ purpose: "analysis", analysisId, userId: owner?.createdById ?? null }, async () => {
     try {
       await runAnalysisSteps(analysisId);
     } finally {
@@ -783,7 +791,9 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
   const midway = Object.keys(done.partial ?? {});
   const continuing = Array.isArray(analysis.steps) && analysis.steps.length > 0;
   const why =
-    analysis.status === "PAUSED" || analysis.progress === "Resuming"
+    analysis.pauseReason === "credit_limit"
+      ? "Resumed after more AI credit was added"
+      : analysis.status === "PAUSED" || analysis.progress === "Resuming"
       ? "Resumed after the Anthropic account was topped up"
       : analysis.progress?.startsWith("Restarting")
         ? "Picked up again after a server update"
@@ -791,7 +801,7 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
 
   await db.analysis.update({
     where: { id: analysisId },
-    data: { status: "RUNNING", startedAt: new Date(), progress: "Reading submitted materials", stage: "reading", error: null },
+    data: { status: "RUNNING", startedAt: new Date(), progress: "Reading submitted materials", stage: "reading", error: null, pauseReason: null },
   });
   await logStep(
     analysisId,
@@ -848,7 +858,7 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
       const tId = Date.now();
       await logStep(analysisId, "Identifying the company, its technology and lead indication", "start");
       const fp = await fingerprint(blocks).catch((err) => {
-        if (isCreditError(err)) throw err;
+        if (isCreditError(err) || err instanceof RegionError) throw err;
         console.error("[analyst] fingerprint failed; continuing", err);
         return null;
       });
@@ -1019,7 +1029,7 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
           },
           async (err) => {
             // Out of credit: stop the whole analysis rather than carry on without research.
-            if (isCreditError(err)) throw err;
+            if (isCreditError(err) || err instanceof RegionError) throw err;
             console.error(`[analyst] ${label} research failed; continuing without it`, err);
             failedResearch.push(label);
             await logStep(analysisId, `Couldn't complete the ${label} research; continuing without it (${errorDetail(err).slice(0, 160)})`, "warn");
@@ -1175,7 +1185,7 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
     const check = async (m: Memo, revisions: number) => {
       const auto = automatedChecks(m, verifyCtx);
       const fact = await modelFactCheck({ memo: auto.sanitized, docs: blocks, research: webSources, precedentsText }).catch((err) => {
-        if (isCreditError(err)) throw err;
+        if (isCreditError(err) || err instanceof RegionError) throw err;
         console.error("[analyst] fact-check failed", err);
         return null;
       });
@@ -1352,11 +1362,29 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
   } catch (err) {
     // Someone pressed Stop: the stop action already recorded it, so just wind down.
     if (err instanceof AnalysisStopped) return;
+    if (isCreditLimitError(err)) {
+      // The person's own allowance is used up (or AI is switched off for them): pause, keeping all work.
+      await db.analysis.update({
+        where: { id: analysisId },
+        data: { status: "PAUSED", pauseReason: "credit_limit", progress: null, error: `Paused: ${err.message}` },
+      });
+      await logStep(analysisId, `Paused: ${err.message} It carries on from here, with nothing lost, once credit is added.`, "warn");
+      await db.activity.create({
+        data: { dealId: deal.id, type: "analysis.paused", message: `GAIA paused version ${analysis.version}: ${err.message}` },
+      });
+      await notifyStarter(analysis.createdById, (to, firstName) =>
+        sendAnalysisProblem(to, firstName, deal.companyName, `${env.appUrl}/deals/${deal.slug ?? deal.id}`,
+          err.reason === "cut_off"
+            ? "It is paused because AI work is switched off for your account. It carries on, with nothing lost, once the administrator turns it back on."
+            : "It is paused because your AI credit allowance is used up. It carries on, with nothing lost, once the administrator adds more credit."),
+      );
+      return;
+    }
     if (isCreditError(err)) {
       await recordCreditProblem().catch(() => {});
       await db.analysis.update({
         where: { id: analysisId },
-        data: { status: "PAUSED", progress: null, error: "Paused because the Anthropic account behind GAIA has run out of credit." },
+        data: { status: "PAUSED", pauseReason: "anthropic_credit", progress: null, error: "Paused because the Anthropic account behind GAIA has run out of credit." },
       });
       await logStep(analysisId, "Paused: the Anthropic account has run out of credit. Once credit is added, press Resume (or an administrator can check credit on the Administration page, which resumes paused analyses)", "warn");
       await db.activity.create({
@@ -1391,6 +1419,7 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
 }
 
 export function describeError(err: unknown): string {
+  if (isCreditLimitError(err)) return err.message;
   return err instanceof Anthropic.APIError
     ? friendlyApiError(err.status, err)
     : err instanceof Error

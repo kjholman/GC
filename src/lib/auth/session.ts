@@ -52,8 +52,8 @@ async function loadUser(touch: boolean) {
     await db.session.update({ where: { id: session.id }, data: { lastSeenAt: new Date() } });
   }
   // Access level comes from the team list; keep the stored role in step with it.
-  // (The testing-only bypass account keeps its role while the bypass is on.)
-  const role = env.adminBypassEnabled && session.user.role === "ADMIN" ? "ADMIN" : roleForEmail(session.user.email);
+  // (The testing-only bypass account keeps its role while the bypass is on, unless ADMIN_EMAIL names the administrator.)
+  const role = !env.adminEmail && env.adminBypassEnabled && session.user.role === "ADMIN" ? "ADMIN" : roleForEmail(session.user.email);
   if (role !== session.user.role) await db.user.update({ where: { id: session.user.id }, data: { role } }).catch(() => {});
   return { ...session.user, role };
 }

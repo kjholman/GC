@@ -2,6 +2,7 @@ import "server-only";
 import { AsyncLocalStorage } from "node:async_hooks";
 import type Anthropic from "@anthropic-ai/sdk";
 import { db } from "../db";
+import { REGION_PRICE_MULTIPLIER } from "./region";
 
 /** US$ per million tokens: input, output, cache read, cache write (5 min), cache write (1 h). */
 const PRICES: Record<string, [number, number, number, number, number]> = {
@@ -26,18 +27,25 @@ export function costOf(model: string, u: Anthropic.Beta.BetaUsage): number {
   const write1h = cc?.ephemeral_1h_input_tokens ?? 0;
   const write5m = cc?.ephemeral_5m_input_tokens ?? Math.max(0, (u.cache_creation_input_tokens ?? 0) - write1h);
   const searches = (u as { server_tool_use?: { web_search_requests?: number } }).server_tool_use?.web_search_requests ?? 0;
+  // US-only processing (inference_geo "us", see region.ts) is billed at 1.1x on every token type.
+  const geo = (u as { inference_geo?: string | null }).inference_geo;
+  const regional = geo === "global" ? 1 : REGION_PRICE_MULTIPLIER;
   return (
-    ((u.input_tokens ?? 0) * inp + (u.output_tokens ?? 0) * out + (u.cache_read_input_tokens ?? 0) * read + write5m * w5 + write1h * w1h) / 1_000_000 +
+    (((u.input_tokens ?? 0) * inp + (u.output_tokens ?? 0) * out + (u.cache_read_input_tokens ?? 0) * read + write5m * w5 + write1h * w1h) / 1_000_000) * regional +
     searches * WEB_SEARCH_USD
   );
 }
 
-type Meter = { analysisId?: string; purpose: string; usd: number };
+type Meter = { analysisId?: string; userId?: string | null; purpose: string; usd: number };
 const store = new AsyncLocalStorage<Meter>();
 
-/** Runs `fn` with every AI call inside it attributed to `purpose` (and analysis, if given). */
+/**
+ * Runs `fn` with every AI call inside it attributed to `purpose`, the analysis (if given)
+ * and the person whose AI credit it uses (`userId`; inherited from an enclosing scope).
+ */
 export function withMeter<T>(meter: Omit<Meter, "usd">, fn: () => Promise<T>): Promise<T> {
-  return store.run({ ...meter, usd: 0 }, fn);
+  const parent = store.getStore();
+  return store.run({ ...meter, userId: meter.userId ?? parent?.userId ?? null, usd: 0 }, fn);
 }
 
 /** Total spent so far inside the current withMeter() scope. */
@@ -45,6 +53,9 @@ export const meteredUsd = () => store.getStore()?.usd ?? 0;
 
 /** The analysis the current withMeter() scope belongs to, if any. */
 export const currentAnalysisId = () => store.getStore()?.analysisId ?? null;
+
+/** The person whose AI credit the current withMeter() scope uses, if any. */
+export const currentUserId = () => store.getStore()?.userId ?? null;
 
 /** Records one API response. Never throws. */
 export function recordUsage(model: string, usage: Anthropic.Beta.BetaUsage, step: string) {
@@ -57,6 +68,7 @@ export function recordUsage(model: string, usage: Anthropic.Beta.BetaUsage, step
         purpose: m?.purpose ?? "other",
         step,
         analysisId: m?.analysisId ?? null,
+        userId: m?.userId ?? null,
         model,
         inputTokens: (usage.input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0) + (usage.cache_creation_input_tokens ?? 0),
         outputTokens: usage.output_tokens ?? 0,

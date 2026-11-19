@@ -30,6 +30,12 @@ model User {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   lastLoginAt DateTime?
+  /// AI credit allowance in US$ (null = no limit). Spending counts from creditSince.
+  creditLimitUsd Float?
+  /// When the current allowance started counting (set when a limit is first set or refilled).
+  creditSince    DateTime?
+  /// Cut off from AI work entirely, whatever the allowance.
+  creditCutOff   Boolean   @default(false)
 
   sessions      Session[]
   feedback      AnalysisFeedback[]
@@ -193,6 +199,8 @@ model Document {
 }
 
 enum AnalysisStatus {
+  /// Created with its projected cost; runs only once someone confirms that cost.
+  AWAITING_CONFIRMATION
   QUEUED
   RUNNING
   COMPLETE
@@ -260,6 +268,13 @@ model Analysis {
   outputTokens   Int?
   /// Exact AI spend for this analysis in US$, all steps included.
   costUsd        Float?
+  /// Projected cost in US$ that was shown and confirmed before the run (with its breakdown), for comparison with costUsd.
+  estimateUsd    Float?
+  estimate       Json?
+  confirmedAt    DateTime?
+  confirmedById  String?
+  /// Why a PAUSED analysis is paused: "anthropic_credit" (GAIA's account) or "credit_limit" (the person's allowance).
+  pauseReason    String?
   error          String?
   createdById    String?
   createdAt      DateTime        @default(now())
@@ -543,9 +558,30 @@ model AiUsage {
   cacheReadTokens  Int @default(0)
   cacheWriteTokens Int @default(0)
   usd          Float
+  /// The person the spend counts against (who started the analysis or action).
+  userId       String?
 
   @@index([createdAt])
   @@index([analysisId])
+  @@index([userId, createdAt])
+}
+
+/// Every change an administrator makes to someone's AI credit: allowance set, credit added, refilled, cut off, restored.
+model CreditChange {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  userId      String
+  byId        String?
+  /// set_limit, add, refill, cut_off, restore, remove_limit
+  kind        String
+  amountUsd   Float?
+  limitBefore Float?
+  limitAfter  Float?
+  /// Spent against the allowance at the moment of the change.
+  usedBefore  Float?
+  note        String?
+
+  @@index([userId, createdAt])
 }
 
 /// Any file attached in the knowledge base or Training Studio: firm documents,

@@ -68,7 +68,7 @@ export function NewDealForm() {
           </Card>
           {state.error && <p className="rounded-lg border border-[#efd2ce] bg-neg-bg px-4 py-3 text-[13px] text-neg">{state.error}</p>}
           <Button type="submit" disabled={pending} className="w-full py-3.5">
-            {pending ? "Uploading materials… large files can take a few minutes" : "Begin analysis"}
+            {pending ? "Uploading materials… large files can take a few minutes" : "Upload and see the projected cost"}
           </Button>
           <p className="text-[11.5px] leading-relaxed text-muted">
             Materials are stored in Genesys&apos; private database and sent to the model provider only for analysis, under

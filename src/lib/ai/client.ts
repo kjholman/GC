@@ -6,6 +6,8 @@ import { env } from "../env";
 import { sanitizeStrings } from "./style";
 import { recordCreditOk } from "./credit";
 import { recordUsage } from "./usage";
+import { assertCredit } from "../credits/limits";
+import { INFERENCE_GEO, checkRegion } from "./region";
 import { noteResume, partialRecorder, resumeBlock, savedPartial } from "./partial";
 
 export type ContentBlock = Anthropic.Beta.BetaContentBlockParam;
@@ -68,6 +70,8 @@ export function isSchemaTooComplex(err: unknown): boolean {
 
 async function structuredCallOnce<S extends z.ZodType>(args: Parameters<typeof structuredCall<S>>[0]): Promise<{ data: z.infer<S>; usage: Anthropic.Beta.BetaUsage; model: string }> {
   const json = args.mode === "json";
+  // The person this work is for must have AI credit left (their allowance, set by the administrator).
+  await assertCredit();
   // Interrupted by a restart last time? Hand back what was written and continue from it.
   // In JSON mode the model writes only the rest, which is joined on; with a strict output
   // format the answer must be whole, so the model rewrites it from its own draft.
@@ -101,6 +105,8 @@ async function streamStructured<S extends z.ZodType>(
     max_tokens: args.maxTokens ?? 64000,
     thinking: { type: "adaptive" },
     output_config: json ? { effort: args.effort } : { effort: args.effort, format: betaZodOutputFormat(args.schema) },
+    // US-only processing (see region.ts).
+    inference_geo: INFERENCE_GEO,
     betas: [FALLBACK_BETA],
     fallbacks: "default",
     ...(args.system ? { system: args.system } : {}),
@@ -113,6 +119,7 @@ async function streamStructured<S extends z.ZodType>(
     stream.on("text", (delta) => scan(delta));
   }
   const response = await stream.finalMessage();
+  checkRegion(response.usage, args.step);
   recordUsage(response.model, response.usage, args.step);
   void recordCreditOk().catch(() => {});
   if (response.stop_reason === "refusal") {
@@ -191,10 +198,12 @@ export function looseJson(text: string): unknown {
 
 /** Asks the fast model to return the same answer as valid JSON matching the schema. */
 async function repairJson<S extends z.ZodType>(schema: S, broken: string, err: unknown, step: string): Promise<z.infer<S>> {
+  await assertCredit();
   const response = await anthropic().beta.messages.stream({
     model: env.anthropicFastModel,
     max_tokens: 64000,
     output_config: { effort: "low" },
+    inference_geo: INFERENCE_GEO,
     messages: [
       {
         role: "user",
@@ -202,6 +211,7 @@ async function repairJson<S extends z.ZodType>(schema: S, broken: string, err: u
       },
     ],
   }).finalMessage();
+  checkRegion(response.usage, `${step} (repair)`);
   recordUsage(response.model, response.usage, `${step} (repair)`);
   return parseLenient(schema, looseJson(textOf(response.content)));
 }
