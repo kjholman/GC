@@ -43,6 +43,9 @@ export function withMeter<T>(meter: Omit<Meter, "usd">, fn: () => Promise<T>): P
 /** Total spent so far inside the current withMeter() scope. */
 export const meteredUsd = () => store.getStore()?.usd ?? 0;
 
+/** The analysis the current withMeter() scope belongs to, if any. */
+export const currentAnalysisId = () => store.getStore()?.analysisId ?? null;
+
 /** Records one API response. Never throws. */
 export function recordUsage(model: string, usage: Anthropic.Beta.BetaUsage, step: string) {
   const usd = costOf(model, usage);

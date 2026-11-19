@@ -6,6 +6,7 @@ import { env } from "../env";
 import { sanitizeStrings } from "./style";
 import { recordCreditOk } from "./credit";
 import { recordUsage } from "./usage";
+import { noteResume, partialRecorder, resumeBlock, savedPartial } from "./partial";
 
 export type ContentBlock = Anthropic.Beta.BetaContentBlockParam;
 
@@ -67,15 +68,34 @@ export function isSchemaTooComplex(err: unknown): boolean {
 
 async function structuredCallOnce<S extends z.ZodType>(args: Parameters<typeof structuredCall<S>>[0]): Promise<{ data: z.infer<S>; usage: Anthropic.Beta.BetaUsage; model: string }> {
   const json = args.mode === "json";
-  const content: ContentBlock[] = json
-    ? [
-        ...args.content,
-        {
-          type: "text",
-          text: `Return only one JSON object, with no other text, that matches this JSON Schema exactly:\n${JSON.stringify(z.toJSONSchema(args.schema))}`,
-        },
-      ]
-    : args.content;
+  // Interrupted by a restart last time? Hand back what was written and continue from it.
+  // In JSON mode the model writes only the rest, which is joined on; with a strict output
+  // format the answer must be whole, so the model rewrites it from its own draft.
+  const prior = await savedPartial(args.step);
+  if (prior) await noteResume(args.step, prior.length);
+  const content: ContentBlock[] = [
+    ...args.content,
+    ...(json
+      ? [{ type: "text" as const, text: `Return only one JSON object, with no other text, that matches this JSON Schema exactly:\n${JSON.stringify(z.toJSONSchema(args.schema))}` }]
+      : []),
+    ...(prior ? [{ type: "text" as const, text: resumeBlock(prior, json) }] : []),
+  ];
+  const continuing = !!prior && json;
+  const progress = partialRecorder(args.step, continuing ? prior : "");
+  try {
+    return await streamStructured(args, content, json, continuing ? prior : null, progress);
+  } finally {
+    await progress.clear();
+  }
+}
+
+async function streamStructured<S extends z.ZodType>(
+  args: Parameters<typeof structuredCall<S>>[0],
+  content: ContentBlock[],
+  json: boolean,
+  prior: string | null,
+  progress: ReturnType<typeof partialRecorder>,
+): Promise<{ data: z.infer<S>; usage: Anthropic.Beta.BetaUsage; model: string }> {
   const stream = anthropic().beta.messages.stream({
     model: args.tier === "fast" ? env.anthropicFastModel : env.anthropicModel,
     max_tokens: args.maxTokens ?? 64000,
@@ -86,7 +106,9 @@ async function structuredCallOnce<S extends z.ZodType>(args: Parameters<typeof s
     ...(args.system ? { system: args.system } : {}),
     messages: [{ role: "user", content }],
   });
-  if (args.onSection) {
+  stream.on("text", (delta) => progress.add(delta));
+  // Section progress reads the answer from its opening brace, so it is skipped when continuing.
+  if (args.onSection && !prior) {
     const scan = topLevelKeys(args.onSection);
     stream.on("text", (delta) => scan(delta));
   }
@@ -99,10 +121,15 @@ async function structuredCallOnce<S extends z.ZodType>(args: Parameters<typeof s
   if (response.stop_reason === "max_tokens") {
     throw new Error("The response exceeded the maximum output length. Try again.");
   }
-  const text = textOf(response.content);
+  const written = textOf(response.content);
+  let text = prior ? prior + written : written;
   let raw: z.infer<S>;
   if (!json && response.parsed_output) raw = response.parsed_output as z.infer<S>;
-  else {
+  else if (prior && !tryParse(args.schema, text) && tryParse(args.schema, written)) {
+    // The model started over instead of continuing: its own answer is complete.
+    text = written;
+    raw = tryParse(args.schema, written)!;
+  } else {
     try {
       raw = parseLenient(args.schema, looseJson(text));
     } catch (err) {
@@ -116,6 +143,15 @@ async function structuredCallOnce<S extends z.ZodType>(args: Parameters<typeof s
   return { data, usage: response.usage, model: response.model };
 }
 
+
+/** The parsed answer, or null if it isn't valid. */
+function tryParse<S extends z.ZodType>(schema: S, text: string): z.infer<S> | null {
+  try {
+    return parseLenient(schema, looseJson(text));
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Parses a model's JSON answer, forgiving the slips long outputs sometimes

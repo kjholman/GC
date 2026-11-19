@@ -240,7 +240,7 @@ az acr webhook create -r $ACR -n gaiadeploy --uri "$HOOK" --actions push --scope
 
 GitHub Actions: an Azure identity that trusts the repository's `main` branch (OpenID Connect, no stored password); the workflow runs type checks and lint, `az acr build`, `az webapp config container set`, then waits for the app to answer.
 
-During an update App Service fetches the new image and restarts on it (usually a minute or two). GAIA applies database changes on start, and analyses interrupted by the restart resume from their last saved step.
+During an update App Service fetches the new image and restarts on it (usually a minute or two). GAIA applies database changes on start. Analyses interrupted by the restart resume immediately: finished stages are reused, and the step that was cut off continues from the text it had already written, which is saved every few seconds while it streams.
 
 Rolling back: point the app at an earlier tag (command or Deployment Center). With continuous deployment on `latest`, the next push replaces it.
 

@@ -5,6 +5,7 @@ import { db } from "../db";
 import { env } from "../env";
 import { FIRM_SETTINGS, getFirmSettings } from "../training/settings";
 import { findPrecedents, similarity } from "../training/retrieval";
+import { noteResume, partialRecorder, resumeBlock, savedPartial } from "./partial";
 import { coverageNote, prepareFiles, type InputFile, type PreparedFiles } from "./files";
 import { FALLBACK_BETA, anthropic, structuredCall, textOf, type ContentBlock } from "./client";
 import { plainPunctuation } from "./style";
@@ -153,7 +154,34 @@ export async function fingerprint(docs: ContentBlock[]): Promise<Fingerprint> {
 
 /** Agentic web research with server-side search/fetch; returns sourced notes. */
 export async function webResearch(step: string, prompt: string, input: ContentBlock[], limits: { search: number; fetch: number }): Promise<string | null> {
-  const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: "user", content: [...input, { type: "text", text: prompt }] }];
+  // Cut off by a restart last time? Hand back the notes written so far and continue them.
+  const prior = await savedPartial(step);
+  if (prior) await noteResume(step, prior.length);
+  const messages: Anthropic.Beta.BetaMessageParam[] = [
+    {
+      role: "user",
+      content: [
+        ...input,
+        { type: "text", text: prompt },
+        ...(prior ? [{ type: "text" as const, text: `${resumeBlock(prior, true)}\nSearch only for what the notes above still lack.` }] : []),
+      ],
+    },
+  ];
+  const progress = partialRecorder(step, prior ?? "");
+  try {
+    const notes = await researchTurns(step, messages, limits, progress);
+    return prior ? plainPunctuation(`${prior}${notes ?? ""}`.trim()) || null : notes;
+  } finally {
+    await progress.clear();
+  }
+}
+
+async function researchTurns(
+  step: string,
+  messages: Anthropic.Beta.BetaMessageParam[],
+  limits: { search: number; fetch: number },
+  progress: ReturnType<typeof partialRecorder>,
+): Promise<string | null> {
   for (let turn = 0; turn < 6; turn++) {
     const stream = anthropic().beta.messages.stream({
       // Research is gathering and summarising, so it runs on the cheaper model.
@@ -170,6 +198,7 @@ export async function webResearch(step: string, prompt: string, input: ContentBl
       ],
       messages,
     });
+    stream.on("text", (delta) => progress.add(delta));
     const response = await stream.finalMessage();
     recordUsage(response.model, response.usage, step);
     void recordCreditOk().catch(() => {});
@@ -672,6 +701,10 @@ export type Checkpoint = {
   draft?: { memo: Memo; model: string; docsKey: string };
   /** The fact-checked memo; final = corrections (if any) done and re-checked. */
   checked?: { memo: Memo; report: VerificationReport; docsKey: string; final: boolean };
+  /** Text a step had streamed when the server stopped, keyed by step (see partial.ts). */
+  partial?: Record<string, { text: string; at: string }>;
+  /** How many server restarts this analysis has resumed from. */
+  resumes?: number;
 };
 
 /** Merges one piece of finished work into the analysis's saved progress (atomic, safe in parallel). */
@@ -746,6 +779,8 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
     ...(done.draft ? ["draft memo"] : []),
     ...(done.checked ? [done.checked.final ? "fact-checked memo" : "fact-check"] : []),
   ];
+  // Steps cut off mid-answer: they continue from the text already written.
+  const midway = Object.keys(done.partial ?? {});
   const continuing = Array.isArray(analysis.steps) && analysis.steps.length > 0;
   const why =
     analysis.status === "PAUSED" || analysis.progress === "Resuming"
@@ -761,7 +796,7 @@ async function runAnalysisSteps(analysisId: string): Promise<void> {
   await logStep(
     analysisId,
     continuing
-      ? `${why}. Carrying on where it left off${carriedOver.length ? `; already done and reused: ${carriedOver.join(", ")}` : ""}`
+      ? `${why}. Carrying on where it left off${carriedOver.length ? `; already done and reused: ${carriedOver.join(", ")}` : ""}${midway.length ? `; continuing mid-way: ${midway.join(", ")}` : ""}`
       : analysis.version === 1 ? "Started the first analysis of this deal" : `Started analysis version ${analysis.version}`,
     continuing ? "info" : "start",
   );
@@ -1380,18 +1415,28 @@ function friendlyApiError(status: number | undefined, err?: unknown): string {
  */
 export async function recoverStaleAnalyses() {
   const cutoff = new Date(Date.now() - 45 * 60 * 1000);
-  const resumeCutoff = new Date(Date.now() - 6 * 60 * 60 * 1000);
-  await db.analysis.updateMany({
-    where: { status: { in: ["RUNNING", "QUEUED"] }, createdAt: { lt: resumeCutoff } },
-    data: { status: "FAILED", error: "The server restarted while this was running. Run the analysis again.", progress: null },
-  });
-  const interrupted = await db.analysis.findMany({ where: { status: { in: ["RUNNING", "QUEUED"] } }, select: { id: true } });
-  for (const { id } of interrupted) {
-    await db.analysis.update({ where: { id }, data: { status: "QUEUED", progress: "Restarting after a server update" } });
+  // Every analysis a restart interrupted resumes straight away, however long ago it began:
+  // finished stages are reused from the checkpoint, and a step that was cut off continues
+  // from the text it had already written. One that has already been restarted
+  // MAX_RESUMES times is stopped instead, so an analysis that keeps crashing the server
+  // can't loop forever.
+  const interrupted = await db.analysis.findMany({ where: { status: { in: ["RUNNING", "QUEUED"] } }, select: { id: true, checkpoint: true } });
+  let resumed = 0;
+  for (const { id, checkpoint } of interrupted) {
+    const resumes = Number((checkpoint as { resumes?: number } | null)?.resumes ?? 0);
+    if (resumes >= MAX_RESUMES) {
+      await db.analysis.update({
+        where: { id },
+        data: { status: "FAILED", progress: null, error: `Stopped after the server restarted ${MAX_RESUMES} times during this analysis. Run it again; finished stages are reused.` },
+      });
+      continue;
+    }
+    await db.$executeRaw`UPDATE "Analysis" SET "status" = 'QUEUED', "progress" = 'Restarting after a server update', "checkpoint" = COALESCE("checkpoint", '{}'::jsonb) || jsonb_build_object('resumes', ${resumes + 1}::int) WHERE "id" = ${id}`;
     // Not awaited: startup must not wait for analyses that take many minutes.
     void runAnalysis(id).catch((err) => console.error("[startup] could not resume analysis", id, err));
+    resumed++;
   }
-  if (interrupted.length) console.log(`[startup] resumed ${interrupted.length} interrupted analys${interrupted.length === 1 ? "is" : "es"}`);
+  if (resumed) console.log(`[startup] resumed ${resumed} interrupted analys${resumed === 1 ? "is" : "es"}`);
   await db.backtestRun.updateMany({
     where: { status: { in: ["RUNNING", "QUEUED"] }, createdAt: { lt: cutoff } },
     data: { status: "FAILED", error: "Interrupted by a server restart." },
@@ -1401,6 +1446,9 @@ export async function recoverStaleAnalyses() {
     data: { ingestStatus: "FAILED", ingestError: "Interrupted by a server restart. Retry ingestion." },
   });
 }
+
+/** How many server restarts one analysis may resume from before it is stopped. */
+const MAX_RESUMES = 3;
 
 /** Keep a real sector once known, but never let a placeholder like "Other" block a specific one found later. */
 function pickSector(current: string | null, found: string | null | undefined): string | null {

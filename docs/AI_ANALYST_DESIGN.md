@@ -100,7 +100,8 @@ The full instructions and the current firm context can be read under Training St
 
 - **Background execution.** Analyses run in the same process after the request returns (Next.js `after()`); the deal page polls for progress.
 - **Checkpoints.** Each finished stage (research pass, sweep, draft memo, fact-check) is saved to `Analysis.checkpoint`. A resumed or restarted run skips finished work.
-- **Restart recovery** (`src/instrumentation.ts`). Analyses interrupted in the last 6 hours are re-queued and resume from their checkpoint; older ones are marked as not finished.
+- **Work in progress** (`src/lib/ai/partial.ts`). While a step streams its answer, the text written so far is saved to `checkpoint.partial[step]` every 5 seconds, and cleared when the request ends. If the server stops mid-step, the resumed step sends that text back to the model ("continue from exactly the next character") and joins the continuation on. Claude Opus 5.5 and Sonnet 5.5 don't accept assistant prefill, so the text goes back as context. For steps with a strict output format, the model rewrites the full answer from its own draft. If the joined answer doesn't parse, the model's own output is used, then the JSON repair, so a bad join never costs the analysis.
+- **Restart recovery** (`src/instrumentation.ts`). On start-up, every interrupted analysis is resumed immediately, however long ago it began, reusing finished stages and continuing the step that was cut off. One that has already been resumed after 3 restarts is stopped with a message instead (`checkpoint.resumes`), so an analysis that keeps crashing the server cannot loop.
 - **Out of credit.** A credit or billing error pauses the analysis instead of failing it; it resumes when credit is back.
 - **Truncation and refusals** stop the run with a plain message rather than saving a partial memo.
 
